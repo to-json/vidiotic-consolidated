@@ -1,0 +1,22 @@
+i think a tracker might be the right ui metaphor for vidiotic, but it's even more alien than the current drag and drop.
+
+i have control mappings; i could try to do the controller driven tracker i have been contemplating for years, here. in my head that was for music, but it's isolated ux
+---
+technically not even particularly original, music maker on the ps2 is approximately a controller driven tracker. i think some of my design ideas are slightly better, because that was a clunky and slow experience, but it might also be a sign i'm headed the wrong way
+---
+i want the tool to be adoptable, by the sort of person to be a self-directed dj. that feels like i probably have some leeway to expect users to learn things, but also djs can be notoriously weird about workflow and shit
+---
+ableton clip view is also maybe an inspo option. i have 'banks' and i think i need metabanks, to control the default flow relation between banks, with overrides for fills and the like
+
+i think i might also, for users with stupid amounts of ram, do more with offsets in big files
+---
+then there's shit i'm not really sure about like adding modularity; i have all these per-clip values like start offset and loop length that could themselves be modulated and that'd probably be kinda tight, especially for the dancing and abstract source clip styles
+---
+i think this is leading me towards
+
+- banks are easily cloneable entities 
+- banks can have 'modifier slots'
+- modifier slots can affect
+- - next
+- - all numerics of a cue/clip
+- - possibly the underlying clip itself? seems dragon-filled

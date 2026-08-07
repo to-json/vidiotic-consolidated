@@ -1,0 +1,47 @@
+ok i think i see it and threadoor (i'm threading!) mode is probably the right mind to dump it
+---
+i think a tracker might be the right ui metaphor for vidiotic, but it's even more alien than the current drag and drop.
+
+i have control mappings; i could try to do the controller driven tracker i have been contemplating for years, here. in my head that was for music, but it's isolated ux
+---
+so i need to get to ~8 core verb-roots, and up to 64 core verb forms. in order to keep input detection tight, i'd like to be rising-edge-sensitive only. so i say these 8 ish verb-roots with up-to 8 conjugations are the core metaphor for a given pane, and give those to "the face buttons"
+---
+i had looked at schemes to do it with the shoulders, and i like them, but that must be optional because de minimis midi options will only give me 8 trackable rising edge inputs (well, some even fewer, but i can reasonably demand 8 for full function)
+---
+then those can also be keys, and we take vi style arpeggios as core inputs, ex (g)o to next (k)eyframe, but in controller or midi land, one can just pick an arbitrary face for it
+
+maybe display the input trail in the modeline and pop a modal containing the next-options ala telescope x doom-2016
+---
+controllers can get a keyboard input where applicable using similar principals on the analogs, 8 dirs left stick for 'alphabet octant', 8 right stick for 'selected glyph'. doubt i need 101, 64 seems like plenty especially if i cheat in caps via shoulder
+
+midi will want a bt keeb, probably
+---
+but then once i have that, you can use keeb for search-likes fairly ergonomically, and i can repurpose most controller shit for touchscreen (or pop a touch keeb where appropriate) and then my whole interaction metaphor is baseline multiplatform and fairly ime agnostic
+---
+and preferring arpeggios links explicitly the vi cultural heritage
+
+as for the tracker
+
+i think once i have a mousless baseline ime, i think spreadsheet rows make an excellent per-clip, per-cue, and per-bank representation, as long as i retain the sidebar detail view, which is ~renoise and rekordbox
+---
+i'll lose people here but that's ok, i think. for those it fits for, it'll be the fastest and easiest video editing metaphor, and it'll be extremely at home on a palmtop, laptop, tablet, ds-style gaming console, and even sufferable on a gameboy-style console (though such a release would need assets)
+---
+it also invites additional nouns, like pattern, bank-set (elektron calls this 'part'), some filter-set idea to cut down on cue modification time. maybe machine even, as i have cameras, clips, and shaders as potential base-sources for texture 0
+
+or maybe i offer texture layers? harder question
+---
+texture layers certainly empower the user a _lot_, especially in the shader live-code usecase (my sweetheart fave) but they invite more modal setup spaces and idk. maybe if i land on 7 nouns i'll make the 8th "advanced-advanced" (as i'm retaining the original and calling this whole thing "advanced")
+---
+but the cool part of this whole thing is i can rip it out at a fairly high level of abstraction and now i have an egui toolkit for arbitrary multiplatform modal input. also said toolkit would be charlie-work to port to an arbitrary ui kit since it's abstractions are foreign to all of them but simple
+---
+my hope is that by including a vi-like, elektron-like, tracker-like experience as an advanced toggle in an app with an accessible-but-platform-limiting baseline input modality i can onboard/gateway-drug users into those input metaphors, all of which i consider superior-but-sharply-curved ux concepts
+---
+but also for my actual personal usecase this sounds ideal, and there is still a value prop to the drag and drop version in a tool that's likely to be used whilst rather effed up.
+
+envisioning 'open viz night' where you can hypothetically let an 'audience member'/fellow party-goer have the controller
+---
+and then probably the next thing is an fx pedal with a similar input modality, either 'for tablets' or in a hardware box with a mini-tablet display. then a music tracker and/or dj system ala live x renoise. maybe even an open dmx/arbitrary-wire-protocol sequencer. 
+
+a little band of ds4 controllers!
+---
+which, amusingly, should be mostly-compatible with like, rock-band/dj hero type shit too

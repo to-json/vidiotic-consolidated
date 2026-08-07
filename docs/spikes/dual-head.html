@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>vidiotic — dual-head spike</title>
+<style>
+  :root {
+    --bg: #0b0e0c; --fg: #c8d6cc; --dim: #6b7d70; --rule: #1e2a22;
+    --pass: #6ee7a0; --fail: #ff6b6b; --warn: #ffd166; --na: #55635a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem; background: var(--bg); color: var(--fg);
+    font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.1rem; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 .25rem; }
+  .sub { color: var(--dim); margin: 0 0 2rem; }
+  h2 {
+    font-size: .8rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim);
+    margin: 2.2rem 0 .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--rule);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: .38rem .5rem .38rem 0; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  td.k { width: 26rem; color: var(--fg); }
+  td.v { color: var(--dim); }
+  td.s { width: 5.5rem; }
+  .chip { font-size: .72rem; letter-spacing: .1em; padding: .1rem .45rem; border: 1px solid currentColor; }
+  .PASS { color: var(--pass); } .FAIL { color: var(--fail); }
+  .WARN { color: var(--warn); } .NA { color: var(--na); }
+  .headline {
+    margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); background: #0f1411;
+  }
+  .headline .verdict { font-size: 1.35rem; letter-spacing: .04em; }
+  .headline p { margin: .5rem 0 0; color: var(--dim); }
+  pre {
+    margin: .5rem 0 0; padding: .7rem .8rem; background: #0f1411; border: 1px solid var(--rule);
+    color: var(--dim); overflow-x: auto; font-size: 12px; white-space: pre-wrap;
+  }
+  button {
+    font: inherit; color: var(--bg); background: var(--pass); border: 0;
+    padding: .55rem 1.1rem; letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+  }
+  button:disabled { background: var(--na); cursor: default; }
+  canvas { border: 1px solid var(--rule); image-rendering: pixelated; width: 128px; height: 128px; }
+  footer { margin-top: 3rem; color: var(--na); font-size: 12px; }
+  code { color: var(--fg); }
+</style>
+</head>
+<body>
+<main>
+  <h1>vidiotic — dual-head spike</h1>
+  <p class="sub">
+    Answers <code>docs/web-port.md</code> §10, option 1: can <strong>one</strong>
+    <code>GPUDevice</code> in this document drive a canvas living in a second,
+    same-origin <code>window.open()</code> document? That question picks the
+    architecture — option 1 is structurally identical to native dual-head;
+    failing it drops us to option 2, two render loops synced over BroadcastChannel.
+  </p>
+
+  <div class="headline">
+    <div class="verdict" id="verdict">idle</div>
+    <p id="verdict-why">Needs a click: <code>window.open()</code> requires a user gesture, or the popup blocker eats it.</p>
+    <p><button id="run">Run the spike</button></p>
+  </div>
+
+  <h2>Result</h2>
+  <table id="t"></table>
+
+  <h2>Local canvas (this document)</h2>
+  <canvas id="local" width="64" height="64"></canvas>
+  <p class="sub" id="loopnote"></p>
+
+  <footer>
+    A <span class="PASS">PASS</span> on <em>cross-document pixels verified</em> is the
+    whole spike. Everything above it is a precondition; anything below is detail.
+    Serve over http (<code>python3 -m http.server</code>) — not <code>file://</code>.
+  </footer>
+</main>
+
+<script>
+const T = document.getElementById('t');
+
+function row(k, status, v) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="k"></td><td class="s"><span class="chip ${status}">${status}</span></td><td class="v"></td>`;
+  tr.children[0].textContent = k;
+  tr.children[2].textContent = v ?? '';
+  T.appendChild(tr);
+  return status;
+}
+
+function verdict(text, why, cls) {
+  const v = document.getElementById('verdict');
+  v.textContent = text;
+  v.className = 'verdict ' + cls;
+  document.getElementById('verdict-why').textContent = why;
+}
+
+// Exact 8-bit values, so a correct render reads back as these integers rather
+// than something we have to squint at. Different per canvas: if the two ever
+// got crossed we would see it instead of guessing.
+const LOCAL_RGB  = [ 32,  96, 160];
+const REMOTE_RGB = [224,  64, 128];
+
+const u8 = c => c.map(x => x / 255);
+
+/** Clear `ctx`'s current texture to `rgb` and copy it into `buf` for readback. */
+function drawAndCopy(device, enc, ctx, rgb, buf, size) {
+  const tex = ctx.getCurrentTexture();
+  const [r, g, b] = u8(rgb);
+  enc.beginRenderPass({
+    colorAttachments: [{
+      view: tex.createView(),
+      loadOp: 'clear', storeOp: 'store',
+      clearValue: { r, g, b, a: 1 },
+    }],
+  }).end();
+  if (buf) {
+    enc.copyTextureToBuffer({ texture: tex }, { buffer: buf, bytesPerRow: size * 4 },
+                            { width: size, height: size, depthOrArrayLayers: 1 });
+  }
+  return tex;
+}
+
+/** Pull the centre pixel out of a mapped readback buffer, honouring channel order. */
+function centrePixel(bytes, size, format) {
+  const i = ((size >> 1) * size + (size >> 1)) * 4;
+  const [a, b, c] = [bytes[i], bytes[i + 1], bytes[i + 2]];
+  return format.startsWith('bgra') ? [c, b, a] : [a, b, c];
+}
+
+const near = (got, want) => got.every((x, i) => Math.abs(x - want[i]) <= 1);
+
+async function run() {
+  document.getElementById('run').disabled = true;
+  T.innerHTML = '';
+  verdict('running…', '', '');
+
+  if (!navigator.gpu) {
+    row('navigator.gpu', 'FAIL', 'no WebGPU in this browser');
+    return verdict('NO WEBGPU', 'The spike cannot run here. §1a covers baseline support.', 'FAIL');
+  }
+
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+  if (!adapter) {
+    row('requestAdapter', 'FAIL', 'no adapter');
+    return verdict('NO ADAPTER', 'WebGPU present but no usable adapter.', 'FAIL');
+  }
+  const device = await adapter.requestDevice();
+  const info = adapter.info ?? {};
+  row('One GPUDevice acquired', 'PASS',
+      [info.vendor, info.architecture, info.description].filter(Boolean).join(' / ') || 'ok');
+
+  // Surface the real reason on any validation error rather than a bare exception.
+  let gpuError = null;
+  device.addEventListener('uncapturederror', e => { gpuError = String(e.error.message).trim(); });
+
+  const SIZE = 64;                                  // 64*4 == 256, the bytesPerRow alignment
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  row('Preferred canvas format', 'PASS', format);
+
+  // --- precondition: a second same-origin document -------------------------
+  // about:blank from window.open() inherits the opener's origin, which keeps
+  // this spike one file. A real /play output window is a served URL; same rules.
+  const win = window.open('', 'vidiotic-output', 'width=420,height=420');
+  if (!win) {
+    row('window.open()', 'FAIL', 'blocked — allow popups for this origin and retry');
+    return verdict('POPUP BLOCKED', 'Not a WebGPU result. Allow popups and run again.', 'WARN');
+  }
+  win.document.open();
+  win.document.write(`<!doctype html><meta charset="utf-8"><title>vidiotic — output</title>
+    <body style="margin:0;background:#000;display:grid;place-items:center;height:100vh">
+    <canvas id="out" width="${SIZE}" height="${SIZE}"
+            style="width:256px;height:256px;image-rendering:pixelated"></canvas>`);
+  win.document.close();
+  row('Second window opened', 'PASS', 'about:blank, same origin, named vidiotic-output');
+
+  const remoteCanvas = win.document.getElementById('out');
+  if (!remoteCanvas) {
+    win.close();
+    row('Reach the child document', 'FAIL', 'canvas not found');
+    return verdict('UNREACHABLE', 'Could not touch the child DOM.', 'FAIL');
+  }
+  row('Child DOM reachable from opener', 'PASS', 'no serialization boundary');
+
+  // Distinct realms: the child has its own GPUCanvasContext constructor. This is
+  // exactly the seam that might reject a device from the parent realm.
+  row('Child realm is distinct', win.GPUCanvasContext === window.GPUCanvasContext ? 'WARN' : 'PASS',
+      win.GPUCanvasContext === window.GPUCanvasContext
+        ? 'same constructor identity — unexpected, but harmless'
+        : 'separate constructors, as expected — the cross-realm case is real');
+
+  // --- the actual question -------------------------------------------------
+  const localCtx = document.getElementById('local').getContext('webgpu');
+  let remoteCtx;
+  try {
+    remoteCtx = remoteCanvas.getContext('webgpu');
+  } catch (e) {
+    win.close();
+    row('getContext("webgpu") on the foreign canvas', 'FAIL', String(e));
+    return verdict('OPTION 1 UNAVAILABLE', 'Take option 2: two render loops over BroadcastChannel.', 'FAIL');
+  }
+  if (!remoteCtx) {
+    win.close();
+    row('getContext("webgpu") on the foreign canvas', 'FAIL', 'returned null');
+    return verdict('OPTION 1 UNAVAILABLE', 'Take option 2: two render loops over BroadcastChannel.', 'FAIL');
+  }
+  row('getContext("webgpu") on the foreign canvas', 'PASS', 'context obtained across documents');
+
+  // COPY_SRC is what lets us read the pixels back. Without it this spike could
+  // only report "nothing threw", which is not evidence that anything rendered.
+  const cfg = {
+    device, format, alphaMode: 'opaque',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+  };
+  localCtx.configure(cfg);
+  try {
+    remoteCtx.configure(cfg);
+  } catch (e) {
+    win.close();
+    row('configure() foreign context with THIS document\'s device', 'FAIL', String(e));
+    return verdict('OPTION 1 UNAVAILABLE', 'The device does not cross the document boundary. Take option 2.', 'FAIL');
+  }
+  row('configure() foreign context with THIS document\'s device', 'PASS', 'one device, two canvases');
+
+  // One encoder, one submit, both surfaces — the native dual-head shape.
+  const bytes = SIZE * SIZE * 4;
+  const localBuf  = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const remoteBuf = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+
+  const enc = device.createCommandEncoder();
+  drawAndCopy(device, enc, localCtx,  LOCAL_RGB,  localBuf,  SIZE);
+  drawAndCopy(device, enc, remoteCtx, REMOTE_RGB, remoteBuf, SIZE);
+  device.queue.submit([enc.finish()]);
+  await device.queue.onSubmittedWorkDone();
+  row('Single encoder + single submit spanning both', 'PASS', 'no per-window command buffer needed');
+
+  await localBuf.mapAsync(GPUMapMode.READ);
+  await remoteBuf.mapAsync(GPUMapMode.READ);
+  const localPx  = centrePixel(new Uint8Array(localBuf.getMappedRange()),  SIZE, format);
+  const remotePx = centrePixel(new Uint8Array(remoteBuf.getMappedRange()), SIZE, format);
+  localBuf.unmap(); remoteBuf.unmap();
+
+  const localOk  = near(localPx,  LOCAL_RGB);
+  const remoteOk = near(remotePx, REMOTE_RGB);
+  row('Local canvas pixels verified',  localOk  ? 'PASS' : 'FAIL',
+      `got rgb(${localPx})  want rgb(${LOCAL_RGB})`);
+  row('Cross-document pixels verified', remoteOk ? 'PASS' : 'FAIL',
+      `got rgb(${remotePx})  want rgb(${REMOTE_RGB})`);
+
+  if (gpuError) row('Uncaptured GPU error', 'WARN', gpuError);
+
+  if (!remoteOk) {
+    verdict('OPTION 1 UNAVAILABLE', 'The calls succeeded but no pixels landed in the child. Take option 2.', 'FAIL');
+    return;
+  }
+
+  // --- does it hold up over time, not just for one frame? ------------------
+  // A single submit can succeed while a sustained loop dies on the first
+  // resize, occlusion, or texture rotation. /play needs the sustained case.
+  let frames = 0, loopErr = null;
+  const started = performance.now();
+  const tick = () => {
+    if (win.closed) {
+      document.getElementById('loopnote').textContent =
+        `Output window closed after ${frames} frames. Local canvas keeps rendering — ` +
+        `losing the output head did not take the device down.`;
+      return;
+    }
+    try {
+      const e2 = device.createCommandEncoder();
+      const t = (performance.now() - started) / 1000;
+      const wobble = c => c.map((x, i) => Math.round((Math.sin(t + i) * 0.5 + 0.5) * 127 + x / 2) & 255);
+      drawAndCopy(device, e2, localCtx,  wobble(LOCAL_RGB),  null, SIZE);
+      drawAndCopy(device, e2, remoteCtx, wobble(REMOTE_RGB), null, SIZE);
+      device.queue.submit([e2.finish()]);
+      frames++;
+    } catch (e) {
+      loopErr = String(e);
+      row('Sustained cross-document loop', 'FAIL', `died at frame ${frames}: ${loopErr}`);
+      return;
+    }
+    if (frames === 120) {
+      row('Sustained cross-document loop', 'PASS', '120 frames, one rAF loop driving both heads');
+      document.getElementById('loopnote').textContent =
+        'Still looping. Drag the output window to a second display, resize it, ' +
+        'occlude it — it should keep painting. Close it to test head loss.';
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  verdict('OPTION 1 WORKS', 'One GPUDevice drives a canvas in a second same-origin document, ' +
+    'and the pixels are verified by readback. /play can use the native dual-head architecture: ' +
+    'one engine, one render loop, two surfaces.', 'PASS');
+}
+
+document.getElementById('run').addEventListener('click', () => {
+  run().catch(e => {
+    row('Unhandled', 'FAIL', String(e && e.stack || e));
+    verdict('SPIKE ERRORED', String(e), 'FAIL');
+  });
+});
+</script>
+</body>
+</html>

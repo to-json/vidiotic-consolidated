@@ -1,0 +1,74 @@
+[workspace]
+resolver = "2"
+members = [
+    "vidiotic",
+    "vidiotic-core",
+    "vidiotic-bake",
+    "vidiotic-ctl",
+    "phosphor",
+    "vidiotic-prep",
+    "vidiotic-wire",
+    "vidiotic-play",
+    "vidiotic-chop",
+]
+
+# Full DWARF is the default, and `target/debug/deps` had grown to 11 GB across
+# ~30k files. The weight is in the rlibs and their object files, not in the
+# executables — macOS defaults dev builds to `split-debuginfo = "unpacked"`, so
+# a linked binary never carries the DWARF in the first place. Measured on
+# `libvidiotic.rlib`, same commit, clean rebuild each way:
+#
+#     debug = true               68 MB
+#     debug = "line-tables-only" 25 MB
+#
+# Cargo never garbage-collects `deps/`, so every feature-set and target
+# permutation leaves another copy of that behind and the multiplier compounds.
+# Line tables keep backtraces resolving to file:line, which is how this codebase
+# is actually debugged; what they drop is variable inspection under a debugger.
+[profile.dev]
+debug = "line-tables-only"
+
+# The transcode/bake hot path (BC1 block compression, its rayon fan-out, and
+# snappy framing) is drastically slower unoptimized — build it optimized even
+# in dev. These crates now reach the hot path through vidiotic-bake, which both
+# vidiotic and vidiotic-prep depend on.
+[profile.dev.package.texpresso]
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
+[profile.dev.package.rayon]
+opt-level = 3
+[profile.dev.package.rayon-core]
+opt-level = 3
+[profile.dev.package.snap]
+opt-level = 3
+
+# The browser bundle is a download, so its size is a user-facing latency number
+# in a way a native binary's never is. Used only by `scripts/build-play.sh`;
+# `release` is left alone because the native transcoder's hot loop lives there
+# and its build times are already long enough.
+#
+# `panic = "abort"` is the one that needs saying: it removes the unwinding
+# tables and landing pads, and it costs nothing here because
+# wasm32-unknown-unknown cannot unwind across the JS boundary anyway — a panic
+# was always going to end the session. The hook still runs first, so
+# `console_error_panic_hook` keeps printing the message and the Rust backtrace
+# before the trap.
+#
+# `opt-level` deliberately stays at release's 3. Measured on this crate, at the
+# `wasm-bindgen` output and again after `wasm-opt -Oz`:
+#
+#     opt-level = 3 (this)   9.4 MB -> 8.4 MB
+#     opt-level = "s"       11.3 MB -> 9.3 MB
+#     opt-level = "z"       12.0 MB -> 9.2 MB
+#
+# The size-tier settings make it *bigger*, which is the opposite of the folklore
+# and worth recording so nobody 'fixes' it back. naga and wgpu are full of small
+# generic functions whose inlined forms then collapse against each other; deny
+# the inlining and every copy survives to the binary.
+[profile.release-wasm]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+

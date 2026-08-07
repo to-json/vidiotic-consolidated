@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>vidiotic — web capability probe</title>
+<style>
+  :root {
+    --bg: #0b0e0c; --fg: #c8d6cc; --dim: #6b7d70; --rule: #1e2a22;
+    --pass: #6ee7a0; --fail: #ff6b6b; --warn: #ffd166; --na: #55635a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem; background: var(--bg); color: var(--fg);
+    font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.1rem; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 .25rem; }
+  .sub { color: var(--dim); margin: 0 0 2rem; }
+  h2 {
+    font-size: .8rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim);
+    margin: 2.2rem 0 .6rem; padding-bottom: .4rem; border-bottom: 1px solid var(--rule);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: .38rem .5rem .38rem 0; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  td.k { width: 20rem; color: var(--fg); }
+  td.v { color: var(--dim); }
+  td.s { width: 5.5rem; }
+  .chip { font-size: .72rem; letter-spacing: .1em; padding: .1rem .45rem; border: 1px solid currentColor; }
+  .PASS { color: var(--pass); } .FAIL { color: var(--fail); }
+  .WARN { color: var(--warn); } .NA { color: var(--na); }
+  .headline {
+    margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); background: #0f1411;
+  }
+  .headline .verdict { font-size: 1.35rem; letter-spacing: .04em; }
+  .headline p { margin: .5rem 0 0; color: var(--dim); }
+  pre {
+    margin: .5rem 0 0; padding: .7rem .8rem; background: #0f1411; border: 1px solid var(--rule);
+    color: var(--dim); overflow-x: auto; font-size: 12px;
+  }
+  footer { margin-top: 3rem; color: var(--na); font-size: 12px; }
+  a { color: var(--pass); }
+</style>
+</head>
+<body>
+<main>
+  <h1>vidiotic — web capability probe</h1>
+  <p class="sub">Answers the unverified assumptions in <code>docs/web-port.md</code> against this
+     browser, on this machine. Open in each browser you intend to support.</p>
+
+  <div class="headline" id="headline">
+    <div class="verdict" id="verdict">running…</div>
+    <p id="verdict-why"></p>
+  </div>
+
+  <h2>The load-bearing question — BC1 texture support</h2>
+  <table id="t-bc"></table>
+
+  <h2>WebGPU</h2>
+  <table id="t-gpu"></table>
+
+  <h2>Ingest and export — WebCodecs (§2, §3)</h2>
+  <table id="t-codecs"></table>
+
+  <h2>Storage — OPFS and quota (§5, §7)</h2>
+  <table id="t-storage"></table>
+
+  <h2>Presentation and dual-head (§10)</h2>
+  <table id="t-window"></table>
+
+  <h2>Threading (§3c concluded none is needed)</h2>
+  <table id="t-threads"></table>
+
+  <footer>
+    Copy this page's results into <code>docs/web-port.md</code> §1 when run.
+    The BC1 check is a real end-to-end decode, not a feature-flag query — see the source.
+  </footer>
+</main>
+
+<script>
+const row = (table, key, status, value) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="k"></td><td class="s"><span class="chip ${status}">${status}</span></td><td class="v"></td>`;
+  tr.children[0].textContent = key;
+  tr.children[2].textContent = value ?? '';
+  document.getElementById(table).appendChild(tr);
+  return tr;
+};
+
+const note = (table, text) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td colspan="3"><pre></pre></td>`;
+  tr.querySelector('pre').textContent = text;
+  document.getElementById(table).appendChild(tr);
+};
+
+/* ------------------------------------------------------------------ *
+ * BC1 end-to-end decode.
+ *
+ * Checking `adapter.features.has('texture-compression-bc')` only says the
+ * flag is exposed. This uploads one real BC1 block, samples it on the GPU,
+ * reads the pixels back, and compares them to what BC1 decoding must produce.
+ *
+ * The block uses palette indices 0 and 1 only — the two endpoint colours,
+ * which every implementation reproduces exactly. Indices 2 and 3 are
+ * interpolated and legitimately vary by ±1 between vendors, so asserting on
+ * them would produce false failures.
+ *
+ *   colour0 = 0xF800  -> (255,   0,   0)   rows 0-1
+ *   colour1 = 0x001F  -> (  0,   0, 255)   rows 2-3
+ * ------------------------------------------------------------------ */
+const BC1_BLOCK = new Uint8Array([0x00, 0xF8, 0x1F, 0x00, 0x00, 0x00, 0x55, 0x55]);
+const BC1_EXPECT = [[255,0,0,255],[255,0,0,255],[0,0,255,255],[0,0,255,255]];
+
+async function bc1RoundTrip(device) {
+  const tex = device.createTexture({
+    size: [4, 4], format: 'bc1-rgba-unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture: tex }, BC1_BLOCK, { bytesPerRow: 8 }, [4, 4]);
+
+  const target = device.createTexture({
+    size: [4, 4], format: 'rgba8unorm',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+  });
+
+  // textureLoad rather than a sampler: no filtering to confound the result.
+  const shader = device.createShaderModule({ code: `
+    @vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+      var p = array(vec2f(-1,-1), vec2f(3,-1), vec2f(-1,3));
+      return vec4f(p[i], 0, 1);
+    }
+    @group(0) @binding(0) var t: texture_2d<f32>;
+    @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+      return textureLoad(t, vec2i(i32(pos.x), i32(pos.y)), 0);
+    }` });
+
+  const pipeline = device.createRenderPipeline({
+    layout: 'auto',
+    vertex: { module: shader, entryPoint: 'vs' },
+    fragment: { module: shader, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+  });
+
+  const bind = device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: tex.createView() }],
+  });
+
+  // copyTextureToBuffer requires bytesPerRow to be a multiple of 256.
+  const readback = device.createBuffer({ size: 256 * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = device.createCommandEncoder();
+  const pass = enc.beginRenderPass({
+    colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: {r:0,g:0,b:0,a:1} }],
+  });
+  pass.setPipeline(pipeline);
+  pass.setBindGroup(0, bind);
+  pass.draw(3);
+  pass.end();
+  enc.copyTextureToBuffer({ texture: target }, { buffer: readback, bytesPerRow: 256 }, [4, 4]);
+  device.queue.submit([enc.finish()]);
+
+  await readback.mapAsync(GPUMapMode.READ);
+  const px = new Uint8Array(readback.getMappedRange()).slice();
+  readback.unmap();
+
+  const got = [0,1,2,3].map(y => Array.from(px.slice(y*256, y*256+4)));
+  const ok = got.every((r, y) => r.every((c, i) => c === BC1_EXPECT[y][i]));
+  return { ok, got };
+}
+
+/* ------------------------------------------------------------------ */
+
+async function main() {
+  let bcWorks = false, bcReason = 'WebGPU unavailable';
+
+  // --- WebGPU + BC1 ---
+  if (!navigator.gpu) {
+    row('t-bc', 'navigator.gpu', 'FAIL', 'WebGPU is not exposed by this browser');
+    row('t-gpu', 'navigator.gpu', 'FAIL', 'absent');
+  } else {
+    row('t-gpu', 'navigator.gpu', 'PASS', 'present');
+    let adapter = null;
+    try { adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }); }
+    catch (e) { row('t-gpu', 'requestAdapter()', 'FAIL', String(e)); }
+
+    if (!adapter) {
+      row('t-gpu', 'requestAdapter()', 'FAIL', 'returned null — no compatible adapter');
+      bcReason = 'no GPU adapter';
+    } else {
+      row('t-gpu', 'requestAdapter()', 'PASS', 'ok');
+      const info = adapter.info || {};
+      row('t-gpu', 'adapter', 'PASS',
+        [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || '(not reported)');
+      row('t-gpu', 'maxTextureDimension2D', 'PASS', String(adapter.limits.maxTextureDimension2D));
+      row('t-gpu', 'maxBufferSize', 'PASS', `${(adapter.limits.maxBufferSize / 1048576).toFixed(0)} MiB`);
+
+      const has = f => adapter.features.has(f);
+      row('t-bc', "feature 'texture-compression-bc'", has('texture-compression-bc') ? 'PASS' : 'FAIL',
+          has('texture-compression-bc') ? 'exposed' : 'NOT exposed — the HAP/BC1 pipeline cannot run here');
+      row('t-bc', "feature 'texture-compression-astc'", has('texture-compression-astc') ? 'PASS' : 'NA',
+          has('texture-compression-astc') ? 'available as a fallback target' : 'absent');
+      row('t-bc', "feature 'texture-compression-etc2'", has('texture-compression-etc2') ? 'PASS' : 'NA',
+          has('texture-compression-etc2') ? 'available as a fallback target' : 'absent');
+
+      if (has('texture-compression-bc')) {
+        try {
+          const device = await adapter.requestDevice({ requiredFeatures: ['texture-compression-bc'] });
+          row('t-bc', 'requestDevice(+bc)', 'PASS', 'device created with the feature enabled');
+          const { ok, got } = await bc1RoundTrip(device);
+          bcWorks = ok;
+          row('t-bc', 'BC1 upload → sample → readback', ok ? 'PASS' : 'FAIL',
+              ok ? 'decoded pixels match BC1 semantics exactly' : 'decoded pixels are wrong');
+          if (!ok) {
+            note('t-bc', 'expected rows: ' + JSON.stringify(BC1_EXPECT) + '\ngot rows:      ' + JSON.stringify(got));
+            bcReason = 'BC1 decoded incorrectly';
+          }
+        } catch (e) {
+          row('t-bc', 'requestDevice(+bc)', 'FAIL', String(e));
+          bcReason = 'device creation with BC failed';
+        }
+      } else {
+        bcReason = "'texture-compression-bc' is not exposed";
+      }
+
+      // Everything else WebGPU-side worth knowing.
+      for (const f of ['float32-filterable', 'rg11b10ufloat-renderable', 'timestamp-query']) {
+        row('t-gpu', `feature '${f}'`, has(f) ? 'PASS' : 'NA', has(f) ? 'exposed' : 'absent');
+      }
+    }
+  }
+
+  // --- WebCodecs ---
+  const vd = 'VideoDecoder' in window, ve = 'VideoEncoder' in window;
+  row('t-codecs', 'VideoDecoder', vd ? 'PASS' : 'FAIL', vd ? 'present' : 'absent — /chop cannot ingest');
+  row('t-codecs', 'VideoEncoder', ve ? 'PASS' : 'FAIL', ve ? 'present' : 'absent — no MP4 export');
+  if (vd) {
+    const cfgs = [
+      ['H.264 baseline', { codec: 'avc1.42E01E', codedWidth: 1280, codedHeight: 720 }],
+      ['H.264 high',     { codec: 'avc1.640028', codedWidth: 1920, codedHeight: 1080 }],
+      ['VP9',            { codec: 'vp09.00.10.08', codedWidth: 1280, codedHeight: 720 }],
+      ['AV1',            { codec: 'av01.0.04M.08', codedWidth: 1280, codedHeight: 720 }],
+      ['HEVC',           { codec: 'hev1.1.6.L93.B0', codedWidth: 1280, codedHeight: 720 }],
+    ];
+    for (const [name, cfg] of cfgs) {
+      try {
+        const s = await VideoDecoder.isConfigSupported(cfg);
+        row('t-codecs', `decode ${name}`, s.supported ? 'PASS' : 'NA', s.supported ? 'supported' : 'unsupported');
+      } catch (e) { row('t-codecs', `decode ${name}`, 'NA', String(e.message || e)); }
+    }
+  }
+  if (ve) {
+    try {
+      const s = await VideoEncoder.isConfigSupported({
+        codec: 'avc1.42001f', width: 848, height: 480, bitrate: 4e6, framerate: 30 });
+      row('t-codecs', 'encode H.264 @848x480', s.supported ? 'PASS' : 'FAIL',
+          s.supported ? 'supported — MP4 export viable' : 'unsupported');
+    } catch (e) { row('t-codecs', 'encode H.264 @848x480', 'FAIL', String(e.message || e)); }
+  }
+  row('t-codecs', 'requestVideoFrameCallback',
+      'requestVideoFrameCallback' in HTMLVideoElement.prototype ? 'PASS' : 'NA', '');
+  row('t-codecs', 'importExternalTexture',
+      typeof GPUDevice !== 'undefined' && 'importExternalTexture' in GPUDevice.prototype ? 'PASS' : 'NA',
+      'zero-copy video → GPU');
+
+  // --- Storage ---
+  const opfs = navigator.storage && 'getDirectory' in navigator.storage;
+  row('t-storage', 'OPFS (navigator.storage.getDirectory)', opfs ? 'PASS' : 'FAIL', opfs ? 'present' : 'absent');
+  if (opfs) {
+    try {
+      // No leading dot: OPFS rejects dotfile names as unsafe on some platforms.
+      const dir = await navigator.storage.getDirectory();
+      const fh = await dir.getFileHandle('vidiotic-probe.tmp', { create: true });
+      const wr = await fh.createWritable();
+      await wr.write(new Uint8Array([1, 2, 3, 4]));
+      await wr.close();
+      const back = new Uint8Array(await (await fh.getFile()).arrayBuffer());
+      const ok = back.length === 4 && back[3] === 4;
+      row('t-storage', 'OPFS write → read back', ok ? 'PASS' : 'FAIL',
+          ok ? 'round-tripped 4 bytes' : `read back ${back.length} bytes`);
+      // Exposed only to DedicatedWorker by spec, so absence on the main thread
+      // says nothing about availability where it would actually be used.
+      const sync = 'createSyncAccessHandle' in fh;
+      row('t-storage', 'createSyncAccessHandle', sync ? 'PASS' : 'NA',
+          sync ? 'synchronous OPFS I/O available'
+               : 'not on the main thread (worker-only by spec) — probe from a worker to confirm');
+      await dir.removeEntry('vidiotic-probe.tmp').catch(() => {});
+    } catch (e) { row('t-storage', 'OPFS write', 'FAIL', String(e.message || e)); }
+  }
+  if (navigator.storage?.estimate) {
+    const q = await navigator.storage.estimate();
+    row('t-storage', 'quota', 'PASS',
+      `${(q.quota / 1073741824).toFixed(1)} GiB available, ${(q.usage / 1048576).toFixed(1)} MiB used`);
+  }
+  row('t-storage', 'persisted()', navigator.storage?.persist ? 'PASS' : 'NA',
+      navigator.storage?.persist ? 'can request persistent storage' : '');
+  row('t-storage', 'File System Access (showOpenFilePicker)',
+      'showOpenFilePicker' in window ? 'PASS' : 'NA',
+      'showOpenFilePicker' in window ? 'native file dialogs available' : 'fall back to <input type=file>');
+
+  // --- Window / dual-head ---
+  row('t-window', 'getScreenDetails (Window Management)',
+      'getScreenDetails' in window ? 'PASS' : 'NA',
+      'getScreenDetails' in window ? 'multi-display placement possible' : 'no display enumeration');
+  row('t-window', 'documentPictureInPicture',
+      'documentPictureInPicture' in window ? 'PASS' : 'NA', 'popout render surface');
+  row('t-window', 'BroadcastChannel',
+      'BroadcastChannel' in window ? 'PASS' : 'FAIL', 'vidiotic-wire transport (§10)');
+  row('t-window', 'getDisplayMedia',
+      navigator.mediaDevices?.getDisplayMedia ? 'PASS' : 'NA', 'screen/tab capture');
+  row('t-window', 'requestFullscreen',
+      'requestFullscreen' in Element.prototype ? 'PASS' : 'NA', '');
+
+  // --- Threads ---
+  row('t-threads', 'crossOriginIsolated', crossOriginIsolated ? 'PASS' : 'NA',
+      crossOriginIsolated ? 'COOP/COEP active' : 'not isolated — expected, and fine (§3c needs no threads)');
+  row('t-threads', 'SharedArrayBuffer',
+      typeof SharedArrayBuffer !== 'undefined' ? 'PASS' : 'NA',
+      typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable — not required');
+  row('t-threads', 'hardwareConcurrency', 'PASS', String(navigator.hardwareConcurrency));
+  row('t-threads', 'WebAssembly', typeof WebAssembly !== 'undefined' ? 'PASS' : 'FAIL', '');
+
+  // --- Verdict ---
+  const v = document.getElementById('verdict'), w = document.getElementById('verdict-why');
+  if (bcWorks) {
+    v.textContent = 'BC1 WORKS HERE';
+    v.style.color = 'var(--pass)';
+    w.textContent = 'A real BC1 block uploaded, sampled and read back with exactly the right pixels. '
+      + 'The HAP pipeline (web-port.md §3, §4) is viable on this browser and GPU.';
+  } else {
+    v.textContent = 'BC1 UNAVAILABLE';
+    v.style.color = 'var(--fail)';
+    w.textContent = `${bcReason}. The HAP/BC1 plan does not hold on this browser — `
+      + 'see the fallback options in the compression rows above.';
+  }
+  document.title = (bcWorks ? 'BC1 OK — ' : 'BC1 FAIL — ') + 'vidiotic capability probe';
+  document.body.dataset.done = bcWorks ? 'bc-ok' : 'bc-fail';
+}
+
+main().catch(e => {
+  document.getElementById('verdict').textContent = 'PROBE CRASHED';
+  document.getElementById('verdict').style.color = 'var(--fail)';
+  document.getElementById('verdict-why').textContent = String(e && e.stack || e);
+  document.body.dataset.done = 'crash';
+});
+</script>
+</body>
+</html>

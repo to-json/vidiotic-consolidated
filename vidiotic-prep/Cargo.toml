@@ -1,0 +1,46 @@
+[package]
+name = "vidiotic-prep"
+version = "0.1.0"
+edition = "2021"
+
+# prep shares the player's *model* (the `.viproj` schema) and its *bake*, and
+# talks to a running player over the wire protocol — but it is a separate
+# front end and does not link the player itself. Depending on `vidiotic` would
+# pull in wgpu, winit, cpal, naga, and rusty_link to read a project file.
+[dependencies]
+# The portable half of this app: the marking session and its panels. Prep is
+# the native shell around it — see `vidiotic-chop/src/lib.rs`.
+vidiotic-chop = { path = "../vidiotic-chop" }
+vidiotic-core = { path = "../vidiotic-core" }
+vidiotic-bake = { path = "../vidiotic-bake" }
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false, features = ["egui-ui"] }
+vidiotic-wire = { path = "../vidiotic-wire", features = ["client"] }
+phosphor = { path = "../phosphor", features = ["shell", "logging"] }
+# Explicitly not the default feature set. eframe's defaults enable `accesskit`,
+# and because cargo unifies features across the workspace build, this one line
+# was putting the AccessKit stack into *every* eframe binary here.
+eframe = { version = "0.35", default-features = false, features = ["wgpu", "default_fonts"] }
+egui = "0.35"
+ffmpeg-next = "8.1"
+anyhow = "1"
+log = "0.4"
+# No direct `env_logger`: logging goes through `phosphor::bundle::init_logging`,
+# which a Finder-launched bundle needs in order to have anywhere to log to.
+crossbeam-channel = "0.5"
+rfd = { version = "0.15", default-features = false }
+nanoserde = "0.2"
+
+# --- per-target UI backends ----------------------------------------------
+#
+# `default-features = false` is repeated per section deliberately: cargo unions
+# feature sets across applicable target sections, and a section that omits the
+# flag turns the defaults back on for every target.
+#
+# macOS and Windows need nothing beyond the base set; those backends are
+# unconditional inside eframe/rfd.
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.35", default-features = false, features = ["wayland", "x11"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["common-controls-v6"] }

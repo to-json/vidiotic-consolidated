@@ -1,0 +1,43 @@
+[package]
+name = "phosphor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.35"
+eframe = { version = "0.35", optional = true, default-features = false, features = ["wgpu", "default_fonts"] }
+# Both are behind `logging`, and both are optional for one reason: `vidiotic-play`
+# links this crate for `theme`/`icon` and builds for wasm32, where `env_logger`
+# drags in the anstream/anstyle terminal-colour chain for a stderr nothing reads.
+# The browser bundle is a download — see the `release-wasm` note in the workspace
+# root — so the native-only half of `bundle` has to be something play can decline.
+log = { version = "0.4", optional = true }
+# `humantime` and `regex` are off. `humantime` exists only to timestamp log
+# lines and pulls `jiff` (~105k LOC); `regex` backs `RUST_LOG` regex filters
+# nobody here writes (every init site uses `default_filter_or`, a plain level
+# filter). Together they were 8 crates and ~279k LOC. `bundle::init_logging`
+# formats its own timestamps, which the persistent bundle log needs.
+env_logger = { version = "0.11", optional = true, default-features = false, features = ["auto-color"] }
+
+# Wayland/X11 backends for the `shell` feature. Repeating
+# `default-features = false` is required: cargo unions feature sets across
+# applicable target sections, so omitting it here would turn eframe's defaults
+# (accesskit, web_screen_reader) back on for every target.
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.35", optional = true, default-features = false, features = ["wayland", "x11"] }
+
+[features]
+shell = ["dep:eframe"]
+# `bundle::init_logging` — the tee-to-file-when-bundled logger every native
+# front end shares. Off by default so a wasm consumer gets the rest of `bundle`
+# (helper resolution, argv cleaning, data dirs) without the logging stack.
+logging = ["dep:log", "dep:env_logger"]
+
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"

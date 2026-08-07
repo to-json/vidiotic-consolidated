@@ -1,0 +1,60 @@
+[package]
+name = "vidiotic-ctl"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "vidiotic_ctl"
+
+[[bin]]
+name = "vidiotic-ctl"
+path = "src/main.rs"
+required-features = ["ui"]
+
+[features]
+default = ["ui"]
+# The ctl bin: the shared widgets plus a windowed shell and file dialogs.
+ui = ["egui-ui", "phosphor/shell", "phosphor/logging", "dep:eframe", "dep:rfd"]
+# Just the shared binding-table widgets, for embedding in another egui app
+# (`vidiotic-prep`) without dragging in eframe/rfd/the logging stack.
+egui-ui = ["dep:phosphor", "dep:egui"]
+
+[dependencies]
+nanoserde = "0.2"
+anyhow = "1"
+log = "0.4"
+# Both cross to wasm32 cleanly (WebMIDI / gamepad backends), which is why the
+# wasm gate lists this crate as portable — do not cfg them out.
+midir = "0.11"
+gilrs = "0.11"
+crossbeam-channel = "0.5"
+phosphor = { path = "../phosphor", optional = true, default-features = false }
+eframe = { version = "0.35", optional = true, default-features = false, features = ["wgpu", "default_fonts"] }
+egui = { version = "0.35", optional = true }
+# No direct `env_logger`: logging goes through `phosphor::bundle::init_logging`,
+# which a Finder-launched bundle needs in order to have anywhere to log to.
+rfd = { version = "0.15", optional = true, default-features = false }
+
+# --- per-target UI backends ----------------------------------------------
+#
+# `default-features = false` is repeated in each section on purpose: cargo
+# unions feature sets across applicable target sections, so a section that
+# drops the flag re-enables the defaults everywhere.
+#
+# macOS and Windows need nothing extra — those backends are unconditional
+# inside eframe/rfd.
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.35", optional = true, default-features = false, features = ["wayland", "x11"] }
+rfd = { version = "0.15", optional = true, default-features = false, features = ["xdg-portal", "async-std"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+rfd = { version = "0.15", optional = true, default-features = false, features = ["common-controls-v6"] }
+
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"

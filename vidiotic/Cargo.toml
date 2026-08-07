@@ -1,0 +1,136 @@
+[package]
+name = "vidiotic"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "vidiotic"
+path = "src/main.rs"
+
+[[bin]]
+name = "spike_naga"
+path = "src/bin/spike_naga.rs"
+
+[[bin]]
+name = "spike_render"
+path = "src/bin/spike_render.rs"
+
+[[bin]]
+name = "spike_decode"
+path = "src/bin/spike_decode.rs"
+
+[[bin]]
+name = "spike_capture"
+path = "src/bin/spike_capture.rs"
+
+[dependencies]
+ffmpeg-next = "8.1"
+crossbeam-channel = "0.5"
+naga = { version = "29", features = ["glsl-in", "wgsl-in"] }
+wgpu = { version = "29", features = ["glsl", "naga-ir"] }
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+anyhow = "1"
+log = "0.4"
+# `humantime` and `regex` are off: the former exists only to timestamp log
+# lines and drags in `jiff` (~105k LOC), the latter backs `RUST_LOG` regex
+# filters we never write — every init site here uses `default_filter_or`, a
+# plain level filter. Timestamps come back from `phosphor::bundle`'s own
+# formatter. `auto-color` stays; it TTY-detects, so piped output is clean.
+#
+# Kept as a direct dependency only for the `spike_*` bins, which call
+# `env_logger::init` straight; the app itself goes through `phosphor/logging`.
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+cpal = "0.18"
+triple_buffer = "9"
+rtrb = "0.3"
+# Windowing backends are selected per-target below — the default feature set is
+# Linux-shaped (x11 + wayland + adwaita CSD) and is dead weight elsewhere.
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
+notify = "8.2"
+clap = { version = "4", features = ["derive"] }
+phosphor = { path = "../phosphor", features = ["logging"] }
+# The session model and the Hap1 bake, re-exported at this crate's root (see
+# lib.rs). nanoserde, texpresso, and snap moved out with them and are no longer
+# direct dependencies here.
+vidiotic-core = { path = "../vidiotic-core" }
+vidiotic-bake = { path = "../vidiotic-bake" }
+# The portable render core — gfx/render/shader and the decoded-frame types —
+# re-exported at this crate's root (see lib.rs). It owns `shaders/` too, since
+# `render.rs`'s `include_str!`s are what consume it.
+vidiotic-play = { path = "../vidiotic-play" }
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
+vidiotic-wire = { path = "../vidiotic-wire" }
+egui = "0.35"
+egui-wgpu = "0.35"
+# `links` is deliberately absent. It enables `webbrowser`, which drags in
+# `url` -> `idna` -> the whole ICU stack: 30 crates, ~154k LOC. Nothing in
+# this workspace opens a URL — the only hit for "hyperlink" anywhere is
+# `phosphor::theme` setting `hyperlink_color`. Re-add it the day an actual
+# `ui.hyperlink(..)` lands, and not before.
+egui-winit = { version = "0.35", default-features = false }
+# Native dialog backends are per-target below; the default set is XDG-portal
+# (Linux) and pulls an async runtime with it.
+rfd = { version = "0.15", default-features = false }
+rusty_link = "0.4"
+
+# --- per-target windowing / dialog backends ------------------------------
+#
+# Each section repeats `default-features = false`: cargo unions the feature
+# sets across every applicable target section, but a section that omits the
+# flag turns the defaults back on for everyone.
+
+# Camera capture: AVFoundation supplies device enumeration, stable identity
+# (uniqueID), and TCC permission state; the actual frame capture goes through
+# ffmpeg's avfoundation demuxer on the already-linked ffmpeg-next.
+#
+# The macOS window and dialog backends are unconditional inside winit/rfd, so
+# neither needs a feature here.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-av-foundation = { version = "0.3", features = ["objc2-core-media"] }
+objc2-core-media = "0.3"
+block2 = "0.6"
+
+# `wayland-csd-adwaita-notitle`, not `wayland-csd-adwaita` (winit's default):
+# both give Wayland client-side decorations, but the default variant enables
+# `sctk-adwaita/ab_glyph` to render the titlebar *text*, and that is the sole
+# path to `ttf-parser` — which is unmaintained with no safe upgrade
+# (RUSTSEC-2026-0192). `-notitle` keeps the decorations and drops the advisory.
+#
+# NB: this is `target_os = "linux"` because those are the declared targets. The
+# BSDs also need these features and will get no windowing backend as written.
+[target.'cfg(target_os = "linux")'.dependencies]
+winit = { version = "0.30.13", default-features = false, features = [
+    "rwh_06",
+    "x11",
+    "wayland",
+    "wayland-dlopen",
+    "wayland-csd-adwaita-notitle",
+] }
+egui-winit = { version = "0.35", default-features = false, features = ["wayland", "x11"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+
+# `common-controls-v6` opts the file dialogs into the modern comctl32 widgets
+# rather than the Windows-95-era ones.
+[target.'cfg(target_os = "windows")'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["common-controls-v6"] }
+
+# Examples only (dev-dependencies never touch the lib/bin builds). eframe
+# rides the same egui/wgpu 0.35/29 stack as the app; glow is disabled so no
+# GL toolchain gets pulled in.
+[dev-dependencies]
+eframe = { version = "0.35", default-features = false, features = ["wgpu", "default_fonts"] }
+
+# A curated subset of clippy's pedantic tier. The blanket tier is not enabled:
+# the numeric-cast lints are noise in graphics/DSP code, and the must-use /
+# const-fn candidates are churn without payoff here.
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"

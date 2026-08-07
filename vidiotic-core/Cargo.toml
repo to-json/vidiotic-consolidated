@@ -1,0 +1,48 @@
+[package]
+name = "vidiotic-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "vidiotic_core"
+
+# Deliberately narrow. ffmpeg is here only for clip probing/thumbnailing in
+# `clippool`; nanoserde for the `.viproj` RON and the ISF header tokenizer.
+# Nothing that draws, opens a window, or opens an audio device belongs in this
+# crate — see the lib.rs docs.
+#
+# vidiotic-ctl supplies `ControlMap`, which a `.viproj` embeds directly (it is
+# a format type by construction — see `project::Project::controls`). Taken
+# without default features so its egui/eframe/rfd shell stays out.
+#
+# `ffmpeg` is on by default, so native callers see no change. It is separable
+# because it buys exactly one thing — `clippool`'s first-frame thumbnailer — and
+# that one thing is what keeps the session model off `wasm32-unknown-unknown`
+# (web-port.md §8 step 3). The browser decodes its own thumbnails via WebCodecs
+# and fills in the same `Thumbnail`, so the type stays portable and only the
+# decode is gated. `scripts/wasm-gate.sh` holds the boundary.
+[features]
+default = ["ffmpeg"]
+ffmpeg = ["dep:ffmpeg-next"]
+
+[dependencies]
+nanoserde = "0.2"
+ffmpeg-next = { version = "8.1", optional = true }
+crossbeam-channel = "0.5"
+anyhow = "1"
+log = "0.4"
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
+
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
+
+# See vidiotic-bake: wasm test runs use the same test bodies, via an alias of
+# `#[test]` in each test module. Needs `.cargo/config.toml`'s runner.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"

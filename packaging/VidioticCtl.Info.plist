@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Vidiotic Ctl</string>
+	<key>CFBundleDisplayName</key>
+	<string>Vidiotic Ctl</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.vidiotic.ctl</string>
+	<key>CFBundleExecutable</key>
+	<string>vidiotic-ctl</string>
+	<key>CFBundleIconFile</key>
+	<string>VidioticCtl</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.music</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<!-- Learn mode listens to MIDI, keys, and gamepads; HID capture is what
+	     the Input Monitoring prompt is about. -->
+	<key>NSInputMonitoringUsageDescription</key>
+	<string>Vidiotic Ctl listens to MIDI controllers, keyboards, and gamepads so you can map them by pressing them.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Vidiotic Control Map</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.vidiotic.controlmap</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,157 @@
+[package]
+name = "vidiotic-play"
+version = "0.1.0"
+edition = "2021"
+
+# `cdylib` for the browser build (wasm-bindgen needs it); `rlib` because native
+# `vidiotic` links this crate as a library and re-exports it (see lib.rs). Both,
+# not one or the other — the same sources serve both shells.
+[lib]
+name = "vidiotic_play"
+crate-type = ["cdylib", "rlib"]
+
+# No features, deliberately. The point of this crate is that it holds nothing
+# that needs gating: no ffmpeg, no filesystem, no OS, no audio device. Its two
+# workspace dependencies are taken *without* default features so a standalone
+# wasm32 build does not drag `ffmpeg-next` in; a native build of `vidiotic`
+# turns those features back on by unification, so nothing native changes.
+# `scripts/wasm-gate.sh` is what holds the boundary — a plain `cargo check -p
+# vidiotic-play` for the host does not, because a workspace check unifies too.
+[dependencies]
+wgpu = { version = "29", features = ["glsl", "naga-ir"] }
+naga = { version = "29", features = ["glsl-in", "wgsl-in"] }
+bytemuck = { version = "1", features = ["derive"] }
+# The FFT behind `analysis`. Pure Rust with a scalar fallback, so it crosses to
+# wasm32 unchanged — which is the whole reason the analysis half could move here
+# while the capture half stayed native.
+rustfft = "6"
+anyhow = "1"
+log = "0.4"
+vidiotic-core = { path = "../vidiotic-core", default-features = false }
+vidiotic-bake = { path = "../vidiotic-bake", default-features = false }
+# The control vocabulary the grammar speaks. Portable by construction —
+# `vidiotic_ctl::keys` canonicalizes winit *and* egui key spellings against one
+# table precisely so neither toolkit leaks into the model.
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
+# `std::time::Instant` compiles for wasm32 and then panics on first call, which
+# is the worst failure shape available: green build, dead page. `web-time` is a
+# drop-in that reads `performance.now()` there and is `std::time` verbatim
+# everywhere else, so `clock.rs` and `undo.rs` keep one implementation.
+web-time = "1.1"
+# egui and phosphor are unconditional as of the `ui` module: the panels are one
+# implementation that both shells draw, so they have to compile for both. They
+# were wasm-only when the only egui here was `web::panel`, and the note then said
+# duplicating the dependency would mean two crates deciding egui's feature set
+# for one binary. Cargo unifies features across the graph, so `vidiotic` and this
+# crate resolve to the same egui with the union of their features — the native
+# binary gains nothing and loses nothing. `egui-wgpu` stays wasm-only, because
+# painting is the part the shells genuinely do differently.
+egui = "0.35"
+phosphor = { path = "../phosphor", default-features = false }
+# The panels emit commands into a channel the shell drains. Verified to cross to
+# wasm32 rather than assumed — `crossbeam-utils` is the part that would have
+# needed threads, and it compiles; the browser shell sends and drains on the one
+# thread it has.
+crossbeam-channel = "0.5"
+
+# Native only, both of them, and in each case that is load-bearing rather than
+# tidy.
+#
+# `pollster`: `Graphics::new` drives the adapter/device futures with `block_on`,
+# which is free natively because they are already-ready. In a browser they are
+# real futures and blocking on one hangs the event loop — a *runtime* failure
+# that compiles perfectly well. Not depending on pollster for wasm32 turns that
+# hang into a build error. Same lesson as `vidiotic-bake`'s `rayon` feature.
+#
+# `winit`: a head is a winit window natively and a canvas element on the web,
+# and the web build never wants winit at all — see `gfx::HeadTarget`. The
+# default feature set is Linux-shaped (x11 + wayland + adwaita CSD) and is dead
+# weight elsewhere, so backends are selected per-target below as in `vidiotic`.
+# `rusty_link`: Ableton Link is a LAN protocol over UDP multicast, so a browser
+# cannot speak it at all — no sockets, no multicast. `clock::LinkClock` is cfg'd
+# out there rather than stubbed, so a web build that reaches for it fails to
+# compile instead of silently following a clock that never ticks.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pollster = "0.4"
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
+rusty_link = "0.4"
+
+# See `vidiotic/Cargo.toml`: each per-target section must repeat
+# `default-features = false`, because cargo unions feature sets across sections
+# and one that omits the flag turns the defaults back on for every target.
+#
+# `wayland-csd-adwaita-notitle`, not `wayland-csd-adwaita`: the default variant
+# enables `sctk-adwaita/ab_glyph` to render titlebar text, which is the sole
+# path to the unmaintained `ttf-parser` (RUSTSEC-2026-0192).
+[target.'cfg(target_os = "linux")'.dependencies]
+winit = { version = "0.30.13", default-features = false, features = [
+    "rwh_06",
+    "x11",
+    "wayland",
+    "wayland-dlopen",
+    "wayland-csd-adwaita-notitle",
+] }
+
+# The browser shell. None of this exists natively — `vidiotic` links this crate
+# and gets not one line of it.
+#
+# `egui` is here rather than at the top for the same reason: the native shell
+# owns its own egui stack in `vidiotic::ui`, and duplicating that dependency
+# would mean two crates deciding egui's feature set for one binary.
+#
+# `egui-wgpu` takes `default-features = false` deliberately. Its defaults
+# include `wgpu/webgl`, which drags `wgpu-core` + `wgpu-hal` + a GL backend into
+# the wasm build and changes which branch `wgpu::Instance::new` takes — a
+# WebGL2 fallback we do not want silently standing in for WebGPU, least of all
+# when the whole point of the port is measuring what WebGPU can do.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+egui-wgpu = { version = "0.35", default-features = false, features = [
+    "fragile-send-sync-non-atomic-wasm",
+] }
+web-sys = { version = "0.3", default-features = false, features = [
+    "console",
+    # `CustomEvent` is how a `Pick*` command reaches the page: the panels ask
+    # for a file, and the page owns the `<input type=file>` that answers.
+    "CustomEvent",
+    "CustomEventInit",
+    "CanvasRenderingContext2d",
+    "Document",
+    "Element",
+    "Event",
+    "EventTarget",
+    "HtmlCanvasElement",
+    # A camera reaches this crate as a `<video>` the page has attached a
+    # `MediaStream` to; `ImageData` is how its pixels come back off the canvas.
+    "HtmlVideoElement",
+    "ImageData",
+    "KeyboardEvent",
+    "MouseEvent",
+    "Performance",
+    "PointerEvent",
+    "WheelEvent",
+    "Window",
+] }
+
+# Only for `cargo test --target wasm32-unknown-unknown`. The test bodies are
+# unchanged — the tests module aliases `#[test]` to `#[wasm_bindgen_test]` under
+# wasm32, so the wasm run exercises the same assertions rather than a parallel
+# copy. Needs `wasm-bindgen-cli` at the matching version and the runner declared
+# in `.cargo/config.toml`.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# The same curated subset of clippy's pedantic tier the rest of the workspace
+# uses. The blanket tier is not enabled: the numeric-cast lints are noise in
+# graphics code, and the must-use / const-fn candidates are churn without payoff.
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"

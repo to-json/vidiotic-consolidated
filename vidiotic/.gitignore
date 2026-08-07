@@ -1,0 +1,15 @@
+/target
+/memcheck-*/
+/memcheck.sh
+
+# Bake output written next to the manifest when the transcoder is run by hand
+# from the crate root. Media, not source — a single one of these runs to a
+# couple of gigabytes, and they accumulate one per test run. Only the crate
+# root is ignored, so a deliberately committed fixture further down still has
+# to be added by path.
+/*.mov
+/*.mp4
+/*.mkv
+
+# Render captures written next to the binary during a session.
+/OUT*.mov

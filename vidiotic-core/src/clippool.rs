@@ -1,0 +1,201 @@
+//! Clip pool: scan a directory for video clips and extract first-frame
+//! thumbnails on a background thread. Thumbnails are delivered over a channel so
+//! a large pool never blocks the UI.
+//!
+//! The pool model — [`Clip`], [`ClipSource`], [`ClipBank`], [`Thumbnail`] — is
+//! portable and unconditional. Only the decoding of a thumbnail is behind the
+//! `ffmpeg` feature: the browser build has no ffmpeg and no worker thread here,
+//! and fills the same [`Thumbnail`] from a `WebCodecs` decode instead
+//! (web-port.md §8 step 3).
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use crate::chain::ClipId;
+
+const VIDEO_EXTS: &[&str] = &["mov", "mp4", "mkv", "m4v", "avi", "webm", "hap"];
+
+/// Thumbnail size the pool grid draws at. Public because a non-ffmpeg producer
+/// of [`Thumbnail`] (the browser's decoder) has to match it.
+pub const THUMB_W: u32 = 192;
+/// See [`THUMB_W`].
+pub const THUMB_H: u32 = 108;
+
+/// Where a pool clip's frames come from.
+#[derive(Clone, Debug)]
+pub enum ClipSource {
+    /// A video file on disk.
+    File(PathBuf),
+    /// A live capture device, by its stable `AVFoundation` `uniqueID`. `name` is
+    /// the device's human name at the time the clip was created (also the
+    /// relink hint when the uid is absent).
+    Camera { uid: Arc<str>, name: Arc<str> },
+}
+
+/// One source in the pool: a video file, or a camera device.
+#[derive(Clone, Debug)]
+pub struct Clip {
+    pub id: ClipId,
+    pub source: ClipSource,
+    pub name: Arc<str>,
+    /// User-entered source tempo, used for advanced-mode BPM-synced playback;
+    /// `None` until set (not derived from the file — container FPS is unreliable).
+    pub bpm: Option<f64>,
+}
+
+impl Clip {
+    /// The backing file, for file-sourced clips.
+    pub fn file_path(&self) -> Option<&Path> {
+        match &self.source {
+            ClipSource::File(p) => Some(p),
+            ClipSource::Camera { .. } => None,
+        }
+    }
+
+    /// The capture-device uid, for camera-sourced clips.
+    pub fn camera_uid(&self) -> Option<&str> {
+        match &self.source {
+            ClipSource::File(_) => None,
+            ClipSource::Camera { uid, .. } => Some(uid),
+        }
+    }
+}
+
+/// A named group of clips over the flat pool, referenced by id. Purely a
+/// pool-grid filter — a clip may belong to several banks or none; `ClipId`s stay
+/// globally unique so cues reference clips regardless of grouping. `dir` is the
+/// source folder when the bank came from a scan (`None` for ad-hoc groupings).
+#[derive(Clone, Debug)]
+pub struct ClipBank {
+    pub name: Arc<str>,
+    pub dir: Option<PathBuf>,
+    pub clip_ids: Vec<ClipId>,
+}
+
+/// A decoded first-frame preview, delivered from the thumbnailer thread.
+pub struct Thumbnail {
+    pub id: ClipId,
+    pub w: usize,
+    pub h: usize,
+    pub rgba: Vec<u8>,
+}
+
+/// List video clips in `dir` (non-recursive), sorted by name, with stable ids
+/// starting at 0.
+pub fn scan(dir: &Path) -> Vec<Clip> {
+    scan_from(dir, 0)
+}
+
+/// Like [`scan`], but assign clip ids from `start_id` upward so several scanned
+/// directories can share one flat, globally-unique id space.
+pub fn scan_from(dir: &Path, start_id: ClipId) -> Vec<Clip> {
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .map(|e| VIDEO_EXTS.contains(&e.to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .collect();
+    paths.sort();
+    paths
+        .into_iter()
+        .enumerate()
+        .map(|(i, path)| {
+            let name: Arc<str> = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("clip")
+                .into();
+            Clip {
+                id: start_id + i as ClipId,
+                source: ClipSource::File(path),
+                name,
+                bpm: None,
+            }
+        })
+        .collect()
+}
+
+/// Spawn a worker that extracts a thumbnail for each clip and streams results.
+/// The returned receiver closes when all clips are processed.
+#[cfg(feature = "ffmpeg")]
+pub fn spawn_thumbnailer(clips: Vec<Clip>) -> crossbeam_channel::Receiver<Thumbnail> {
+    let (tx, rx) = crossbeam_channel::unbounded();
+    std::thread::Builder::new()
+        .name("thumbnailer".into())
+        .spawn(move || {
+            let _ = ffmpeg_next::init();
+            for clip in clips {
+                // Camera clips have no file to decode; their pool row wears a
+                // static glyph instead.
+                let Some(path) = clip.file_path() else { continue };
+                match first_frame_rgba(path, THUMB_W, THUMB_H) {
+                    Ok((w, h, rgba)) => {
+                        let _ = tx.send(Thumbnail {
+                            id: clip.id,
+                            w,
+                            h,
+                            rgba,
+                        });
+                    }
+                    Err(e) => log::warn!("thumbnail failed for {}: {e}", clip.name),
+                }
+            }
+        })
+        .ok();
+    rx
+}
+
+/// Decode the first frame of a clip and scale it to a tight RGBA thumbnail.
+#[cfg(feature = "ffmpeg")]
+fn first_frame_rgba(path: &Path, tw: u32, th: u32) -> anyhow::Result<(usize, usize, Vec<u8>)> {
+    use ffmpeg_next as ff;
+
+    let mut ictx = ff::format::input(path)?;
+    let (vid_idx, params) = {
+        let st = ictx
+            .streams()
+            .best(ff::media::Type::Video)
+            .ok_or_else(|| anyhow::anyhow!("no video stream"))?;
+        (st.index(), st.parameters())
+    };
+    let mut decoder = ff::codec::context::Context::from_parameters(params)?
+        .decoder()
+        .video()?;
+    let mut scaler = ff::software::scaling::Context::get(
+        decoder.format(),
+        decoder.width(),
+        decoder.height(),
+        ff::format::Pixel::RGBA,
+        tw,
+        th,
+        ff::software::scaling::Flags::BILINEAR,
+    )?;
+
+    let mut frame = ff::frame::Video::empty();
+    for (stream, packet) in ictx.packets() {
+        if stream.index() != vid_idx {
+            continue;
+        }
+        decoder.send_packet(&packet)?;
+        if decoder.receive_frame(&mut frame).is_ok() {
+            let mut rgba = ff::frame::Video::empty();
+            scaler.run(&frame, &mut rgba)?;
+            let stride = rgba.stride(0);
+            let row = (tw * 4) as usize;
+            let mut packed = vec![0u8; row * th as usize];
+            let src = rgba.data(0);
+            for y in 0..th as usize {
+                packed[y * row..(y + 1) * row]
+                    .copy_from_slice(&src[y * stride..y * stride + row]);
+            }
+            return Ok((tw as usize, th as usize, packed));
+        }
+    }
+    anyhow::bail!("no decodable frame")
+}

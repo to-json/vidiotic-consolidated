@@ -1,0 +1,103 @@
+[package]
+name = "vidiotic-chop"
+version = "0.1.0"
+edition = "2021"
+
+# `cdylib` for the browser build (wasm-bindgen needs it); `rlib` because
+# `vidiotic-prep` links this crate natively. Both, not one or the other — the
+# same sources serve both shells.
+[lib]
+name = "vidiotic_chop"
+crate-type = ["cdylib", "rlib"]
+
+# `/chop`: the marking session and its panels, with no machine underneath.
+#
+# This is the same shape as `vidiotic-play` — the portable half of a front end,
+# extracted so the browser target's compiler can hold the line rather than a
+# convention. `vidiotic-prep` is now a native *shell* around this crate, and the
+# eventual web shell will be another one (web-port.md §2b).
+#
+# The dependency list is the boundary, and it is meant to be read: there is no
+# ffmpeg here, no rfd, no sockets, no std::fs. Adding any of them is the thing
+# this crate exists to make impossible by accident. Every entry below builds for
+# wasm32-unknown-unknown, which `scripts/wasm-gate.sh` asserts.
+[dependencies]
+# The `.viproj` model: SessionDefaults, SyncSpec. Default features off — the
+# ffmpeg feature is exactly what must not come along.
+vidiotic-core = { path = "../vidiotic-core", default-features = false }
+# For `ControlMap` alone, which a reopened project carries. Not the binding
+# tables — those are the shell's (see `vidiotic-prep/src/shell_ui.rs`).
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
+# The theme, the icon set, and the bracket-button/glyph widget vocabulary the
+# panels are written in. No `shell` or `logging` feature: both pull eframe and
+# env_logger, and neither belongs on this side.
+phosphor = { path = "../phosphor", default-features = false }
+# The compressor, the muxer, and (under wasm32) the browser bake driver both web
+# shells push frames into. Default features off: `ffmpeg` is exactly what must
+# not come along, and `rayon` wants threads a browser build does not have.
+vidiotic-bake = { path = "../vidiotic-bake", default-features = false }
+# Serializing the `.viproj` an export assembles. The same RON writer the desktop
+# exporter uses, so the two produce the same file rather than similar ones.
+nanoserde = "0.2"
+egui = "0.35"
+anyhow = "1"
+# `Instant` for the status-line fade. `std::time::Instant` compiles for wasm32
+# and then panics on first call; `web-time` is `std::time` verbatim natively and
+# `performance.now()` in a browser, so there is one implementation.
+web-time = "1.1"
+log = "0.4"
+
+# The browser shell. `vidiotic-prep` links this crate as an rlib and gets none
+# of it; `cdylib` is what wasm-bindgen needs for the browser build.
+#
+# `eframe` rather than the hand-rolled canvas/input/paint loop `vidiotic-play`
+# carries. That crate has two canvases in two documents and its own wgpu render
+# pass for the output head, so it needs the frame loop; this is a plain egui app
+# and `WebRunner` is the tool for one. Default features off for the same reason
+# prep turns them off: eframe's defaults enable accesskit.
+#
+# `glow`, not `wgpu`, and this is the one place /chop and /play should differ.
+# /play is *about* WebGPU — BC1 block textures, ISF shaders, a compositor — and
+# a WebGL2 fallback standing in silently would defeat the measurement. /chop
+# paints egui and one RGBA image. It needs no compute, no compressed textures,
+# no shaders. Measured on this crate, after `wasm-opt -Oz`:
+#
+#     features = ["wgpu"]   9,881 KiB -> 8,078 KiB
+#     features = ["glow"]   6,683 KiB -> 5,823 KiB   (this)
+#
+# 2.2 MB is a large fraction of a page a visitor waits for, and the WebGPU build
+# buys nothing back. It also runs in browsers where WebGPU is still behind a
+# flag, which for an editor somebody was linked to is the difference between a
+# tool and a blank canvas.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "0.35", default-features = false, features = ["glow", "default_fonts"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+# Building the [name, bytes] pair a download event carries.
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", default-features = false, features = [
+    "console",
+    # How a `Pick*` command reaches the page: the panels ask for a file, and the
+    # page owns the `<input type=file>` that answers.
+    "CustomEvent",
+    "CustomEventInit",
+    "Document",
+    "Element",
+    "Event",
+    "EventTarget",
+    "HtmlCanvasElement",
+    "Window",
+] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"

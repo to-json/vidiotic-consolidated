@@ -1,0 +1,58 @@
+[package]
+name = "vidiotic-bake"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "vidiotic_bake"
+
+# `ffmpeg` is on by default and every native caller gets it implicitly. It is a
+# feature at all because the browser build (web-port.md §8 step 3) needs `hap`
+# and `frame` — the bitstream and the per-frame BC1 bake — without ffmpeg's
+# demuxer/muxer, which does not cross to wasm32 (bindgen, a C build script, and
+# a system library). `scripts/wasm-gate.sh` is what holds that boundary open.
+#
+# `rayon` is separate from `ffmpeg` because it is a *runtime* hazard rather than
+# a build one: rayon compiles for wasm32 perfectly well and then panics when it
+# tries to build a thread pool in a browser that has no worker threads. The web
+# baker doesn't want one anyway — web-port.md §3c measured single-threaded
+# `Draft` at ~2.7x realtime, which is why the port needs no SharedArrayBuffer
+# and no COOP/COEP. Turning the feature off makes that a compile-time fact.
+[features]
+default = ["ffmpeg", "rayon"]
+ffmpeg = ["dep:ffmpeg-next"]
+rayon = ["texpresso/rayon"]
+
+[dependencies]
+ffmpeg-next = { version = "8.1", optional = true }
+texpresso = "2.0"
+snap = "1.1"
+anyhow = "1"
+log = "0.4"
+
+# The timing harnesses print through env_logger; neither runs by default
+# (both are `#[ignore]`). Same trimmed feature set as everywhere else, so the
+# dev graph doesn't drag jiff/regex back in for two ignored tests.
+[dev-dependencies]
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+
+# The browser bake driver (`web.rs`). Native builds get none of it.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+
+# Only for `cargo test --target wasm32-unknown-unknown`. The test bodies are
+# unchanged — each test module aliases `#[test]` to `#[wasm_bindgen_test]` under
+# wasm32, so the wasm run exercises the same assertions rather than a parallel
+# copy of them. Needs `wasm-bindgen-cli` at the matching version installed, and
+# the runner declared in `.cargo/config.toml`.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lints.clippy]
+use_self = "warn"
+redundant_clone = "warn"
+doc_markdown = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
