@@ -123,6 +123,7 @@ echo -n 'APPL????' > "$APP/Contents/PkgInfo"
 [ -d "$ROOT/vidiotic-play/shaders" ] || { echo "no shaders/ at vidiotic-play — did the crate layout change?" >&2; exit 1; }
 cp -R "$ROOT/vidiotic-play/shaders" "$RES/shaders"
 [ -d "$ROOT/vidiotic/licenses" ] && cp -R "$ROOT/vidiotic/licenses" "$RES/licenses"
+[ -f "$ROOT/LICENSE" ] && cp "$ROOT/LICENSE" "$RES/LICENSE"
 
 for icns in Vidiotic VidioticPrep VidioticCtl; do
   [ -f "$PKG/$icns.icns" ] || continue
