@@ -44,6 +44,44 @@ impl BakeQuality {
     }
 }
 
+/// A normalized crop rectangle [0.0..1.0] relative to original frame dimensions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CropRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+impl CropRect {
+    /// Construct a normalized crop rectangle, clamping `x, y, w, h` to [0.0, 1.0].
+    #[must_use]
+    pub fn normalized(x: f64, y: f64, w: f64, h: f64) -> Self {
+        let x = x.clamp(0.0, 0.999);
+        let y = y.clamp(0.0, 0.999);
+        let w = w.clamp(0.001, 1.0 - x);
+        let h = h.clamp(0.001, 1.0 - y);
+        Self { x, y, w, h }
+    }
+
+    /// Map normalized crop coordinates to pixel rectangle `(px_x, px_y, px_w, px_h)`.
+    #[must_use]
+    pub fn to_pixel_rect(&self, src_w: u32, src_h: u32) -> (u32, u32, u32, u32) {
+        if src_w == 0 || src_h == 0 {
+            return (0, 0, 0, 0);
+        }
+        let sw = src_w as f64;
+        let sh = src_h as f64;
+        let px = (self.x * sw).floor().clamp(0.0, sw - 1.0) as u32;
+        let py = (self.y * sh).floor().clamp(0.0, sh - 1.0) as u32;
+        let max_w = (src_w - px).max(1);
+        let max_h = (src_h - py).max(1);
+        let pw = (self.w * sw).round().clamp(1.0, max_w as f64) as u32;
+        let ph = (self.h * sh).round().clamp(1.0, max_h as f64) as u32;
+        (px, py, pw, ph)
+    }
+}
+
 /// Round a source's dimensions down to whole 4x4 blocks (at most 3 px off each
 /// axis). BC1 works on blocks and the render path copies block rows assuming
 /// aligned dimensions, so every bake crops to this before it starts.

@@ -164,11 +164,12 @@ fn run(
 
         let span_started = std::time::Instant::now();
         let mut last_sent = std::time::Instant::now();
-        let report = vidiotic_bake::transcode::run_span_with(
+        let report = vidiotic_bake::transcode::run_span_cropped_with(
             &span.source,
             &out_path,
             in_sec,
             Some(out_sec),
+            span.crop.map(|c| vidiotic_bake::frame::CropRect { x: c.x, y: c.y, w: c.w, h: c.h }),
             quality,
             |u| {
                 // ~10 Hz is plenty for a progress bar; don't flood the channel.

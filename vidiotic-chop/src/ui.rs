@@ -112,18 +112,126 @@ fn top_bar(ed: &mut Editor, ui: &mut egui::Ui) {
     });
 }
 
-fn central(ed: &Editor, m: &PrepMirror, ui: &mut egui::Ui) {
+fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
     if ed.media.is_none() {
         ui.centered_and_justified(|ui| ui.label("Open a video to begin"));
         return;
     }
 
+    let selected_idx = ed.spans.selected;
+    let span_crop = selected_idx.and_then(|idx| ed.spans.spans.get(idx)).and_then(|s| s.crop);
+    let active_crop = span_crop.or(ed.pending_crop);
+
+    let p = palette();
+
+    ui.horizontal(|ui| {
+        if let Some(crop) = active_crop {
+            ui.label(
+                egui::RichText::new(format!(
+                    "crop: {:.0}%×{:.0}% @ ({:.0}%, {:.0}%)",
+                    crop.w * 100.0,
+                    crop.h * 100.0,
+                    crop.x * 100.0,
+                    crop.y * 100.0
+                ))
+                .color(p.accent),
+            );
+            if widgets::bracket_button(ui, "clear crop", Some(p.error), 0.0)
+                .on_hover_text("reset crop box rect for this clip (show full frame)")
+                .clicked()
+            {
+                if let Some(idx) = selected_idx {
+                    ed.post(Command::ClearSpanCrop(idx));
+                } else {
+                    ed.pending_crop = None;
+                }
+            }
+        } else {
+            ui.label(
+                egui::RichText::new("drag rectangle on preview to crop clip")
+                    .small()
+                    .color(p.fg_muted),
+            );
+        }
+    });
+
     ui.centered_and_justified(|ui| {
-        if let Some(tex) = &m.preview {
-            let avail = ui.available_size();
-            let tex_size = tex.size_vec2();
-            let scale = (avail.x / tex_size.x).min(avail.y / tex_size.y).clamp(0.05, 1.0);
-            ui.image((tex.id(), tex_size * scale));
+        let Some(tex) = &m.preview else { return };
+        let avail = ui.available_size();
+        let tex_size = tex.size_vec2();
+        let scale = (avail.x / tex_size.x).min(avail.y / tex_size.y).clamp(0.05, 1.0);
+        let render_size = tex_size * scale;
+
+        let image_widget = if let Some(crop) = active_crop {
+            let uv = egui::Rect::from_min_max(
+                egui::pos2(crop.x as f32, crop.y as f32),
+                egui::pos2((crop.x + crop.w) as f32, (crop.y + crop.h) as f32),
+            );
+            egui::Image::new((tex.id(), render_size)).uv(uv).sense(egui::Sense::drag())
+        } else {
+            egui::Image::new((tex.id(), render_size)).sense(egui::Sense::drag())
+        };
+
+        let response = ui.add(image_widget);
+        let rect = response.rect;
+
+        if response.dragged() {
+            let pointer_pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or_default();
+            let press_pos = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
+            let drag_rect = egui::Rect::from_two_pos(press_pos, pointer_pos).intersect(rect);
+
+            if drag_rect.width() > 6.0 && drag_rect.height() > 6.0 {
+                ui.painter().rect_filled(drag_rect, 0.0, p.accent.linear_multiply(0.2));
+                ui.painter().rect_stroke(
+                    drag_rect,
+                    0.0,
+                    egui::Stroke::new(2.0, p.accent),
+                    egui::StrokeKind::Outside,
+                );
+
+                let norm_w = (drag_rect.width() / rect.width()) * 100.0;
+                let norm_h = (drag_rect.height() / rect.height()) * 100.0;
+                ui.painter().text(
+                    drag_rect.max,
+                    egui::Align2::RIGHT_BOTTOM,
+                    format!("{norm_w:.0}% × {norm_h:.0}%"),
+                    egui::FontId::monospace(12.0),
+                    p.accent,
+                );
+            }
+        }
+
+        if response.drag_stopped() {
+            let pointer_pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or_default();
+            let press_pos = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
+            let drag_rect = egui::Rect::from_two_pos(press_pos, pointer_pos).intersect(rect);
+
+            if drag_rect.width() > 8.0 && drag_rect.height() > 8.0 {
+                let (base_x, base_y, base_w, base_h) = match active_crop {
+                    Some(c) => (c.x, c.y, c.w, c.h),
+                    None => (0.0, 0.0, 1.0, 1.0),
+                };
+
+                let rel_x = ((drag_rect.min.x - rect.min.x) / rect.width()) as f64;
+                let rel_y = ((drag_rect.min.y - rect.min.y) / rect.height()) as f64;
+                let rel_w = (drag_rect.width() / rect.width()) as f64;
+                let rel_h = (drag_rect.height() / rect.height()) as f64;
+
+                let norm_x = base_x + rel_x * base_w;
+                let norm_y = base_y + rel_y * base_h;
+                let norm_w = rel_w * base_w;
+                let norm_h = rel_h * base_h;
+
+                let new_crop = vidiotic_core::project::CropRect::normalized(
+                    norm_x, norm_y, norm_w, norm_h,
+                );
+
+                if let Some(idx) = selected_idx {
+                    ed.post(Command::SetSpanCrop { idx, crop: Some(new_crop) });
+                } else {
+                    ed.pending_crop = Some(new_crop);
+                }
+            }
         }
     });
 }
@@ -509,6 +617,25 @@ fn span_list(ed: &mut Editor, ui: &mut egui::Ui) {
                             actions.push(Command::SetSpanBank(i, bi));
                         }
                     });
+                    if let Some(crop) = span.crop {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "crop: {:.0}%×{:.0}%",
+                                    crop.w * 100.0,
+                                    crop.h * 100.0,
+                                ))
+                                .small()
+                                .color(p.accent),
+                            );
+                            if widgets::bracket_button(ui, "clear crop", Some(p.error), 0.0)
+                                .on_hover_text("clear crop box rectangle for this clip")
+                                .clicked()
+                            {
+                                actions.push(Command::ClearSpanCrop(i));
+                            }
+                        });
+                    }
                 });
             ui.interact(resp.response.rect, hover_id, egui::Sense::hover());
         });

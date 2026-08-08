@@ -223,8 +223,10 @@ pub fn assemble(
                 out_frame: span.out_frame,
                 in_sec: b.in_sec,
                 out_sec: b.out_sec,
+                crop: span.crop,
                 ..Default::default()
             }),
+            crop: span.crop,
             ..Default::default()
         })
         .collect();
@@ -308,6 +310,7 @@ mod tests {
             bpm: Some(128.0),
             clip_bank: bank,
             source: PathBuf::from("/v.mov"),
+            crop: None,
         }
     }
 

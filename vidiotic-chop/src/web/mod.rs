@@ -615,8 +615,12 @@ impl ChopApp {
             .iter()
             .enumerate()
             .map(|(i, sp)| {
+                let crop_json = sp.crop.map_or_else(
+                    || "null".to_string(),
+                    |c| format!(r#"{{"x":{},"y":{},"w":{},"h":{}}}"#, c.x, c.y, c.w, c.h),
+                );
                 format!(
-                    r#"{{"index":{i},"name":"{}","file":"clips/{}","source":"{}","in_sec":{},"out_sec":{}}}"#,
+                    r#"{{"index":{i},"name":"{}","file":"clips/{}","source":"{}","in_sec":{},"out_sec":{},"crop":{crop_json}}}"#,
                     json_escape(&sp.name),
                     json_escape(&export::clip_file_name(i, sp)),
                     json_escape(&source_label),

@@ -723,6 +723,7 @@ mod tests {
             bpm: None,
             clip_bank: 0,
             source: PathBuf::from("/tmp/x.mov"),
+            crop: None,
         }
     }
 

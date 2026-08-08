@@ -130,6 +130,8 @@ pub struct Editor {
     pub view_len: u64,
     /// Beat count for the "snap out to N beats" helper (sidecar-persisted).
     pub snap_beats: f64,
+    /// Pending crop rectangle for the next created span or active preview.
+    pub pending_crop: Option<vidiotic_core::project::CropRect>,
     /// Large-file open waiting on confirmation before it actually loads.
     pub pending_open: Option<PendingOpen>,
     /// Whether the export window is up. Which *backend* an export runs on is a
@@ -172,6 +174,7 @@ impl Default for Editor {
             view_start: 0,
             view_len: 1,
             snap_beats: 4.0,
+            pending_crop: None,
             pending_open: None,
             show_export_dialog: false,
             show_quit_dialog: false,
@@ -417,6 +420,22 @@ impl Editor {
                     span.clip_bank = bank;
                 }
             }
+            Command::SetSpanCrop { idx, crop } => {
+                if let Some(span) = self.spans.spans.get_mut(idx) {
+                    span.crop = crop;
+                }
+                if self.spans.selected == Some(idx) || self.spans.selected.is_none() {
+                    self.pending_crop = crop;
+                }
+            }
+            Command::ClearSpanCrop(i) => {
+                if let Some(span) = self.spans.spans.get_mut(i) {
+                    span.crop = None;
+                }
+                if self.spans.selected == Some(i) {
+                    self.pending_crop = None;
+                }
+            }
 
             Command::AddBank => {
                 let n = self.bank_names.len() + 1;
@@ -500,12 +519,13 @@ impl Editor {
     /// Select span `i`, load its range into the pending marks, seek to its in
     /// point, and frame it in the view. Assumes its source video is open.
     fn load_marks_from_span(&mut self, i: usize) {
-        let Some((inf, outf)) = self.spans.spans.get(i).map(|s| (s.in_frame, s.out_frame)) else {
+        let Some((inf, outf, crop)) = self.spans.spans.get(i).map(|s| (s.in_frame, s.out_frame, s.crop)) else {
             return;
         };
         self.spans.select(i);
         self.pending_in = inf;
         self.pending_out = outf.max(inf + 1);
+        self.pending_crop = crop;
         self.seek(inf);
         self.zoom_to_marks();
     }
@@ -552,7 +572,7 @@ impl Editor {
     /// and select it. No-op if no video is open.
     pub fn add_span_from_marks(&mut self) {
         let Some(source) = self.source_path.clone() else { return };
-        self.spans.add(source, self.pending_in, self.pending_out);
+        self.spans.add(source, self.pending_in, self.pending_out, self.pending_crop);
     }
 
     /// Last frame of the visible jog window (inclusive).
@@ -782,6 +802,7 @@ mod tests {
             bpm: None,
             clip_bank: 0,
             source: PathBuf::from("/v.mov"),
+            crop: None,
         }
     }
 
@@ -996,5 +1017,26 @@ mod tests {
         assert!(ed.view_start < 400);
         assert!(ed.view_end() > 498);
         assert!(ed.view_len < 200);
+    }
+
+    #[test]
+    fn setting_and_clearing_span_crop_undoes_and_redoes() {
+        let mut ed = loaded(100);
+        ed.spans.spans.push(span("a"));
+        let crop = vidiotic_core::project::CropRect::normalized(0.1, 0.1, 0.5, 0.5);
+        ed.step(Command::SetSpanCrop { idx: 0, crop: Some(crop) }, 1.0);
+        assert_eq!(ed.spans.spans[0].crop, Some(crop));
+
+        ed.step(Command::ClearSpanCrop(0), 2.0);
+        assert_eq!(ed.spans.spans[0].crop, None);
+
+        ed.step(Command::Undo, 3.0);
+        assert_eq!(ed.spans.spans[0].crop, Some(crop));
+
+        ed.step(Command::Undo, 4.0);
+        assert_eq!(ed.spans.spans[0].crop, None);
+
+        ed.step(Command::Redo, 5.0);
+        assert_eq!(ed.spans.spans[0].crop, Some(crop));
     }
 }

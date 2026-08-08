@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vidiotic /chop</title>
+<!--
+  The /chop host page (web-port.md §2b).
+
+  Deliberately smaller than index.html, and the difference is the point. /play
+  owns two canvases in two documents and does its own window.open, because it
+  has an output head to put somewhere. /chop is one egui app on one canvas, so
+  this page owns a canvas, a title, and the note below — and chop.js owns the
+  two things a browser API forces into JS: choosing files and decoding video.
+
+  Everything else is the same Rust vidiotic-prep runs on a desktop.
+
+  Serve over http://, never file:// — an opaque origin changes how permissions
+  and storage behave, and it is not the environment this deploys into.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #1e2326; color: #d3c6aa;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex; flex-direction: column;
+  }
+  /* The canvas is the app. egui draws the toolbar, the inspector, the
+     transport and the status line, so the page adds no chrome of its own —
+     anything here would be a second, worse version of something inside. */
+  #chop { flex: 1; display: block; width: 100%; }
+  #boot-note { padding: 12px; color: #859289; }
+  #boot-note b { color: #d3c6aa; }
+  #boot-note code { color: #a7c080; }
+  .fatal { color: #e67e80; }
+  /* The drop target is the whole page: a video is the one thing you bring to
+     this tool, and hunting for a rectangle to hit is friction with no purpose. */
+  body.dropping::after {
+    content: 'drop a video or a .viproj';
+    position: fixed; inset: 8px; z-index: 9;
+    border: 2px dashed #a7c080; color: #a7c080;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 16px;
+  }
+</style>
+
+<canvas id="chop"></canvas>
+
+<!--
+  Shown until the module boots, then removed. A blank canvas and a silent
+  console is the worst failure this page has: WebGPU is behind a flag on some
+  browsers and absent on others, and "nothing happened" should never be the
+  whole message.
+-->
+<div id="boot-note">
+  <b>vidiotic /chop</b> — loading the editor…
+  <div>If this stays up, this browser could not start it. It needs <code>WebGPU</code> or WebGL2.</div>
+</div>
+
+<script type="module">
+  // A module script so `chop.js` can use top-level await. Failures here are
+  // otherwise silent: an import error in a module script does not reach
+  // window.onerror in a form the visitor would ever see.
+  const note = document.getElementById('boot-note');
+  try {
+    await import('./chop.js');
+    note.remove();
+  } catch (e) {
+    console.error(e);
+    note.innerHTML = `<b class="fatal">/chop could not start.</b><div>${String(e.message ?? e)}</div>`;
+  }
+</script>
+<script type="module">
+  // Drop affordance only; chop.js owns what actually happens on drop.
+  const on = (n, f) => window.addEventListener(n, f);
+  let depth = 0;
+  on('dragenter', () => { depth += 1; document.body.classList.add('dropping'); });
+  on('dragleave', () => { depth -= 1; if (depth <= 0) document.body.classList.remove('dropping'); });
+  on('drop', () => { depth = 0; document.body.classList.remove('dropping'); });
+</script>

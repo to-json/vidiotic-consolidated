@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vidiotic /play</title>
+<!--
+  The /play host page (web-port.md §8 step 4).
+
+  Hand-written and dependency-free on purpose. Its jobs, and no more:
+    1. own the two canvases, one per head;
+    2. do the window.open() for the output head, because that needs a real user
+       gesture and a click handler is where one reliably exists — which is why
+       Rust never calls it and never has to know which document a canvas is in;
+    3. get bytes into the engine, from a picker, a drop, or storage;
+    4. tell the visitor why nothing happened, when nothing can.
+
+  (3) grew to include OPFS. Persisting the bytes is the same job as reading
+  them: a clip that vanishes on reload makes the page a demo rather than a
+  tool, and the storage API is a browser API, so it belongs on this side of the
+  boundary for the same reason the file picker does. Session state — tempo,
+  effect — is small and structured and lives in localStorage next to it; both
+  are read back through the engine's own exported setters, so this file never
+  learns what a bpm means.
+
+  Everything else is Rust. Serve over http://, never file:// — an opaque origin
+  costs OPFS entirely.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #1e2326; color: #d3c6aa;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header { padding: 8px 12px; border-bottom: 1px solid #3d484d; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button, input[type=file] { font: inherit; color: inherit; background: #2d353b; border: 1px solid #3d484d; padding: 4px 10px; }
+  button:hover:not(:disabled) { background: #3d484d; }
+  button:disabled { opacity: .4; }
+  #status { color: #7fbbb3; margin-left: auto; }
+  #status.err { color: #e67e80; }
+  #control { flex: 1; display: block; width: 100%; }
+  #boot-note { padding: 12px; color: #859289; }
+  #boot-note b { color: #d3c6aa; }
+  #boot-note code { color: #a7c080; }
+  .fatal { color: #e67e80; }
+  .fatal ul { margin: 6px 0 0 0; padding-left: 20px; }
+  /* The drop target is the whole page: a clip is the one thing you bring to
+     this tool, and hunting for a rectangle to hit is friction with no purpose. */
+  body.dropping::after {
+    content: 'drop a video';
+    position: fixed; inset: 8px; z-index: 9;
+    border: 2px dashed #a7c080; color: #a7c080;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; background: rgba(30,35,38,.85); pointer-events: none;
+  }
+</style>
+
+<header>
+  <button id="start">Start — opens the output window</button>
+  <input id="file" type="file" accept="video/*,.mov,.mp4,.webm,.mkv,.viproj" multiple disabled>
+  <button id="audio" disabled>Listen</button>
+  <button id="forget" disabled hidden>Forget stored clips</button>
+  <span id="status">idle</span>
+</header>
+<div id="boot-note">
+  Click <b>Start</b>. It opens a second window for the clean output feed (drag that
+  one to a projector) and boots the engine on this window's control canvas.
+  Then drop a video anywhere on this page, or choose one above. Anything this
+  browser can play is baked to HAP right here in the tab; a long clip takes a
+  while, and you can leave the tab while it does. A <code>.mov</code> already
+  baked by <code>vidiotic transcode</code> skips the wait entirely. The result is
+  kept in this browser, so a reload picks up where you left off.
+  <b>Listen</b> points the audio-reactive effects at a tab, your system audio, or
+  a microphone.
+</div>
+<canvas id="control" hidden></canvas>
+
+<!-- External, not inline: the deploy target serves a CSP without
+     'unsafe-inline', and an inline module simply does not run there.
+     release-play.sh rewrites this path to the hashed bundle. -->
+<script type="module" src="./boot.js"></script>

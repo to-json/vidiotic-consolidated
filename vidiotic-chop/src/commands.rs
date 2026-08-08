@@ -81,6 +81,9 @@ pub enum Command {
     /// `None` falls back to the session bpm.
     SetSpanBpm(usize, Option<f64>),
     SetSpanBank(usize, usize),
+    /// Set a span's crop box rect (`None` removes crop).
+    SetSpanCrop { idx: usize, crop: Option<vidiotic_core::project::CropRect> },
+    ClearSpanCrop(usize),
 
     // --- banks / defaults (document state; undoable) ---
     AddBank,

@@ -3,10 +3,11 @@
 //! carries its own source, so the list survives switching the open video.
 
 use std::path::PathBuf;
+use vidiotic_core::project::CropRect;
 
 /// One marked span of a source video. `out_frame` is exclusive, matching
 /// [`vidiotic_core::project::SpanProvenance`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Span {
     pub name: String,
     pub in_frame: u64,
@@ -16,6 +17,8 @@ pub struct Span {
     pub clip_bank: usize,
     /// The video this span's frame indices are relative to.
     pub source: PathBuf,
+    /// Optional crop box rect (normalized coords in [0.0..1.0]).
+    pub crop: Option<CropRect>,
 }
 
 /// Ordered spans plus the current selection, driving both the list panel and
@@ -28,7 +31,7 @@ pub struct SpanList {
 
 impl SpanList {
     /// Append a new span `[in_frame, out_frame)` of `source` and select it.
-    pub fn add(&mut self, source: PathBuf, in_frame: u64, out_frame: u64) {
+    pub fn add(&mut self, source: PathBuf, in_frame: u64, out_frame: u64, crop: Option<CropRect>) {
         let n = self.spans.len();
         self.spans.push(Span {
             name: format!("span {}", n + 1),
@@ -37,6 +40,7 @@ impl SpanList {
             bpm: None,
             clip_bank: 0,
             source,
+            crop,
         });
         self.selected = Some(n);
     }

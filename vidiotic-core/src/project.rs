@@ -132,6 +132,44 @@ pub struct SessionDefaults {
 /// One source clip. `path` is relative to the `.viproj`'s directory, or
 /// absolute; [`resolve`] turns it into a concrete path and flags misses.
 /// Camera clips carry a [`CameraSpec`] instead — `path` is empty and ignored,
+/// A normalized crop rectangle [0.0..1.0] relative to original frame dimensions.
+#[derive(SerRon, DeRon, Clone, Copy, Debug, PartialEq)]
+pub struct CropRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+impl CropRect {
+    /// Construct a normalized crop rectangle, clamping `x, y, w, h` to [0.0, 1.0].
+    #[must_use]
+    pub fn normalized(x: f64, y: f64, w: f64, h: f64) -> Self {
+        let x = x.clamp(0.0, 0.999);
+        let y = y.clamp(0.0, 0.999);
+        let w = w.clamp(0.001, 1.0 - x);
+        let h = h.clamp(0.001, 1.0 - y);
+        Self { x, y, w, h }
+    }
+
+    /// Map normalized crop coordinates to pixel rectangle `(px_x, px_y, px_w, px_h)`.
+    #[must_use]
+    pub fn to_pixel_rect(&self, src_w: u32, src_h: u32) -> (u32, u32, u32, u32) {
+        if src_w == 0 || src_h == 0 {
+            return (0, 0, 0, 0);
+        }
+        let sw = src_w as f64;
+        let sh = src_h as f64;
+        let px = (self.x * sw).floor().clamp(0.0, sw - 1.0) as u32;
+        let py = (self.y * sh).floor().clamp(0.0, sh - 1.0) as u32;
+        let max_w = (src_w - px).max(1);
+        let max_h = (src_h - py).max(1);
+        let pw = (self.w * sw).round().clamp(1.0, max_w as f64) as u32;
+        let ph = (self.h * sh).round().clamp(1.0, max_h as f64) as u32;
+        (px, py, pw, ph)
+    }
+}
+
 /// and [`resolve`] never path-checks them (a missing device is not a missing
 /// file: the project still loads and the clip relinks by picking a device).
 #[derive(SerRon, DeRon, Clone, Debug, Default)]
@@ -154,6 +192,9 @@ pub struct ClipSpec {
     /// Set when this clip is a live capture device rather than a file.
     #[nserde(default)]
     pub camera: Option<CameraSpec>,
+    /// Optional crop box rect (normalized coords in [0.0..1.0]).
+    #[nserde(default)]
+    pub crop: Option<CropRect>,
 }
 
 /// A camera clip's identity: the stable `AVFoundation` `uniqueID`, plus the
@@ -173,6 +214,9 @@ pub struct SpanProvenance {
     pub out_frame: u64,
     pub in_sec: f64,
     pub out_sec: f64,
+    /// Optional crop box rect (normalized coords in [0.0..1.0]).
+    #[nserde(default)]
+    pub crop: Option<CropRect>,
 }
 
 /// A named group of clips, referenced by id. Purely a pool-grid filter.
@@ -666,6 +710,7 @@ pub fn assemble(resolved: &ResolvedProject) -> RuntimeAssembly {
                     frames: c.frames,
                     duration_sec: c.duration_sec,
                     source: c.source.clone(),
+                    crop: c.crop,
                 },
             )
         })
@@ -799,6 +844,7 @@ pub struct ClipMeta {
     pub frames: Option<u64>,
     pub duration_sec: Option<f64>,
     pub source: Option<SpanProvenance>,
+    pub crop: Option<CropRect>,
 }
 
 impl ClipSpec {
@@ -831,6 +877,7 @@ impl ClipSpec {
             duration_sec: meta.duration_sec,
             source: meta.source,
             camera,
+            crop: meta.crop,
         }
     }
 
@@ -1096,8 +1143,10 @@ mod tests {
                     out_frame: 74,
                     in_sec: 0.333,
                     out_sec: 2.466,
+                    crop: None,
                 }),
                 camera: None,
+                crop: None,
             }],
             clip_banks: vec![ClipBankSpec {
                 name: "drums".into(),
@@ -1237,7 +1286,9 @@ mod tests {
                     out_frame: 74,
                     in_sec: 0.333,
                     out_sec: 2.466,
+                    crop: None,
                 }),
+                crop: None,
             },
         )]);
         let defaults = SessionDefaults {
@@ -1489,5 +1540,36 @@ mod tests {
         assert!(r.clip_paths[&0].ends_with("moved/kick.mov"));
         // The relink is persisted relative to the project dir, not left absolute.
         assert_eq!(r.project.clips[0].path, "moved/kick.mov");
+    }
+
+    #[test]
+    fn crop_rect_normalized_and_pixel_mapping() {
+        let crop = CropRect::normalized(0.25, 0.25, 0.5, 0.5);
+        assert_eq!(crop, CropRect { x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+        let (px, py, pw, ph) = crop.to_pixel_rect(1920, 1080);
+        assert_eq!((px, py, pw, ph), (480, 270, 960, 540));
+    }
+
+    #[test]
+    fn span_provenance_and_clip_spec_crop_round_trips_ron() {
+        let crop = CropRect::normalized(0.1, 0.2, 0.3, 0.4);
+        let spec = ClipSpec {
+            id: 1,
+            name: "test".into(),
+            crop: Some(crop),
+            source: Some(SpanProvenance {
+                original_path: "/src.mov".into(),
+                in_frame: 0,
+                out_frame: 100,
+                in_sec: 0.0,
+                out_sec: 3.33,
+                crop: Some(crop),
+            }),
+            ..Default::default()
+        };
+        let ron = nanoserde::SerRon::serialize_ron(&spec);
+        let back: ClipSpec = nanoserde::DeRon::deserialize_ron(&ron).expect("deserialize ron");
+        assert_eq!(back.crop, Some(crop));
+        assert_eq!(back.source.as_ref().and_then(|s| s.crop), Some(crop));
     }
 }

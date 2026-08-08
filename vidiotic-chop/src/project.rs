@@ -63,6 +63,7 @@ impl ReopenedProject {
                 bpm: clip.bpm,
                 clip_bank: bank_of(clip.id),
                 source: PathBuf::from(&prov.original_path),
+                crop: prov.crop.or(clip.crop),
             });
         }
 
@@ -100,6 +101,7 @@ mod tests {
                 out_frame: out_f,
                 in_sec: 0.0,
                 out_sec: 0.0,
+                crop: None,
             }),
             ..Default::default()
         }

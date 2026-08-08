@@ -50,6 +50,7 @@ pub enum EditTag {
     SpanName(usize),
     SpanBpm(usize),
     SpanBank(usize),
+    SpanCrop(usize),
     BankName(usize),
     Defaults,
 }
@@ -73,6 +74,8 @@ pub fn classify(cmd: &Command) -> Option<Option<EditTag>> {
         Command::SetSpanName(i, _) => Some(EditTag::SpanName(*i)),
         Command::SetSpanBpm(i, _) => Some(EditTag::SpanBpm(*i)),
         Command::SetSpanBank(i, _) => Some(EditTag::SpanBank(*i)),
+        Command::SetSpanCrop { idx, .. } => Some(EditTag::SpanCrop(*idx)),
+        Command::ClearSpanCrop(i) => Some(EditTag::SpanCrop(*i)),
         Command::SetBankName(i, _) => Some(EditTag::BankName(*i)),
         Command::SetDefaults(_) => Some(EditTag::Defaults),
         _ => return None,

@@ -220,11 +220,41 @@ pub struct BakeUpdate {
 ///
 /// # Panics
 /// Panics if the output stream just added to the muxer cannot be read back.
+/// Transcode the `[in_sec, out_sec)` span of `input` to a HAP1 `.mov`,
+/// invoking `progress` once per decoded frame.
+///
+/// The demuxer seeks to the keyframe at or before `in_sec`; frames whose source
+/// pts precede `in_sec` are decoded (for inter-frame correctness) but not
+/// emitted, and decoding stops once a frame's pts reaches `out_sec`. Output pts
+/// is re-baselined so the file always begins at t=0. Pass `in_sec = 0.0` and
+/// `out_sec = None` for a whole-file transcode.
+///
+/// # Errors
+/// Propagates ffmpeg initialization, seek, demux/decode, and mux/write failures.
+///
+/// # Panics
+/// Panics if the output stream just added to the muxer cannot be read back.
 pub fn run_span_with(
     input: &Path,
     output: &Path,
     in_sec: f64,
     out_sec: Option<f64>,
+    quality: BakeQuality,
+    progress: impl FnMut(BakeUpdate),
+) -> anyhow::Result<TranscodeReport> {
+    run_span_cropped_with(input, output, in_sec, out_sec, None, quality, progress)
+}
+
+/// Transcode with an optional normalized crop box rect.
+///
+/// # Errors
+/// See [`run_span_with`].
+pub fn run_span_cropped_with(
+    input: &Path,
+    output: &Path,
+    in_sec: f64,
+    out_sec: Option<f64>,
+    crop: Option<crate::frame::CropRect>,
     quality: BakeQuality,
     mut progress: impl FnMut(BakeUpdate),
 ) -> anyhow::Result<TranscodeReport> {
@@ -258,19 +288,21 @@ pub fn run_span_with(
         ff::codec::threading::Type::Frame,
     ));
     let mut decoder = dec_ctx.decoder().video()?;
-    // HAP/BC1 works on 4×4 blocks and the render path copies block rows assuming
-    // aligned dimensions, so crop to a multiple of 4 (at most 3 px per side).
     let (sw, sh) = (decoder.width(), decoder.height());
-    let (w, h) = align4(sw, sh);
-    anyhow::ensure!(w >= 4 && h >= 4, "video too small to transcode: {sw}x{sh}");
+    let (px_x, px_y, target_w, target_h) = match crop {
+        Some(c) => c.to_pixel_rect(sw, sh),
+        None => (0, 0, sw, sh),
+    };
+    let (w, h) = align4(target_w, target_h);
+    anyhow::ensure!(w >= 4 && h >= 4, "video/crop too small to transcode: {target_w}x{target_h}");
     let mut baker = FrameBaker::new(w, h, quality)?;
     let mut scaler = ff::software::scaling::Context::get(
         decoder.format(),
         sw,
         sh,
         ff::format::Pixel::RGBA,
-        w,
-        h,
+        sw,
+        sh,
         ff::software::scaling::Flags::BILINEAR,
     )?;
 
@@ -328,13 +360,15 @@ pub fn run_span_with(
             let mut rgba = ff::frame::Video::empty();
             scaler.run(&decoded, &mut rgba)?;
 
-            // Repack rows to a tight width*4 stride for texpresso.
+            // Repack cropped rows to a tight width*4 stride for texpresso.
             let src = rgba.data(0);
             let stride = rgba.stride(0);
             let row = (w * 4) as usize;
             for y in 0..h as usize {
+                let src_y = (px_y as usize) + y;
+                let src_offset = src_y * stride + (px_x as usize * 4);
                 packed[y * row..(y + 1) * row]
-                    .copy_from_slice(&src[y * stride..y * stride + row]);
+                    .copy_from_slice(&src[src_offset..src_offset + row]);
             }
             stages.scale += t0.elapsed();
 

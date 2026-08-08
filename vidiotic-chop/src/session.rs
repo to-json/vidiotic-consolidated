@@ -48,6 +48,8 @@ pub struct SpanRec {
     pub out_frame: u64,
     pub bpm: Option<f64>,
     pub clip_bank: usize,
+    #[nserde(default)]
+    pub crop: Option<vidiotic_core::project::CropRect>,
 }
 
 impl SessionFile {
@@ -74,6 +76,7 @@ impl SessionFile {
                     out_frame: s.out_frame,
                     bpm: s.bpm,
                     clip_bank: s.clip_bank,
+                    crop: s.crop,
                 })
                 .collect(),
             bank_names: ed.bank_names.clone(),
@@ -108,6 +111,7 @@ impl SessionFile {
                 bpm: r.bpm,
                 clip_bank: r.clip_bank,
                 source: source.to_path_buf(),
+                crop: r.crop,
             })
             .collect();
         ed.spans.spans.append(&mut spans);
@@ -155,6 +159,7 @@ mod tests {
             bpm: None,
             clip_bank: 0,
             source: PathBuf::from(source),
+            crop: None,
         }
     }
 
@@ -185,6 +190,7 @@ mod tests {
                 out_frame: 10,
                 bpm: None,
                 clip_bank: 0,
+                crop: None,
             }],
             bank_names: vec!["from-a".to_string()],
             defaults: SessionDefaults { bpm: 100.0, ..Default::default() },
@@ -204,6 +210,7 @@ mod tests {
                 out_frame: 5,
                 bpm: None,
                 clip_bank: 0,
+                crop: None,
             }],
             bank_names: vec!["from-b".to_string()],
             defaults: SessionDefaults { bpm: 200.0, ..Default::default() },
@@ -281,6 +288,7 @@ mod tests {
                 out_frame: 5,
                 bpm: None,
                 clip_bank: 0,
+                crop: None,
             }],
             bank_names: vec![],
             defaults: SessionDefaults::default(),
