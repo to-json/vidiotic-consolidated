@@ -37,3 +37,19 @@ gate:
 smoke:
     node scripts/play-smoke.mjs
     node scripts/chop-smoke.mjs
+
+# Assemble native macOS application bundle (dist/Vidiotic.app)
+app:
+    bash packaging/bundle.sh
+
+# Assemble debug build of native macOS application bundle
+app-debug:
+    bash packaging/bundle.sh --debug
+
+# Assemble native macOS application bundle and DMG disk image (dist/Vidiotic.dmg)
+dmg:
+    bash packaging/bundle.sh --dmg
+
+# Build native macOS application and install to /Applications
+install-app:
+    bash packaging/bundle.sh --install
