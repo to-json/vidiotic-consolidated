@@ -195,11 +195,79 @@ struct Shell {
     /// frame. Natively this is the channel the winit loop owns.
     cmd_tx: crossbeam_channel::Sender<Command>,
     cmd_rx: crossbeam_channel::Receiver<Command>,
-    /// Clip thumbnails, by pool id. Empty: decoding a poster frame per clip is
-    /// the native shell's trick and the browser has no equivalent yet, so the
-    /// library grid draws name-only tiles. `library::show` already handles a
-    /// missing entry — that is what `has_thumb` is for.
+    /// Clip thumbnails, by pool id.
     thumbs: HashMap<ClipId, egui::TextureHandle>,
+}
+
+fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
+    let track = probe.track();
+    if !track.is_hap() {
+        return None;
+    }
+    let sample = track.sample_data(bytes, 0)?;
+    let mut main_buf = Vec::new();
+    let mut alpha_buf = Vec::new();
+    let meta = vidiotic_bake::hap::decode_frame(sample, 1, &mut main_buf, &mut alpha_buf).ok()?;
+
+    let (src_w, src_h) = (track.width as usize, track.height as usize);
+    if src_w == 0 || src_h == 0 {
+        return None;
+    }
+
+    let mut rgba = vec![0u8; src_w * src_h * 4];
+    match meta.format {
+        vidiotic_bake::hap::HapTextureFormat::Bc1 => {
+            texpresso::Format::Bc1.decompress(&main_buf, src_w, src_h, &mut rgba);
+        }
+        vidiotic_bake::hap::HapTextureFormat::Bc3 | vidiotic_bake::hap::HapTextureFormat::Bc3YCoCg => {
+            texpresso::Format::Bc3.decompress(&main_buf, src_w, src_h, &mut rgba);
+        }
+        _ => return None,
+    }
+
+    let thumb_w = 128;
+    let thumb_h = 86;
+    let mut thumb_rgba = vec![0u8; thumb_w * thumb_h * 4];
+
+    for ty in 0..thumb_h {
+        let sy = (ty * src_h) / thumb_h;
+        for tx in 0..thumb_w {
+            let sx = (tx * src_w) / thumb_w;
+            let src_idx = (sy * src_w + sx) * 4;
+            let dst_idx = (ty * thumb_w + tx) * 4;
+            if src_idx + 3 < rgba.len() && dst_idx + 3 < thumb_rgba.len() {
+                thumb_rgba[dst_idx..dst_idx + 4].copy_from_slice(&rgba[src_idx..src_idx + 4]);
+            }
+        }
+    }
+
+    Some(egui::ColorImage::from_rgba_unmultiplied(
+        [thumb_w, thumb_h],
+        &thumb_rgba,
+    ))
+}
+
+#[wasm_bindgen]
+pub fn deliver_thumbnail(clip_name: &str, width: u32, height: u32, rgba: &[u8]) -> Result<(), JsValue> {
+    if width == 0 || height == 0 || rgba.len() != (width * height * 4) as usize {
+        return Err(JsValue::from_str("invalid thumbnail dimensions or buffer length"));
+    }
+    with_shell(|s| {
+        let clip_id = s.mirror.clips.iter().find(|c| c.name.as_ref() == clip_name).map(|c| c.id);
+        if let Some(id) = clip_id {
+            let img = egui::ColorImage::from_rgba_unmultiplied(
+                [width as usize, height as usize],
+                rgba,
+            );
+            let handle = s.egui_ctx.load_texture(
+                format!("thumb:{id}"),
+                img,
+                egui::TextureOptions::LINEAR,
+            );
+            s.thumbs.insert(id, handle);
+        }
+        Ok(())
+    })
 }
 
 impl Shell {
@@ -564,6 +632,12 @@ impl Shell {
         // shader that then appeared nowhere.
         self.engine
             .build_mirror(snap, self.analyzer.frame(), &mut self.mirror);
+        for entry in &mut self.mirror.clips {
+            entry.has_thumb = self.thumbs.contains_key(&entry.id);
+        }
+        for cue in &mut self.mirror.cues {
+            cue.has_thumb = self.thumbs.contains_key(&cue.clip);
+        }
         self.mirror.shader_name = self
             .effect
             .and_then(|i| crate::render::BUILTIN_EFFECTS.get(i))
@@ -610,8 +684,6 @@ impl Shell {
         }
     }
 
-
-
     /// Take a clip into the pool and cue it up.
     ///
     /// Three steps, and all three are engine calls: intern the pool entry (which
@@ -622,7 +694,7 @@ impl Shell {
         let bytes = Rc::new(bytes);
         let probe = Movie::open(Rc::clone(&bytes)).map_err(|e| format!("{name}: {e}"))?;
         let loaded = Loaded {
-            bytes,
+            bytes: Rc::clone(&bytes),
             width: probe.width(),
             height: probe.height(),
             frames: probe.frame_count(),
@@ -639,6 +711,17 @@ impl Shell {
             .engine
             .intern_clip(ClipSource::File(name.into()), name.into());
         self.library.borrow_mut().insert(id, loaded);
+
+        // Extract and register thumbnail for egui UI tiles if possible
+        if let Some(img) = generate_thumbnail(&probe, &bytes) {
+            let handle = self.egui_ctx.load_texture(
+                format!("thumb:{id}"),
+                img,
+                egui::TextureOptions::LINEAR,
+            );
+            self.thumbs.insert(id, handle);
+        }
+
         if let Some(bank) = self.engine.clip_banks.first_mut() {
             bank.clip_ids.push(id);
         } else {
@@ -724,7 +807,7 @@ impl Shell {
                         fps: (l.duration > 0.0).then(|| l.frames as f64 / l.duration),
                         frames: Some(l.frames as u64),
                         duration_sec: Some(l.duration),
-                        source: None,
+                        ..Default::default()
                     },
                 )
             })

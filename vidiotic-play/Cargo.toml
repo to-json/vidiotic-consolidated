@@ -29,6 +29,7 @@ anyhow = "1"
 log = "0.4"
 vidiotic-core = { path = "../vidiotic-core", default-features = false }
 vidiotic-bake = { path = "../vidiotic-bake", default-features = false }
+texpresso = "2.0"
 # The control vocabulary the grammar speaks. Portable by construction —
 # `vidiotic_ctl::keys` canonicalizes winit *and* egui key spellings against one
 # table precisely so neither toolkit leaks into the model.

@@ -4324,6 +4324,7 @@ dependencies = [
  "pollster",
  "rustfft",
  "rusty_link",
+ "texpresso",
  "vidiotic-bake",
  "vidiotic-core",
  "vidiotic-ctl",
