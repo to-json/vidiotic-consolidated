@@ -1217,13 +1217,11 @@ pub async fn boot(
     // §9a's lo-res face, and `/play` is the one surface entitled to it: its
     // panel is the P0 skeleton, deliberately ad-hoc, so it is *designed* to a
     // 16-point cell rather than retrofitted onto one. `vidiotic` and
-    // `vidiotic-prep` stay on the classic face until their panels are rebuilt
-    // for the grid — which is the expensive order §9a warns about, and the
-    // reason the face is a runtime switch rather than a replacement.
+    // Set the theme face to Classic (12pt font) by default on web.
     phosphor::theme::set_state(
         &egui_ctx,
         phosphor::theme::ThemeState {
-            face: phosphor::theme::Face::Grid,
+            face: phosphor::theme::Face::Classic,
             ..phosphor::theme::ThemeState::default()
         },
     );
