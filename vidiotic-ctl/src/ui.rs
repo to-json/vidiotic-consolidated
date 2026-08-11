@@ -196,6 +196,7 @@ fn action_params(ui: &mut egui::Ui, action: &mut Action) -> bool {
         | Action::CaptureShader
         | Action::ToggleFullscreen
         | Action::SaveProject
+        | Action::ToggleCommandPalette
         | Action::Quit
         | Action::BpmCommit
         | Action::BpmClear

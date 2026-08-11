@@ -210,6 +210,7 @@ pub struct Engine {
     /// Modal command grammar: when on, token keys/pads/notes drive verb
     /// sequences (and mask their direct bindings).
     pub grammar_on: bool,
+    pub command_palette_open: bool,
     pub grammar: Grammar,
     pub focused_pane: Pane,
     pub prev_pane: Pane,
@@ -272,6 +273,7 @@ impl Engine {
             advanced: boot.advanced,
             tap: TapTempo::default(),
             grammar_on: false,
+            command_palette_open: false,
             grammar: Grammar::default(),
             focused_pane: Pane::default(),
             prev_pane: Pane::default(),
@@ -462,6 +464,9 @@ impl Engine {
                 self.grammar_on = on;
                 self.grammar.reset();
             }
+            Command::ToggleCommandPalette => {
+                self.command_palette_open = !self.command_palette_open;
+            }
             Command::AddBank => self.add_bank(),
             Command::CloneBank => self.clone_bank(),
             Command::SetLiveBank(i) => self.set_live_bank(i),
@@ -594,6 +599,7 @@ impl Engine {
         out.preserve_playhead = self.preserve_playhead;
         out.advanced = self.advanced;
         out.grammar_on = self.grammar_on;
+        out.command_palette_open = self.command_palette_open;
         out.grammar_modal = self.grammar_modal_view();
         out.grammar_pane = self.grammar_on.then(|| self.focused_pane.mode_word());
         let q = snap.quantum.max(0.25);

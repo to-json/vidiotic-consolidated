@@ -162,6 +162,7 @@ impl Engine {
             Verb::OpenProjectEditor => self.raise(Command::OpenProjectEditor),
             Verb::ToggleFullscreen => self.raise(Command::ToggleFullscreen),
             Verb::ToggleAdvanced => self.raise(Command::SetAdvancedMode(!self.advanced)),
+            Verb::ToggleCommandPalette => self.raise(Command::ToggleCommandPalette),
             Verb::GrammarOff => self.raise(Command::SetGrammarMode(false)),
         }
     }

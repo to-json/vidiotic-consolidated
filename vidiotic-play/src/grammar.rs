@@ -108,6 +108,7 @@ pub enum Verb {
     OpenProjectEditor,
     ToggleFullscreen,
     ToggleAdvanced,
+    ToggleCommandPalette,
     GrammarOff,
 }
 
@@ -353,7 +354,7 @@ const META_ROOT: RootEntry = RootEntry {
         conj("advanced", Verb::ToggleAdvanced),
         conj("edit proj", Verb::OpenProjectEditor),
         conj("open proj", Verb::OpenProject),
-        NC,
+        conj("palette", Verb::ToggleCommandPalette),
         NC,
         conj("grammar off", Verb::GrammarOff),
     ],

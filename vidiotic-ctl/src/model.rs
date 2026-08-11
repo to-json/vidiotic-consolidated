@@ -123,6 +123,7 @@ pub enum Action {
     SetEditBank { index: u32 },
     /// Continuous: value in `0..=1` lerps between `min` and `max`.
     SetBpm { min: f64, max: f64 },
+    ToggleCommandPalette,
     Quit,
     /// Append one digit to the player's pending BPM entry;
     /// [`Self::BpmCommit`] parses it into a tempo and [`Self::BpmClear`]
@@ -148,6 +149,7 @@ pub const PLAYER_CATALOG: &[Action] = &[
     Action::CaptureShader,
     Action::ToggleFullscreen,
     Action::SaveProject,
+    Action::ToggleCommandPalette,
     Action::BpmDelta { amount: 1.0 },
     Action::NudgeBpm { ratio: 0.01 },
     Action::CycleLiveBank { delta: 1 },
@@ -284,6 +286,7 @@ impl Action {
             Self::CaptureShader => "Capture Shader",
             Self::ToggleFullscreen => "Toggle Fullscreen",
             Self::SaveProject => "Save Project",
+            Self::ToggleCommandPalette => "Command Palette",
             Self::BpmDelta { .. } => "Bpm Delta",
             Self::NudgeBpm { .. } => "Nudge Bpm",
             Self::CycleLiveBank { .. } => "Cycle Live Bank",

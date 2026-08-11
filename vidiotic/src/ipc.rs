@@ -782,6 +782,7 @@ fn mirror_field_guard(m: &UiMirror) {
         preserve_playhead: _,
         advanced: _,
         grammar_on: _,
+        command_palette_open: _,
         grammar_modal: _,
         grammar_pane: _,
         sync: _,
@@ -938,6 +939,7 @@ mod tests {
                 | Command::PickIsf
                 | Command::Undo
                 | Command::Redo
+                | Command::ToggleCommandPalette
                 | Command::BpmDigit(_)
                 | Command::BpmCommit
                 | Command::BpmClear => Class::ExcludedInteractive,

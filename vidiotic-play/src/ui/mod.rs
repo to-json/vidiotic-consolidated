@@ -26,6 +26,7 @@
 //! thumbnail cache passed to [`library::show`], and answering the `Pick*`
 //! commands the panels emit instead of opening a file dialog themselves.
 
+pub mod command_palette;
 pub mod editor;
 pub mod library;
 pub mod status;
@@ -71,6 +72,9 @@ pub fn control_ui(
     library::show(ui, m, tx, thumbs);
     if let Some(modal) = &m.grammar_modal {
         whichkey::show(ui.ctx(), modal);
+    }
+    if m.command_palette_open {
+        command_palette::show(ui.ctx(), m, tx);
     }
 }
 

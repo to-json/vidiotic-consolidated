@@ -122,6 +122,7 @@ pub enum Command {
     /// this needs no project — the mapper edits `.vmap` files on disk — so it
     /// is available in every session.
     OpenControlMapper,
+    ToggleCommandPalette,
     Quit,
 
     // --- keyboard tempo entry ---
@@ -324,6 +325,7 @@ pub struct UiMirror {
     pub preserve_playhead: bool, // carry the playhead over on a cut vs. restart the incoming clip
     pub advanced: bool, // advanced sequencer mode: per-cue timing/speed + extended UI
     pub grammar_on: bool, // modal command grammar enabled
+    pub command_palette_open: bool, // floating command palette open
     pub grammar_modal: Option<GrammarModalView>, // pending sequence, if any
     /// The focused pane's statusline mode word (e.g. "BANK") while the
     /// grammar is on; `None` when it's off.
