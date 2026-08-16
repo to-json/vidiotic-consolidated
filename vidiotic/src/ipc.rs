@@ -42,7 +42,7 @@ use vidiotic_wire::command::{
     WireSyncKind, WireTimeSig, WireToggleF64, WireToggleI32, WireToggleU32,
 };
 use vidiotic_wire::envelope::{Greeting, Reply, Request};
-use vidiotic_wire::isf::{WireIsfInput, WireIsfInputKind, WireIsfValue, WireParam};
+use vidiotic_wire::isf::WireParam;
 use vidiotic_wire::query::WireQuery;
 use vidiotic_wire::reply::{
     WireAudio, WireBankView, WireCameraEntry, WireClipBankView, WireClipEntry, WireClipRole,
@@ -55,7 +55,6 @@ use crate::commands::{
     Cadence, ChainSlot, ClipEntry, ClipRole, Command, CueParam, CueParamKind, CueView, SlotRef,
     SyncKind, TimeSig, UiMirror,
 };
-use crate::isf::{IsfInput, IsfInputKind, IsfValue};
 
 /// Re-exported so `crate::ipc::SOCK_ENV` still reads as "the engine's socket
 /// variable" at the listener side; the definition lives with the protocol in
@@ -344,23 +343,13 @@ fn to_slot(s: WireSlotRef) -> SlotRef {
     }
 }
 
-fn to_isf(v: WireIsfValue) -> IsfValue {
-    match v {
-        WireIsfValue::Float(x) => IsfValue::Float(x),
-        WireIsfValue::Bool(b) => IsfValue::Bool(b),
-        WireIsfValue::Long(n) => IsfValue::Long(n),
-        WireIsfValue::Color(c) => IsfValue::Color(c),
-        WireIsfValue::Point2D(p) => IsfValue::Point2D(p),
-    }
-}
-
 fn to_chain(slot: WireChainSlot) -> ChainSlot {
     ChainSlot {
         shader: to_slot(slot.shader),
         params: slot
             .params
             .into_iter()
-            .map(|WireParam { name, value }| (Arc::from(name), to_isf(value)))
+            .map(|WireParam { name, value }| (Arc::from(name), value))
             .collect(),
     }
 }
@@ -444,7 +433,7 @@ pub fn to_command(w: vidiotic_wire::command::WireCommand) -> Command {
             cue,
             slot: slot as usize,
             name: Arc::from(name),
-            value: to_isf(value),
+            value,
         },
         W::LoadIsf(path) => Command::LoadIsf(PathBuf::from(path)),
         W::SetCueParam(id, p) => Command::SetCueParam(id, to_cue_param(p)),
@@ -579,16 +568,6 @@ fn w_cam_delay(d: CamDelay) -> WireCamDelay {
     WireCamDelay { value: d.value, beats: d.beats, quantize: d.quantize }
 }
 
-fn w_isf_value(v: &IsfValue) -> WireIsfValue {
-    match v {
-        IsfValue::Float(x) => WireIsfValue::Float(*x),
-        IsfValue::Bool(b) => WireIsfValue::Bool(*b),
-        IsfValue::Long(n) => WireIsfValue::Long(*n),
-        IsfValue::Color(c) => WireIsfValue::Color(*c),
-        IsfValue::Point2D(p) => WireIsfValue::Point2D(*p),
-    }
-}
-
 fn w_chain(slot: &ChainSlot) -> WireChainSlot {
     WireChainSlot {
         shader: match &slot.shader {
@@ -600,38 +579,8 @@ fn w_chain(slot: &ChainSlot) -> WireChainSlot {
         params: slot
             .params
             .iter()
-            .map(|(name, value)| WireParam { name: name.to_string(), value: w_isf_value(value) })
+            .map(|(name, value)| WireParam { name: name.to_string(), value: value.clone() })
             .collect(),
-    }
-}
-
-fn w_isf_input_kind(k: &IsfInputKind) -> WireIsfInputKind {
-    match k {
-        IsfInputKind::Float { min, max, default } => {
-            WireIsfInputKind::Float { min: *min, max: *max, default: *default }
-        }
-        IsfInputKind::Bool { default } => WireIsfInputKind::Bool { default: *default },
-        IsfInputKind::Long { values, labels, default } => WireIsfInputKind::Long {
-            values: values.clone(),
-            labels: labels.clone(),
-            default: *default,
-        },
-        IsfInputKind::Color { default } => WireIsfInputKind::Color { default: *default },
-        IsfInputKind::Point2D { min, max, default } => {
-            WireIsfInputKind::Point2D { min: *min, max: *max, default: *default }
-        }
-        IsfInputKind::Event => WireIsfInputKind::Event,
-        IsfInputKind::Image => WireIsfInputKind::Image,
-        IsfInputKind::Audio => WireIsfInputKind::Audio,
-        IsfInputKind::AudioFft => WireIsfInputKind::AudioFft,
-    }
-}
-
-fn w_isf_input(input: &IsfInput) -> WireIsfInput {
-    WireIsfInput {
-        name: input.name.clone(),
-        label: input.label.clone(),
-        kind: w_isf_input_kind(&input.kind),
     }
 }
 
@@ -743,7 +692,7 @@ pub fn build_reply(query: &WireQuery, m: &UiMirror, epoch: u64) -> WireReply {
                     id: s.id,
                     name: s.name.to_string(),
                     builtin: s.builtin,
-                    inputs: s.inputs.iter().map(w_isf_input).collect(),
+                    inputs: s.inputs.clone(),
                 })
                 .collect(),
         }),
@@ -820,6 +769,7 @@ mod tests {
     use std::time::{Duration, Instant};
     use vidiotic_wire::command::WireCommand;
     use vidiotic_wire::envelope::{ReplyResult, ReqBody};
+    use vidiotic_wire::isf::WireIsfValue;
 
     /// Full transport exercise with no engine app: bind a socket, connect a
     /// client, and drive [`IpcEngine`] by hand (pump → park → answer) against a

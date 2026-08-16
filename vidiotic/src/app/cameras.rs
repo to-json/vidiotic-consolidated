@@ -87,47 +87,29 @@ impl App {
 
     /// Point every clip referencing the missing device `from` at the connected
     /// device `to`, and drop those cues' taps so they re-attach to the new
-    /// device's service on the next tick.
+    /// device's service on the next tick. The engine owns the relink itself
+    /// (shared with the browser shell); this adds only the enumeration lookup
+    /// and the log for a target that isn't connected.
     pub(super) fn relink_camera(&mut self, from: &str, to: &str) {
-        let Some(dev) = self.camera_devices.iter().find(|d| d.uid == to) else {
-            log::warn!("camera relink target {to} not in the last enumeration");
-            return;
-        };
-        let name: Arc<str> = dev.name.as_str().into();
-        for c in &mut self.engine.clips {
-            if c.camera_uid() == Some(from) {
-                c.source = ClipSource::Camera { uid: to.into(), name: name.clone() };
-                c.name = name.clone();
-            }
-        }
-        let stale: Vec<CueId> = self
-            .engine
-            .decoders
-            .keys()
-            .copied()
-            .filter(|&id| {
-                self.engine
-                    .live_cue(id)
-                    .is_some_and(|c| self.engine.clip_camera_uid(c.clip).as_deref() == Some(to))
-            })
-            .collect();
-        for id in stale {
-            self.engine.decoders.remove(&id);
+        let devices = camera_device_pairs(&self.camera_devices);
+        if let Err(msg) = self.engine.relink_camera(&devices, from, to) {
+            log::warn!("{msg}");
         }
     }
 
     /// Add a cue for a capture device to the edit bank, creating the device's
-    /// pool clip on first use.
+    /// pool clip on first use. The device name comes from the last enumeration,
+    /// defaulting to "camera" for a uid it lacks.
     pub(super) fn add_camera_cue(&mut self, uid: &str) {
-        let name: Arc<str> = self
-            .camera_devices
-            .iter()
-            .find(|d| d.uid == uid)
-            .map_or("camera", |d| d.name.as_str())
-            .into();
-        let clip_id = self
-            .engine
-            .intern_clip(ClipSource::Camera { uid: uid.into(), name: name.clone() }, name);
-        self.engine.add_cue(clip_id);
+        let devices = camera_device_pairs(&self.camera_devices);
+        self.engine.add_camera_cue(&devices, uid);
     }
+}
+
+/// The device enumeration as the engine's camera helpers expect it:
+/// borrowed `(uid, name)` pairs, so a per-tick mirror build clones nothing.
+/// A free function (not an `App` method) so its borrow covers only the
+/// enumeration, leaving `self.engine` free for the mutable call that follows.
+pub(super) fn camera_device_pairs(devices: &[capture::DeviceInfo]) -> Vec<(&str, &str)> {
+    devices.iter().map(|d| (d.uid.as_str(), d.name.as_str())).collect()
 }

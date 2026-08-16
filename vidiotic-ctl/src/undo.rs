@@ -5,9 +5,14 @@
 //! by learn. So undo works by diffing the document against a `baseline` at each
 //! frame boundary (`CtlApp::commit_undo`) rather than wrapping a command: the
 //! `ControlMap` is a `Vec` of bindings, cheap to clone, and the frame is the
-//! natural coalescing unit (all edits made in one frame land as one step). Same
-//! session-only, whole-document-snapshot model as prep's `undo`; the stack is
-//! depth-capped so a long session stays bounded.
+//! natural coalescing unit (all edits made in one frame land as one step).
+//!
+//! This is the same snapshot-stack shape as
+//! [`vidiotic_core::undo::SnapshotHistory`], reimplemented here because the
+//! dependency points the wrong way: `vidiotic-core` embeds `ControlMap` in the
+//! `.viproj` and therefore depends on this crate, so a shared stack in core is
+//! unreachable from here without a cycle. This copy has no coalescing — edits
+//! already arrive coalesced per frame — and no clock.
 
 use std::collections::VecDeque;
 
@@ -30,7 +35,7 @@ impl<T> Default for History<T> {
     }
 }
 
-impl<T: Clone> History<T> {
+impl<T> History<T> {
     /// Record `prev` (the state before an edit), capping depth and dropping any
     /// redo branch.
     pub fn record(&mut self, prev: T) {

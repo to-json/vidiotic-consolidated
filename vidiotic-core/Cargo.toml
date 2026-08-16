@@ -31,6 +31,10 @@ ffmpeg-next = { version = "8.1", optional = true }
 crossbeam-channel = "0.5"
 anyhow = "1"
 log = "0.4"
+# std::time's `Instant` panics on wasm32, so the session-model clock — used by
+# the shared snapshot undo stack — goes through the same `web-time` shim the
+# wasm shells already use. Native it is `std::time` verbatim.
+web-time = "1.1"
 vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
 
 [lints.clippy]

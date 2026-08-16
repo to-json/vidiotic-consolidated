@@ -54,6 +54,14 @@ pub struct Device {
     pub name: String,
 }
 
+/// The device enumeration as the engine's camera helpers expect it: borrowed
+/// `(uid, name)` pairs. A free function (not a `Shell` method) so its borrow
+/// covers only the enumeration, leaving `engine` free for the mutable call
+/// that follows.
+pub(crate) fn camera_device_pairs(devices: &[Device]) -> Vec<(&str, &str)> {
+    devices.iter().map(|d| (d.uid.as_str(), d.name.as_str())).collect()
+}
+
 /// A live camera: the element playing it, and the canvas it is sampled through.
 pub struct Tap {
     video: web_sys::HtmlVideoElement,

@@ -31,6 +31,7 @@
 //! sequencer's active set — is behind a method, and those methods are the only
 //! way the invariant is maintained.
 
+mod cameras;
 mod history;
 mod session;
 pub mod source;

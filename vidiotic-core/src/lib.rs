@@ -24,6 +24,7 @@ pub mod clippool;
 pub mod isf;
 pub mod project;
 pub mod time;
+pub mod undo;
 
 /// The GLSL prelude every user shader is compiled on top of: the uniform
 /// blocks, sampler bindings, and Shadertoy-compatible aliases that define

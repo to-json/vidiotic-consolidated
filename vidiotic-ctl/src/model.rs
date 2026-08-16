@@ -138,10 +138,28 @@ pub enum Action {
     Prep(PrepVerb),
 }
 
-/// The player's vocabulary — the catalog `vidiotic`'s map editors offer.
-/// Each entry carries placeholder params a `DragValue` then edits in place.
-pub const PLAYER_CATALOG: &[Action] = &[
-    Action::Nothing,
+/// The catalogs, expanded from one list of actions so the union can never
+/// drift from the per-app halves. `Nothing` is the universal mask and belongs
+/// to every app, so the macro prepends it to each.
+macro_rules! action_catalogs {
+    ([$($player:expr,)*] [$($prep:expr,)*]) => {
+        /// The player's vocabulary — the catalog `vidiotic`'s map editors
+        /// offer. Each entry carries placeholder params a `DragValue` then
+        /// edits in place.
+        pub const PLAYER_CATALOG: &[Action] = &[Action::Nothing, $($player,)*];
+
+        /// `vidiotic-prep`'s vocabulary.
+        pub const PREP_CATALOG: &[Action] = &[Action::Nothing, $($prep,)*];
+
+        /// Every action kind, for the ctl bin's editor (which edits any
+        /// `.vmap`). The union of the two app catalogs, expanded from the same
+        /// lists so nothing has to be kept in sync by hand.
+        pub const CATALOG: &[Action] = &[Action::Nothing, $($player,)* $($prep,)*];
+    };
+}
+
+action_catalogs! {
+    [
     Action::TapDownbeat,
     Action::TapTempo,
     Action::SoftReset,
@@ -160,11 +178,8 @@ pub const PLAYER_CATALOG: &[Action] = &[
     Action::BpmDigit { digit: 0 },
     Action::BpmCommit,
     Action::BpmClear,
-];
-
-/// `vidiotic-prep`'s vocabulary.
-pub const PREP_CATALOG: &[Action] = &[
-    Action::Nothing,
+    ]
+    [
     Action::Prep(PrepVerb::TogglePlay),
     Action::Prep(PrepVerb::Pause),
     Action::Prep(PrepVerb::PlayFromIn),
@@ -182,47 +197,8 @@ pub const PREP_CATALOG: &[Action] = &[
     Action::Prep(PrepVerb::ZoomFit),
     Action::Prep(PrepVerb::ZoomToMarks),
     Action::Prep(PrepVerb::Scrub),
-];
-
-/// Every action kind, for the ctl bin's editor (which edits any `.vmap`).
-/// Kept in sync with the per-app catalogs by `tests::catalog_covers_every_variant`.
-pub const CATALOG: &[Action] = &[
-    Action::Nothing,
-    Action::TapDownbeat,
-    Action::TapTempo,
-    Action::SoftReset,
-    Action::HardReset,
-    Action::CaptureShader,
-    Action::ToggleFullscreen,
-    Action::SaveProject,
-    Action::BpmDelta { amount: 1.0 },
-    Action::NudgeBpm { ratio: 0.01 },
-    Action::CycleLiveBank { delta: 1 },
-    Action::SetLiveBank { index: 0 },
-    Action::SetEditBank { index: 0 },
-    Action::SetBpm { min: 60.0, max: 180.0 },
-    Action::Quit,
-    Action::BpmDigit { digit: 0 },
-    Action::BpmCommit,
-    Action::BpmClear,
-    Action::Prep(PrepVerb::TogglePlay),
-    Action::Prep(PrepVerb::Pause),
-    Action::Prep(PrepVerb::PlayFromIn),
-    Action::Prep(PrepVerb::Shuttle { dir: 1 }),
-    Action::Prep(PrepVerb::Step { frames: 1 }),
-    Action::Prep(PrepVerb::SeekStart),
-    Action::Prep(PrepVerb::SeekEnd),
-    Action::Prep(PrepVerb::JumpToIn),
-    Action::Prep(PrepVerb::JumpToOut),
-    Action::Prep(PrepVerb::SetIn),
-    Action::Prep(PrepVerb::SetOut),
-    Action::Prep(PrepVerb::SnapOut),
-    Action::Prep(PrepVerb::AddSpan),
-    Action::Prep(PrepVerb::ZoomView { factor: 0.5 }),
-    Action::Prep(PrepVerb::ZoomFit),
-    Action::Prep(PrepVerb::ZoomToMarks),
-    Action::Prep(PrepVerb::Scrub),
-];
+    ]
+}
 
 impl Action {
     #[must_use]
@@ -411,13 +387,6 @@ mod tests {
         assert_eq!(binding.action, Action::TapDownbeat);
     }
 
-    #[test]
-    fn player_and_prep_catalogs_are_subsets_of_catalog() {
-        for action in PLAYER_CATALOG.iter().chain(PREP_CATALOG) {
-            assert!(CATALOG.contains(action), "{action:?} is missing from CATALOG");
-        }
-    }
-
     /// `label()`'s exhaustive match doesn't force catalog membership, so a new
     /// variant can be added and silently never offered by any editor. This
     /// guard fails to compile until the new variant is classified here, and
@@ -452,6 +421,7 @@ mod tests {
             Action::CaptureShader,
             Action::ToggleFullscreen,
             Action::SaveProject,
+            Action::ToggleCommandPalette,
             Action::BpmDelta { amount: 99.0 },
             Action::NudgeBpm { ratio: 99.0 },
             Action::CycleLiveBank { delta: 99 },

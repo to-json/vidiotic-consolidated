@@ -41,6 +41,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use cameras::camera_device_pairs;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -840,11 +841,12 @@ impl Shell {
 
     /// Answer the four camera commands.
     ///
-    /// Two of them are pure engine work and match `vidiotic::app::cameras` line
-    /// for line — `AddCameraCue` interns a pool clip and cues it, `RelinkCamera`
-    /// repoints every clip naming the missing device. The other two need a
-    /// browser API, so they become a request to the page and the answer comes
-    /// back through [`set_cameras`] / [`camera_ready`].
+    /// Two of them are pure engine work — `AddCameraCue` interns a pool clip
+    /// and cues it, `RelinkCamera` repoints every clip naming the missing
+    /// device — and the engine owns that half, shared with
+    /// `vidiotic::app::cameras`. The other two need a browser API, so they
+    /// become a request to the page and the answer comes back through
+    /// [`set_cameras`] / [`camera_ready`].
     fn camera_command(&mut self, cmd: Command) {
         match cmd {
             Command::RefreshCameras => request_cameras(),
@@ -859,47 +861,13 @@ impl Shell {
                 request_camera(&uid, on);
             }
             Command::AddCameraCue(uid) => {
-                let name: std::sync::Arc<str> = self
-                    .camera_devices
-                    .iter()
-                    .find(|d| d.uid == *uid)
-                    .map_or("camera", |d| d.name.as_str())
-                    .into();
-                let clip = self
-                    .engine
-                    .intern_clip(ClipSource::Camera { uid: uid.clone(), name: name.clone() }, name);
-                self.engine.add_cue(clip);
+                let devices = camera_device_pairs(&self.camera_devices);
+                self.engine.add_camera_cue(&devices, &uid);
             }
             Command::RelinkCamera { from, to } => {
-                let Some(dev) = self.camera_devices.iter().find(|d| d.uid == *to) else {
-                    self.status = format!("no connected camera with id {to}");
-                    return;
-                };
-                let name: std::sync::Arc<str> = dev.name.as_str().into();
-                for c in &mut self.engine.clips {
-                    if c.camera_uid() == Some(&*from) {
-                        c.source =
-                            ClipSource::Camera { uid: to.clone(), name: name.clone() };
-                        c.name = name.clone();
-                    }
-                }
-                // Drop the open sources for those cues so they re-open against
-                // the new device on the next tick rather than holding a tap for
-                // a uid nothing points at any more. Same two steps as
-                // `vidiotic::app::cameras::relink_camera`.
-                let stale: Vec<crate::bank::CueId> = self
-                    .engine
-                    .decoders
-                    .keys()
-                    .copied()
-                    .filter(|&id| {
-                        self.engine.live_cue(id).is_some_and(|c| {
-                            self.engine.clip_camera_uid(c.clip).as_deref() == Some(&*to)
-                        })
-                    })
-                    .collect();
-                for id in stale {
-                    self.engine.decoders.remove(&id);
+                let devices = camera_device_pairs(&self.camera_devices);
+                if let Err(msg) = self.engine.relink_camera(&devices, &from, &to) {
+                    self.status = msg;
                 }
             }
             _ => unreachable!("camera_command called with {cmd:?}"),
@@ -912,68 +880,12 @@ impl Shell {
     /// engine cannot fill this because a device is not a session concept, and
     /// the row shape is all the two platforms share.
     fn build_camera_rows(&mut self) {
-        use crate::commands::{CameraEntry, ClipRole};
-
-        let armed = self.engine.sequencer.armed();
-        let live = &self.engine.banks[self.engine.live_bank];
-        let active: std::collections::HashSet<ClipId> =
-            live.cues.iter().map(|c| c.clip).collect();
-        let playing_clip = self.engine.current.and_then(|c| live.cue(c)).map(|c| c.clip);
-        let armed_clip = armed.and_then(|c| live.cue(c)).map(|c| c.clip);
-
+        let devices = camera_device_pairs(&self.camera_devices);
         let taps = self.taps.borrow();
-        let role_of = |clip: Option<ClipId>| {
-            if clip.is_some() && playing_clip == clip {
-                ClipRole::Playing
-            } else if clip.is_some() && armed_clip == clip {
-                ClipRole::Armed
-            } else {
-                ClipRole::None
-            }
-        };
-
-        let mut rows: Vec<CameraEntry> = self
-            .camera_devices
-            .iter()
-            .map(|d| {
-                let clip = self
-                    .engine
-                    .clips
-                    .iter()
-                    .find(|c| c.camera_uid() == Some(d.uid.as_str()))
-                    .map(|c| c.id);
-                let tap = taps.get(&d.uid);
-                CameraEntry {
-                    uid: d.uid.as_str().into(),
-                    name: d.name.as_str().into(),
-                    on_air: tap.is_some(),
-                    status: tap.map_or("off air", |t| t.status.as_str()).into(),
-                    missing: false,
-                    active: clip.is_some_and(|id| active.contains(&id)),
-                    role: role_of(clip),
-                }
-            })
-            .collect();
-
-        // A project can name a device this machine does not have. Its cues
-        // render black either way; the row is what offers the relink, so
-        // leaving it out would make the project look merely broken.
-        for c in &self.engine.clips {
-            let Some(uid) = c.camera_uid() else { continue };
-            if self.camera_devices.iter().any(|d| d.uid == uid) {
-                continue;
-            }
-            rows.push(CameraEntry {
-                uid: uid.into(),
-                name: c.name.clone(),
-                on_air: false,
-                status: "not connected".into(),
-                missing: true,
-                active: active.contains(&c.id),
-                role: role_of(Some(c.id)),
-            });
-        }
-        self.mirror.cameras = rows;
+        self.mirror.cameras = self.engine.camera_rows(&devices, |uid| match taps.get(uid) {
+            Some(t) => (true, t.status.clone()),
+            None => (false, "off air".into()),
+        });
     }
 
     /// Save the session: build the bundle and hand it to the page.

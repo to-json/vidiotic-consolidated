@@ -15,20 +15,10 @@
 //! behind the same `Editor::snapshot`/`restore` pair without touching the
 //! call sites here.
 
-use std::collections::VecDeque;
-
 use vidiotic_core::project::SessionDefaults;
 
 use crate::commands::Command;
 use crate::spans::Span;
-
-/// Hard ceiling on undo depth; the oldest step is dropped past it. Far beyond
-/// any human undo run — it exists only to bound memory over a long session.
-const DEPTH_CAP: usize = 256;
-
-/// A streaming setter re-firing on the same target within this window folds
-/// into the existing step instead of pushing a new one.
-const COALESCE_SECS: f64 = 0.6;
 
 /// The undoable document: everything the "document state; undoable" commands
 /// touch, and nothing transient (playhead, marks, view, textures). `selected`
@@ -82,71 +72,7 @@ pub fn classify(cmd: &Command) -> Option<Option<EditTag>> {
     })
 }
 
-/// The undo/redo history for one session. `undo` holds pre-edit snapshots
-/// (newest last); `redo` holds states undone away (newest last).
-#[derive(Default)]
-pub struct UndoStack {
-    undo: VecDeque<Doc>,
-    redo: Vec<Doc>,
-    /// Tag + time of the edit that produced the current top-of-undo, so a
-    /// same-tag edit inside [`COALESCE_SECS`] can fold into it.
-    last: Option<(EditTag, f64)>,
-}
-
-impl UndoStack {
-    /// Whether `tag` (from [`classify`]) at time `now` should push a new step
-    /// rather than fold into the current one.
-    #[must_use]
-    pub fn should_push(&self, tag: Option<EditTag>, now: f64) -> bool {
-        if self.undo.is_empty() {
-            return true;
-        }
-        match (tag, self.last) {
-            (Some(t), Some((last, at))) => !(t == last && now - at < COALESCE_SECS),
-            _ => true,
-        }
-    }
-
-    /// Push a pre-edit snapshot, capping depth and invalidating redo.
-    pub fn push(&mut self, snapshot: Doc, tag: Option<EditTag>, now: f64) {
-        self.undo.push_back(snapshot);
-        while self.undo.len() > DEPTH_CAP {
-            self.undo.pop_front();
-        }
-        self.redo.clear();
-        self.last = tag.map(|t| (t, now));
-    }
-
-    /// A coalesced edit: no new snapshot, but it still extends the gesture
-    /// window and invalidates any redo branch.
-    pub fn touch(&mut self, now: f64) {
-        if let Some((_, at)) = self.last.as_mut() {
-            *at = now;
-        }
-        self.redo.clear();
-    }
-
-    /// Take the last pre-edit snapshot to restore, banking `current` for redo.
-    pub fn undo(&mut self, current: Doc) -> Option<Doc> {
-        let prev = self.undo.pop_back()?;
-        self.redo.push(current);
-        self.last = None;
-        Some(prev)
-    }
-
-    /// Take the last undone state to reinstate, banking `current` for undo.
-    pub fn redo(&mut self, current: Doc) -> Option<Doc> {
-        let next = self.redo.pop()?;
-        self.undo.push_back(current);
-        self.last = None;
-        Some(next)
-    }
-
-    /// Drop all history — used when the document is repopulated from disk, so
-    /// a stale snapshot can't restore over a freshly loaded document.
-    pub fn reset(&mut self) {
-        self.undo.clear();
-        self.redo.clear();
-        self.last = None;
-    }
-}
+/// The undo/redo history for one session — the shared snapshot stack with
+/// this crate's document, edit tag, and `f64` frame-clock. See
+/// [`vidiotic_core::undo::SnapshotHistory`].
+pub type UndoStack = vidiotic_core::undo::SnapshotHistory<Doc, EditTag, f64>;

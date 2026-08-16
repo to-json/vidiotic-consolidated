@@ -20,10 +20,10 @@ use winit::window::{Fullscreen, Window, WindowId};
 use crate::analysis::AudioFrame;
 use crate::audio::{self, AudioCapture};
 use crate::bank::{Bank, CueId};
-use crate::clippool::{self, Clip, ClipBank, ClipSource, Thumbnail};
+use crate::clippool::{self, Clip, ClipBank, Thumbnail};
 use crate::clock::{InternalClock, LinkClock};
 use crate::commands::{
-    Cadence, CameraEntry, ChainSlot, ClipId, ClipRole, Command, SlotRef, SyncKind, TimeSig, UiMirror,
+    Cadence, ChainSlot, ClipId, Command, SlotRef, SyncKind, TimeSig, UiMirror,
 };
 use crate::control_input::ControlInput;
 use crate::grammar;

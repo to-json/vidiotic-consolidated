@@ -4289,6 +4289,7 @@ dependencies = [
  "nanoserde",
  "vidiotic-ctl",
  "wasm-bindgen-test",
+ "web-time",
 ]
 
 [[package]]
@@ -4362,6 +4363,7 @@ name = "vidiotic-wire"
 version = "0.1.0"
 dependencies = [
  "nanoserde",
+ "vidiotic-core",
 ]
 
 [[package]]

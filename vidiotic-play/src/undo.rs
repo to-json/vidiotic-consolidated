@@ -18,8 +18,6 @@
 //! and which bank is live — is never snapshotted; `App::restore_doc` reconciles
 //! it after a restore.
 
-use std::collections::VecDeque;
-use std::time::Duration;
 // See `clock.rs`: std's `Instant` compiles for wasm32 and panics on first use.
 use web_time::Instant;
 
@@ -27,14 +25,6 @@ use vidiotic_core::bank::{Bank, CueId};
 use vidiotic_core::chain::ClipId;
 
 use crate::commands::{Command, CueParam, CueParamKind};
-
-/// Hard ceiling on undo depth; the oldest step is dropped past it. Far beyond
-/// any human undo run — it exists only to bound memory over a long set.
-const DEPTH_CAP: usize = 256;
-
-/// A streaming setter re-firing on the same target within this window folds
-/// into the existing step instead of pushing a new one.
-const COALESCE: Duration = Duration::from_millis(600);
 
 /// The undoable document: the cue banks, the id counter (so ids stay consistent
 /// across undo/redo), the selection, and a targeted map of clip source BPMs.
@@ -108,73 +98,10 @@ pub fn is_history_boundary(cmd: &Command) -> bool {
     matches!(cmd, Command::LoadProject(_) | Command::SetClipDir(_))
 }
 
-/// The undo/redo history for one session. `undo` holds pre-edit snapshots
-/// (newest last); `redo` holds states undone away (newest last).
-#[derive(Default)]
-pub struct UndoStack {
-    undo: VecDeque<Doc>,
-    redo: Vec<Doc>,
-    /// Tag + time of the edit that produced the current top-of-undo.
-    last: Option<(EditTag, Instant)>,
-}
-
-impl UndoStack {
-    /// Whether `tag` at `now` should push a new step rather than fold into the
-    /// current one.
-    #[must_use]
-    pub fn should_push(&self, tag: Option<EditTag>, now: Instant) -> bool {
-        if self.undo.is_empty() {
-            return true;
-        }
-        match (tag, self.last) {
-            (Some(t), Some((last, at))) => !(t == last && now.duration_since(at) < COALESCE),
-            _ => true,
-        }
-    }
-
-    /// Push a pre-edit snapshot, capping depth and invalidating redo.
-    pub fn push(&mut self, snapshot: Doc, tag: Option<EditTag>, now: Instant) {
-        self.undo.push_back(snapshot);
-        while self.undo.len() > DEPTH_CAP {
-            self.undo.pop_front();
-        }
-        self.redo.clear();
-        self.last = tag.map(|t| (t, now));
-    }
-
-    /// A coalesced edit: no new snapshot, but it extends the gesture window and
-    /// invalidates any redo branch.
-    pub fn touch(&mut self, now: Instant) {
-        if let Some((_, at)) = self.last.as_mut() {
-            *at = now;
-        }
-        self.redo.clear();
-    }
-
-    /// Take the last pre-edit snapshot to restore, banking `current` for redo.
-    pub fn undo(&mut self, current: Doc) -> Option<Doc> {
-        let prev = self.undo.pop_back()?;
-        self.redo.push(current);
-        self.last = None;
-        Some(prev)
-    }
-
-    /// Take the last undone state to reinstate, banking `current` for undo.
-    pub fn redo(&mut self, current: Doc) -> Option<Doc> {
-        let next = self.redo.pop()?;
-        self.undo.push_back(current);
-        self.last = None;
-        Some(next)
-    }
-
-    /// Drop all history — used at a document boundary (project load, clip-dir
-    /// replace) so a stale snapshot can't restore over a freshly loaded pool.
-    pub fn reset(&mut self) {
-        self.undo.clear();
-        self.redo.clear();
-        self.last = None;
-    }
-}
+/// The undo/redo history for one session — the shared snapshot stack with
+/// this crate's document, edit tag, and `web_time::Instant` clock. See
+/// [`vidiotic_core::undo::SnapshotHistory`].
+pub type UndoStack = vidiotic_core::undo::SnapshotHistory<Doc, EditTag, Instant>;
 
 #[cfg(test)]
 mod tests {
@@ -185,6 +112,7 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
     use std::sync::Arc;
+    use std::time::Duration;
     use vidiotic_core::bank::{Bank, Cue};
 
     fn doc(names: &[&str], next: CueId) -> Doc {

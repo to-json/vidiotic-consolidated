@@ -1,5 +1,6 @@
 //! Building the read-only `UiMirror` published to the UI each tick.
 
+use super::cameras::camera_device_pairs;
 use super::*;
 
 impl App {
@@ -60,81 +61,26 @@ impl App {
     /// The cameras section: last enumeration + live service status, with the
     /// same active/role marking as clip tiles (via the device's pool clip).
     ///
-    /// Entirely native. A camera here is an `AVFoundation` device behind a capture
-    /// service; the browser's equivalent is a `MediaStream` and shares no part of
-    /// this but the row shape.
+    /// The row builder is `Engine::camera_rows`, shared with the browser shell;
+    /// what differs here is the status source — an AVFoundation capture service
+    /// rather than a `MediaStream` tap.
     fn build_camera_rows(&mut self) {
-        let armed = self.engine.sequencer.armed();
-        let live = &self.engine.banks[self.engine.live_bank];
-        let active_clips: std::collections::HashSet<ClipId> =
-            live.cues.iter().map(|c| c.clip).collect();
-        let playing_clip = self.engine.current.and_then(|cid| live.cue(cid)).map(|c| c.clip);
-        let armed_clip = armed.and_then(|cid| live.cue(cid)).map(|c| c.clip);
-
-        self.mirror.cameras = self
-            .camera_devices
-            .iter()
-            .map(|d| {
-                let clip_id = self
-                    .engine
-                    .clips
-                    .iter()
-                    .find(|c| c.camera_uid() == Some(d.uid.as_str()))
-                    .map(|c| c.id);
-                let on_air = self.captures.borrow().is_on_air(&d.uid);
-                let status: Arc<str> = if on_air {
-                    match self.captures.borrow().status(&d.uid) {
-                        Some(capture::ServiceStatus::Running { width, height, fps }) => {
-                            format!("{width}x{height} @ {fps:.0}").into()
-                        }
-                        Some(capture::ServiceStatus::Failed(e)) => format!("error: {e}").into(),
-                        Some(capture::ServiceStatus::Starting) | None => "starting…".into(),
+        let devices = camera_device_pairs(&self.camera_devices);
+        self.mirror.cameras = self.engine.camera_rows(&devices, |uid| {
+            let caps = self.captures.borrow();
+            let on_air = caps.is_on_air(uid);
+            let status = if on_air {
+                match caps.status(uid) {
+                    Some(capture::ServiceStatus::Running { width, height, fps }) => {
+                        format!("{width}x{height} @ {fps:.0}")
                     }
-                } else {
-                    "off air".into()
-                };
-                CameraEntry {
-                    uid: d.uid.as_str().into(),
-                    name: d.name.as_str().into(),
-                    on_air,
-                    status,
-                    missing: false,
-                    active: clip_id.is_some_and(|id| active_clips.contains(&id)),
-                    role: if clip_id.is_some() && playing_clip == clip_id {
-                        ClipRole::Playing
-                    } else if clip_id.is_some() && armed_clip == clip_id {
-                        ClipRole::Armed
-                    } else {
-                        ClipRole::None
-                    },
+                    Some(capture::ServiceStatus::Failed(e)) => format!("error: {e}"),
+                    Some(capture::ServiceStatus::Starting) | None => "starting…".into(),
                 }
-            })
-            .collect();
-        // Camera clips whose device isn't connected get a missing-device row:
-        // the project loaded anyway (their cues render black); the row offers
-        // relinking onto a connected device.
-        for c in &self.engine.clips {
-            let ClipSource::Camera { uid, name } = &c.source else { continue };
-            let enumerated = self.camera_devices.iter().any(|d| d.uid == uid.as_ref());
-            let already = self.mirror.cameras.iter().any(|e| e.uid == *uid);
-            if enumerated || already {
-                continue;
-            }
-            self.mirror.cameras.push(CameraEntry {
-                uid: uid.clone(),
-                name: name.clone(),
-                on_air: false,
-                status: "missing device".into(),
-                missing: true,
-                active: active_clips.contains(&c.id),
-                role: if playing_clip == Some(c.id) {
-                    ClipRole::Playing
-                } else if armed_clip == Some(c.id) {
-                    ClipRole::Armed
-                } else {
-                    ClipRole::None
-                },
-            });
-        }
+            } else {
+                "off air".into()
+            };
+            (on_air, status)
+        });
     }
 }

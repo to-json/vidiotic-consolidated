@@ -14,6 +14,11 @@ client = []
 
 [dependencies]
 nanoserde = "0.2"
+# The ISF parameter model is re-exported rather than mirrored — see `isf.rs`.
+# Default features off so the ffmpeg-backed thumbnailer in `clippool` never
+# enters the wire crate. Neither wire's consumers (`vidiotic`, `vidiotic-prep`)
+# are reachable from here, so this is cycle-free.
+vidiotic-core = { path = "../vidiotic-core", default-features = false }
 
 [lints.clippy]
 use_self = "warn"

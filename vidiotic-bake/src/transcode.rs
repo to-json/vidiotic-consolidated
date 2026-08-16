@@ -220,20 +220,6 @@ pub struct BakeUpdate {
 ///
 /// # Panics
 /// Panics if the output stream just added to the muxer cannot be read back.
-/// Transcode the `[in_sec, out_sec)` span of `input` to a HAP1 `.mov`,
-/// invoking `progress` once per decoded frame.
-///
-/// The demuxer seeks to the keyframe at or before `in_sec`; frames whose source
-/// pts precede `in_sec` are decoded (for inter-frame correctness) but not
-/// emitted, and decoding stops once a frame's pts reaches `out_sec`. Output pts
-/// is re-baselined so the file always begins at t=0. Pass `in_sec = 0.0` and
-/// `out_sec = None` for a whole-file transcode.
-///
-/// # Errors
-/// Propagates ffmpeg initialization, seek, demux/decode, and mux/write failures.
-///
-/// # Panics
-/// Panics if the output stream just added to the muxer cannot be read back.
 pub fn run_span_with(
     input: &Path,
     output: &Path,

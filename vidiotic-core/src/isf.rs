@@ -20,7 +20,7 @@
 
 use std::path::PathBuf;
 
-use nanoserde::{DeJsonState, DeJsonTok};
+use nanoserde::{DeJson, DeJsonState, DeJsonTok, SerJson};
 
 use crate::PREAMBLE;
 
@@ -186,7 +186,10 @@ fn parse_arr(st: &mut DeJsonState, ch: &mut Chars) -> Result<JVal, String> {
 /// A runtime parameter value for an ISF input. Floats are stored as `f32` to
 /// match the GPU uniform; integers cover both `long` (dropdown) and `bool`
 /// (0/1).
-#[derive(Clone, Debug, PartialEq)]
+///
+/// The JSON derives (`SerJson`/`DeJson`) serve the scriptable IPC layer, which
+/// re-exports this type as `WireIsfValue` rather than declaring a mirror.
+#[derive(Clone, Copy, Debug, PartialEq, SerJson, DeJson)]
 pub enum IsfValue {
     Float(f32),
     Bool(bool),
@@ -196,7 +199,9 @@ pub enum IsfValue {
 }
 
 /// The declared type + bounds of one ISF `INPUT`.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// `SerJson`/`DeJson` serve the IPC layer's `WireIsfInputKind` re-export.
+#[derive(Clone, Debug, PartialEq, SerJson, DeJson)]
 pub enum IsfInputKind {
     Float { min: f32, max: f32, default: f32 },
     Bool { default: bool },
@@ -235,7 +240,9 @@ impl IsfInputKind {
 }
 
 /// One declared `INPUT`.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// `SerJson`/`DeJson` serve the IPC layer's `WireIsfInput` re-export.
+#[derive(Clone, Debug, PartialEq, SerJson, DeJson)]
 pub struct IsfInput {
     pub name: String,
     pub label: Option<String>,
