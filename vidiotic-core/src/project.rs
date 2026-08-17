@@ -129,10 +129,15 @@ pub struct SessionDefaults {
     pub shader_path: Option<String>,
 }
 
-/// One source clip. `path` is relative to the `.viproj`'s directory, or
-/// absolute; [`resolve`] turns it into a concrete path and flags misses.
-/// Camera clips carry a [`CameraSpec`] instead — `path` is empty and ignored,
 /// A normalized crop rectangle [0.0..1.0] relative to original frame dimensions.
+///
+/// **Duplicated, deliberately, in `vidiotic_bake::frame::CropRect`** — same
+/// fields, same clamping, same pixel mapping. Neither crate can hold the one
+/// copy: this one needs the nanoserde derives (a `.viproj` stores it) and pulls
+/// `vidiotic-ctl` in with it, while `vidiotic-bake` is kept lean on purpose
+/// because it is the byte-identity engine a browser downloads. Change the
+/// arithmetic here and change it there; both crates carry the same test vector
+/// (`crop_rect_normalized_and_pixel_mapping`) so a one-sided change fails.
 #[derive(SerRon, DeRon, Clone, Copy, Debug, PartialEq)]
 pub struct CropRect {
     pub x: f64,
@@ -170,6 +175,9 @@ impl CropRect {
     }
 }
 
+/// One source clip. `path` is relative to the `.viproj`'s directory, or
+/// absolute; [`resolve`] turns it into a concrete path and flags misses.
+/// Camera clips carry a [`CameraSpec`] instead — `path` is empty and ignored,
 /// and [`resolve`] never path-checks them (a missing device is not a missing
 /// file: the project still loads and the clip relinks by picking a device).
 #[derive(SerRon, DeRon, Clone, Debug, Default)]
@@ -1634,6 +1642,10 @@ mod tests {
         assert_eq!(r.project.clips[0].path, "moved/kick.mov");
     }
 
+    /// The same vector `vidiotic-bake`'s `crop_rect_normalized_and_pixel_mapping`
+    /// asserts against its own copy of this type. Deliberately identical: the two
+    /// crates cannot share the code (see [`CropRect`]), so this is what makes a
+    /// one-sided change to the arithmetic fail rather than diverge quietly.
     #[test]
     fn crop_rect_normalized_and_pixel_mapping() {
         let crop = CropRect::normalized(0.25, 0.25, 0.5, 0.5);
@@ -1646,8 +1658,23 @@ mod tests {
                 h: 0.5
             }
         );
-        let (px, py, pw, ph) = crop.to_pixel_rect(1920, 1080);
-        assert_eq!((px, py, pw, ph), (480, 270, 960, 540));
+        assert_eq!(crop.to_pixel_rect(1920, 1080), (480, 270, 960, 540));
+
+        // The clamps, which are the part with edges: an out-of-range origin is
+        // pulled inside the frame, and w/h are trimmed to what is left of it.
+        let full = CropRect::normalized(-1.0, 2.0, 5.0, 5.0);
+        assert_eq!(full.x, 0.0);
+        assert_eq!(full.y, 0.999);
+        assert_eq!(full.w, 1.0);
+        assert!((full.h - 0.001).abs() < 1e-12);
+
+        // A zero-sized source has no pixels to name.
+        assert_eq!(crop.to_pixel_rect(0, 0), (0, 0, 0, 0));
+        // Never a zero-width rect: a 1x1 source still yields one pixel.
+        assert_eq!(
+            CropRect::normalized(0.9, 0.9, 0.05, 0.05).to_pixel_rect(1, 1),
+            (0, 0, 1, 1)
+        );
     }
 
     #[test]

@@ -125,25 +125,11 @@ pub fn hash01(seed: usize, k: usize) -> f32 {
 
 /// HSL → sRGB. `h` in degrees (wraps), `s`/`l` in `0..=1`. Palettes defined
 /// through this stay coherent under global hue rotation.
-pub fn hsl(h: f32, s: f32, l: f32) -> egui::Color32 {
-    let h = h.rem_euclid(360.0) / 60.0;
-    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
-    let (r, g, b) = match h as u32 {
-        0 => (c, x, 0.0),
-        1 => (x, c, 0.0),
-        2 => (0.0, c, x),
-        3 => (0.0, x, c),
-        4 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-    let m = l - c / 2.0;
-    egui::Color32::from_rgb(
-        ((r + m) * 255.0).round() as u8,
-        ((g + m) * 255.0).round() as u8,
-        ((b + m) * 255.0).round() as u8,
-    )
-}
+///
+/// Re-exported from `phosphor`, which these directions are exploring the design
+/// of, rather than copied: a palette here has to be the same arithmetic as the
+/// one the app ships, or the direction is a study of something else.
+pub use phosphor::theme::hsl;
 
 /// The in-demo annotation footer every direction ends with: KEY — text rows
 /// in the direction's own muted colors.

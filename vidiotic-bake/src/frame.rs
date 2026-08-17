@@ -48,6 +48,14 @@ impl BakeQuality {
 }
 
 /// A normalized crop rectangle [0.0..1.0] relative to original frame dimensions.
+///
+/// **Duplicated, deliberately, in `vidiotic_core::project::CropRect`** — same
+/// fields, same clamping, same pixel mapping. Neither crate can hold the one
+/// copy: that one needs nanoserde derives (a `.viproj` stores it) and pulls
+/// `vidiotic-ctl` in with it, while this crate is kept lean on purpose because it
+/// is the byte-identity engine a browser downloads. Change the arithmetic there
+/// and change it here; both crates carry the same test vector
+/// (`crop_rect_normalized_and_pixel_mapping`) so a one-sided change fails.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CropRect {
     pub x: f64,
@@ -286,6 +294,41 @@ mod tests {
 
     fn solid(w: u32, h: u32) -> Vec<u8> {
         vec![0x40; (w * h * 4) as usize]
+    }
+
+    /// The same vector `vidiotic-core`'s `crop_rect_normalized_and_pixel_mapping`
+    /// asserts against its own copy of this type. Deliberately identical: the two
+    /// crates cannot share the code (see [`CropRect`]), so this is what makes a
+    /// one-sided change to the arithmetic fail rather than diverge quietly.
+    #[test]
+    fn crop_rect_normalized_and_pixel_mapping() {
+        let crop = CropRect::normalized(0.25, 0.25, 0.5, 0.5);
+        assert_eq!(
+            crop,
+            CropRect {
+                x: 0.25,
+                y: 0.25,
+                w: 0.5,
+                h: 0.5
+            }
+        );
+        assert_eq!(crop.to_pixel_rect(1920, 1080), (480, 270, 960, 540));
+
+        // The clamps, which are the part with edges: an out-of-range origin is
+        // pulled inside the frame, and w/h are trimmed to what is left of it.
+        let full = CropRect::normalized(-1.0, 2.0, 5.0, 5.0);
+        assert_eq!(full.x, 0.0);
+        assert_eq!(full.y, 0.999);
+        assert_eq!(full.w, 1.0);
+        assert!((full.h - 0.001).abs() < 1e-12);
+
+        // A zero-sized source has no pixels to name.
+        assert_eq!(crop.to_pixel_rect(0, 0), (0, 0, 0, 0));
+        // Never a zero-width rect: a 1x1 source still yields one pixel.
+        assert_eq!(
+            CropRect::normalized(0.9, 0.9, 0.05, 0.05).to_pixel_rect(1, 1),
+            (0, 0, 1, 1)
+        );
     }
 
     #[test]
