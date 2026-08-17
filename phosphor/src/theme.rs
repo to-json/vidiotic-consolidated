@@ -208,6 +208,15 @@ fn vic_ii(dark: bool) -> Palette {
 }
 
 /// The palette last applied by [`sync`], readable from anywhere in the UI.
+/// The palette [`sync`] last installed.
+///
+/// **Process-wide, not per-context.** Two egui contexts in one process share it,
+/// so whichever called [`sync`] most recently decides what [`palette`] answers
+/// for both — silently, with no error and no visible seam beyond one window
+/// painting in the other's colours. That is sound for this app, where the output
+/// and control windows are deliberately one theme, and it is the constraint any
+/// third window would have to respect. [`metrics`] is the same, and matters more,
+/// because widget *geometry* is measured in cells.
 static CURRENT: Mutex<Option<Palette>> = Mutex::new(None);
 
 /// The current frame's palette.
@@ -309,7 +318,25 @@ pub const SP_LG: f32 = 16.0;
 
 /// The metrics last applied by [`sync`], readable from anywhere in the UI —
 /// the same arrangement as [`palette`], for the same reason.
+/// The grid metrics [`sync`] last installed. Process-wide; see [`CURRENT`].
 static METRICS: Mutex<Metrics> = Mutex::new(Metrics::CLASSIC);
+
+/// Serializes tests that install a face or read the shared metrics.
+///
+/// Those globals are process-wide and `cargo test` runs tests concurrently, so
+/// without this a test that measures a widget can have its cell size changed
+/// underneath it by a theme test in another thread — which shows up as a
+/// geometry assertion that passes alone and fails in the suite.
+#[cfg(test)]
+pub(crate) static TEST_SERIAL: Mutex<()> = Mutex::new(());
+
+/// Take [`TEST_SERIAL`], recovering from a panicked holder.
+#[cfg(test)]
+pub(crate) fn test_lock() -> std::sync::MutexGuard<'static, ()> {
+    TEST_SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// The current frame's grid metrics.
 pub fn metrics() -> Metrics {
@@ -547,11 +574,6 @@ fn apply_style(ctx: &Context, st: ThemeState) {
 mod tests {
     use super::*;
 
-    /// The globals `apply_style` writes are process-wide, and so is egui's
-    /// font atlas cost. Tests that install a face take this so they cannot
-    /// interleave and read each other's metrics.
-    static SERIAL: Mutex<()> = Mutex::new(());
-
     /// Whether the installed face can actually draw `s`.
     ///
     /// **Not** `Fonts::has_glyph`, which is unusable in egui 0.35: it is
@@ -591,9 +613,7 @@ mod tests {
     /// 17.5-point rows and "the cell is 16 points" is quietly false.
     #[test]
     fn the_grid_is_literally_a_grid() {
-        let _guard = SERIAL
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = test_lock();
         let ctx = ctx_with(Face::Grid);
         let m = Metrics::GRID;
 
@@ -625,9 +645,7 @@ mod tests {
     /// survives as long as it did.
     #[test]
     fn both_faces_can_draw_every_icon() {
-        let _guard = SERIAL
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = test_lock();
         for face in [Face::Classic, Face::Grid] {
             let ctx = ctx_with(face);
             let missing: Vec<&str> = ctx.fonts_mut(|f| {
@@ -647,9 +665,7 @@ mod tests {
     /// would still be in the bundle with nothing pointing at it.
     #[test]
     fn the_private_use_icon_set_is_really_gone() {
-        let _guard = SERIAL
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = test_lock();
         // Font Awesome 4's play/pause/floppy, as Nerd Fonts assigned them.
         for face in [Face::Classic, Face::Grid] {
             let ctx = ctx_with(face);
@@ -670,9 +686,7 @@ mod tests {
     /// Legacy Computing block §9a picked the face for in the first place.
     #[test]
     fn the_grid_face_carries_the_blocks_the_widgets_are_built_from() {
-        let _guard = SERIAL
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = test_lock();
         let ctx = ctx_with(Face::Grid);
         let required = [
             ("eighth blocks", "▁▂▃▄▅▆▇█"),

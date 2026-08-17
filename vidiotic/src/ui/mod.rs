@@ -248,3 +248,38 @@ pub(crate) fn pick_file(tx: Sender<Command>, kind: PickKind) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every surface in this app is non-sRGB, so a clear colour goes into the
+    /// framebuffer as a plain `0..1` fraction with no gamma conversion. Getting
+    /// that wrong is a whole-window background in the wrong shade, which reads as
+    /// a theme bug rather than a colour-space one.
+    #[test]
+    fn wgpu_clear_color_is_a_straight_fraction_with_no_gamma() {
+        let black = wgpu_clear_color(egui::Color32::BLACK);
+        assert_eq!((black.r, black.g, black.b, black.a), (0.0, 0.0, 0.0, 1.0));
+
+        let white = wgpu_clear_color(egui::Color32::WHITE);
+        assert_eq!((white.r, white.g, white.b, white.a), (1.0, 1.0, 1.0, 1.0));
+
+        // Mid grey stays mid: an sRGB conversion would push 128/255 to ~0.216.
+        let mid = wgpu_clear_color(egui::Color32::from_rgb(128, 128, 128));
+        assert!((mid.r - 128.0 / 255.0).abs() < 1e-12, "{}", mid.r);
+
+        // Alpha is forced opaque whatever the theme colour carries: a
+        // transparent clear would show whatever is behind the window.
+        for a in [0, 128, 255] {
+            let c = wgpu_clear_color(egui::Color32::from_rgba_unmultiplied(10, 20, 30, a));
+            assert_eq!(c.a, 1.0, "alpha {a} should still clear opaque");
+        }
+
+        // Each channel is its own byte over 255, independently.
+        let c = wgpu_clear_color(egui::Color32::from_rgb(10, 20, 30));
+        assert!((c.r - 10.0 / 255.0).abs() < 1e-12);
+        assert!((c.g - 20.0 / 255.0).abs() < 1e-12);
+        assert!((c.b - 30.0 / 255.0).abs() < 1e-12);
+    }
+}

@@ -926,6 +926,11 @@ mod tests {
 
     #[test]
     fn wrap_unit_stays_inline_when_it_fits() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
         let (filler, a, b) = run_wrap_unit(300.0);
         assert_eq!(a.min.y, filler.min.y, "unit should share the filler's row");
         assert_eq!(a.min.x, filler.max.x);
@@ -934,6 +939,11 @@ mod tests {
 
     #[test]
     fn wrap_unit_breaks_to_next_row_intact() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
         // 100 filler + 120 unit > 180 row: the unit moves down whole.
         let (filler, a, b) = run_wrap_unit(180.0);
         assert!(
@@ -947,6 +957,11 @@ mod tests {
 
     #[test]
     fn wrap_unit_wider_than_row_lets_children_wrap() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
         // Unit alone is 120 wide > 100 row: children wrap individually.
         let (filler, a, b) = run_wrap_unit(100.0);
         assert!(a.min.y > filler.max.y, "unit should leave the filler's row");
@@ -957,58 +972,294 @@ mod tests {
         );
     }
 
-    // Scratch reproduction of the transport cadence row, appended to widgets.rs
-    // tests temporarily. Prints where each cluster lands at several widths.
+    /// One pass of the transport's cadence row at `width`, returning where each
+    /// cluster landed.
+    fn cadence_row(ctx: &egui::Context, width: f32) -> Vec<(&'static str, Rect)> {
+        let mut rows = Vec::new();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(width, 400.0),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run_ui(input, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(8.0, 7.0);
+            ui.horizontal_wrapped(|ui| {
+                let nl = section_label(ui, "next every").rect;
+                segmented(ui, "next_cadence", &["1", "2", "4", "8", "16"], Some(2));
+                ui.add_space(8.0);
+                let mut ll = Rect::NOTHING;
+                let mut unit = Rect::NOTHING;
+                wrap_unit(ui, "loop_every_unit", |ui| {
+                    ll = section_label(ui, "loop every").rect;
+                    segmented(
+                        ui,
+                        "loop_cadence",
+                        &["off", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16"],
+                        Some(0),
+                    );
+                    unit = ui.min_rect();
+                });
+                ui.add_space(8.0);
+                let mut pp = true;
+                let ppr = glyph_checkbox(ui, &mut pp, "preserve playhead").rect;
+                rows.push(("next_label", nl));
+                rows.push(("loop_label", ll));
+                rows.push(("loop_unit", unit));
+                rows.push(("preserve", ppr));
+            });
+        });
+        rows
+    }
 
+    /// The transport's cadence row, at the widths a window actually gets dragged
+    /// through. Two invariants, and this used to be a scratch reproduction that
+    /// printed the numbers and asserted neither.
+    ///
+    /// **Stability.** A galley's width is not known on the frame that requests it,
+    /// so a wrapped row can settle differently on frame 1 than on frame 2 — and if
+    /// it never settles it oscillates, which reads as a row of controls flickering
+    /// between two layouts forever. Frames 2 and 3 must be identical.
+    ///
+    /// **Integrity.** The "loop every" label and its segmented control are one
+    /// [`wrap_unit`], so they belong to the same row at every width; a label
+    /// stranded above its own control is the bug the unit exists to prevent.
     #[test]
-    fn repro_cadence_row() {
+    fn the_cadence_row_settles_and_keeps_its_label_with_its_control() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
         for width in [900.0_f32, 700.0, 560.0, 420.0, 320.0, 240.0] {
             let ctx = egui::Context::default();
-            let mut rows = Vec::new();
-            for _ in 0..3 {
-                rows.clear();
-                let input = egui::RawInput {
-                    screen_rect: Some(Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(width, 400.0),
-                    )),
-                    ..Default::default()
-                };
-                let _ = ctx.run_ui(input, |ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 7.0);
-                    ui.horizontal_wrapped(|ui| {
-                        let nl = section_label(ui, "next every").rect;
-                        segmented(ui, "next_cadence", &["1", "2", "4", "8", "16"], Some(2));
-                        ui.add_space(8.0);
-                        let mut ll = Rect::NOTHING;
-                        let mut last = Rect::NOTHING;
-                        wrap_unit(ui, "loop_every_unit", |ui| {
-                            ll = section_label(ui, "loop every").rect;
-                            segmented(
-                                ui,
-                                "loop_cadence",
-                                &["off", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16"],
-                                Some(0),
-                            );
-                            last = ui.min_rect();
-                        });
-                        ui.add_space(8.0);
-                        let mut pp = true;
-                        let ppr = glyph_checkbox(ui, &mut pp, "preserve playhead").rect;
-                        rows.push(("next_label", nl));
-                        rows.push(("loop_label", ll));
-                        rows.push(("loop_unit", last));
-                        rows.push(("preserve", ppr));
-                    });
+            let _first = cadence_row(&ctx, width);
+            let second = cadence_row(&ctx, width);
+            let third = cadence_row(&ctx, width);
+            assert_eq!(
+                second, third,
+                "layout at width {width} did not settle: it differs between frames"
+            );
+
+            let unit = second
+                .iter()
+                .find(|(n, _)| *n == "loop_unit")
+                .expect("loop_unit")
+                .1;
+            let label = second
+                .iter()
+                .find(|(n, _)| *n == "loop_label")
+                .expect("loop_label")
+                .1;
+            assert!(
+                unit.contains_rect(label),
+                "at width {width} the loop label {label:?} escaped its unit {unit:?}"
+            );
+        }
+    }
+
+    /// Drive one widget for a few frames with the pointer held down at `at`,
+    /// returning whatever the closure produced on the last frame.
+    ///
+    /// Three frames because a click needs a press and a release to have happened,
+    /// and because egui only knows a widget's rect once it has been laid out once.
+    fn with_pointer<T>(at: egui::Pos2, mut body: impl FnMut(&mut Ui) -> T) -> T {
+        let ctx = egui::Context::default();
+        let mut out = None;
+        for frame in 0..3 {
+            let mut events = vec![egui::Event::PointerMoved(at)];
+            if frame == 1 {
+                events.push(egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::default(),
                 });
             }
-            println!("--- width {width} ---");
-            for (name, r) in &rows {
-                println!(
-                    "{name:12} x {:7.1}..{:7.1}  y {:5.1}..{:5.1}",
-                    r.min.x, r.max.x, r.min.y, r.max.y
-                );
+            if frame == 2 {
+                events.push(egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::default(),
+                });
             }
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(600.0, 200.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let _ = ctx.run_ui(input, |ui| out = Some(body(ui)));
         }
+        out.expect("the ui closure never ran")
+    }
+
+    #[test]
+    fn segmented_reports_the_option_that_was_clicked() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        // Far left of the row: the first label. Nothing else is drawn there.
+        let clicked = with_pointer(egui::pos2(4.0, 8.0), |ui| {
+            segmented(ui, "seg", &["a", "b", "c"], Some(2))
+        });
+        assert_eq!(clicked, Some(0));
+    }
+
+    #[test]
+    fn segmented_reports_nothing_when_the_pointer_is_elsewhere() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let clicked = with_pointer(egui::pos2(500.0, 150.0), |ui| {
+            segmented(ui, "seg", &["a", "b", "c"], Some(0))
+        });
+        assert_eq!(clicked, None);
+    }
+
+    /// Where a widget lands, laid out with the pointer far away so nothing
+    /// interacts. The row is measured in theme cells, not points, so a test
+    /// cannot hardcode a coordinate inside it.
+    fn widget_rect(mut body: impl FnMut(&mut Ui) -> Rect) -> Rect {
+        with_pointer(egui::pos2(-1000.0, -1000.0), |ui| body(ui))
+    }
+
+    #[test]
+    fn fader_maps_a_click_along_the_track_to_a_value() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let track = widget_rect(|ui| {
+            let mut v = 0.0;
+            fader(ui, "f", 0.0, 10.0, &mut v, 16).rect
+        });
+
+        // The track spans one cell in from each end, so the far right is the top
+        // of the range and the far left the bottom.
+        let mut v = 0.0_f32;
+        let changed = with_pointer(egui::pos2(track.max.x, track.center().y), |ui| {
+            fader(ui, "f", 0.0, 10.0, &mut v, 16).changed()
+        });
+        assert!(changed, "a click on the track is a change");
+        assert!(v > 9.0, "clicking the right end should reach the top: {v}");
+
+        let mut v = 10.0_f32;
+        with_pointer(egui::pos2(track.min.x, track.center().y), |ui| {
+            fader(ui, "f", 0.0, 10.0, &mut v, 16);
+        });
+        assert_eq!(v, 0.0, "clicking the left end should reach the bottom");
+
+        // And a click outside it changes nothing.
+        let mut v = 5.0_f32;
+        let changed = with_pointer(egui::pos2(track.max.x + 40.0, track.max.y + 40.0), |ui| {
+            fader(ui, "f", 0.0, 10.0, &mut v, 16).changed()
+        });
+        assert!(!changed);
+        assert_eq!(v, 5.0);
+    }
+
+    /// A degenerate range has no position to map onto, and `(v - min) / (max - min)`
+    /// is NaN — which `clamp` passes straight through, so the cap was painted at
+    /// a NaN offset.
+    #[test]
+    fn fader_survives_a_degenerate_range() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let mut v = 5.0_f32;
+        with_pointer(egui::pos2(300.0, 8.0), |ui| {
+            fader(ui, "f", 5.0, 5.0, &mut v, 16);
+        });
+        assert!(v.is_finite(), "value went non-finite: {v}");
+    }
+
+    #[test]
+    fn glyph_checkbox_toggles_on_a_click_and_only_then() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let mut checked = false;
+        with_pointer(egui::pos2(4.0, 8.0), |ui| {
+            glyph_checkbox(ui, &mut checked, "on air");
+        });
+        assert!(checked, "a click on the box toggles it");
+
+        let mut checked = false;
+        with_pointer(egui::pos2(500.0, 150.0), |ui| {
+            glyph_checkbox(ui, &mut checked, "on air");
+        });
+        assert!(!checked, "a click elsewhere does not");
+    }
+
+    #[test]
+    fn chip_reports_a_remove_only_when_it_is_removable() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        // The chip's own [x] sits at its right end; a plain chip has none, so the
+        // same click has to come back as a plain click instead.
+        let r = with_pointer(egui::pos2(4.0, 8.0), |ui| {
+            let r = chip(ui, "clip", None, false);
+            (r.clicked, r.removed)
+        });
+        assert_eq!(r, (true, false), "a non-removable chip is never removed");
+    }
+
+    #[test]
+    fn statusline_reports_a_click_on_the_mode_word() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let clicked = with_pointer(egui::pos2(4.0, 8.0), |ui| {
+            statusline(ui, ("BANK", None), "4 cues")
+        });
+        assert!(clicked, "the mode word is the clickable part");
+    }
+
+    /// The level and spectrum readouts take arbitrary numbers from an analyser,
+    /// including the ones a silent or broken input produces. They paint rather
+    /// than return, so the assertion is that they lay out at all.
+    #[test]
+    fn the_meters_take_whatever_the_analyser_gives_them() {
+        // Widget geometry is measured in theme cells, which live in a
+        // process-wide global that another test can change mid-test. Held for the
+        // whole test, not per helper call: a measure-then-click test needs the
+        // same cell size for both halves.
+        let _guard = crate::theme::test_lock();
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(600.0, 200.0),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run_ui(input, |ui| {
+            for mag in [0.0, 0.5, 1.0, -1.0, 2.0, f32::NAN] {
+                glyph_level(ui, mag, 8);
+            }
+            glyph_fft(ui, &[]);
+            glyph_fft(ui, &[0.0, 0.5, 1.0, f32::NAN, -3.0]);
+            // A zero-cell request still has to allocate something.
+            glyph_level(ui, 0.5, 0);
+        });
     }
 }

@@ -678,3 +678,68 @@ pub fn run(boot: Boot) -> anyhow::Result<()> {
     event_loop.run_app(&mut app)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The line [`mutates_project`] draws, from both sides. It decides whether
+    /// closing an unsaved session asks where to save, so a command on the wrong
+    /// side either loses work silently or nags after every tempo nudge.
+    ///
+    /// Representative rather than exhaustive: a `match` over the whole `Command`
+    /// enum here would be a second copy of the function, which proves only that
+    /// it was copied correctly.
+    #[test]
+    fn mutates_project_covers_the_document_and_not_the_transport() {
+        // Anything a `.viproj` stores.
+        for cmd in [
+            Command::AddCue(0),
+            Command::RemoveCue(0),
+            Command::SetCueIn(0, 1.0),
+            Command::SetCueOut(0, Some(2.0)),
+            Command::SetCuePreserve(0, Some(true)),
+            Command::MoveCue(0, 1),
+            Command::AddBank,
+            Command::CloneBank,
+            Command::SetClipBpm(0, Some(120.0)),
+            Command::SetClipDir(PathBuf::from("/clips")),
+            Command::AddClipDirAsBank(PathBuf::from("/clips")),
+            Command::LoadIsf(PathBuf::from("/x.fs")),
+            Command::AddCameraCue("uid".into()),
+        ] {
+            assert!(mutates_project(&cmd), "{cmd:?} edits the document");
+        }
+
+        // Dialing in a groove is not yet a project worth naming, and neither is
+        // routing which bank is live or what the output window is doing.
+        for cmd in [
+            Command::SetBpm(128.0),
+            Command::TapTempo,
+            Command::SoftReset,
+            Command::CycleLiveBank(1),
+            Command::ToggleFullscreen,
+            Command::SaveProject,
+            Command::Undo,
+            Command::Redo,
+        ] {
+            assert!(!mutates_project(&cmd), "{cmd:?} is not a document edit");
+        }
+    }
+
+    #[test]
+    fn dir_bank_name_is_the_folders_own_name() {
+        assert_eq!(
+            &*dir_bank_name(std::path::Path::new("/a/b/friday")),
+            "friday"
+        );
+        // A trailing slash still names the folder, not the empty string.
+        assert_eq!(
+            &*dir_bank_name(std::path::Path::new("/a/b/friday/")),
+            "friday"
+        );
+        // Nothing to name: the root, and the empty path.
+        assert_eq!(&*dir_bank_name(std::path::Path::new("/")), "clips");
+        assert_eq!(&*dir_bank_name(std::path::Path::new("")), "clips");
+    }
+}

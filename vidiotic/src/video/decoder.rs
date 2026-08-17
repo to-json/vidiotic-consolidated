@@ -117,12 +117,21 @@ fn send_or_stop(tx: &Sender<DecodedFrame>, close_rx: &Receiver<()>, frame: Decod
     }
 }
 
-/// Sleep so the frame at `pts` seconds appears at the right wall-clock time,
-/// relative to the first frame of this playthrough. `speed` compresses (>1) or
-/// stretches (<1) that timeline: the frame lands at `(pts - first)/speed`.
-fn pace(base: Instant, first_pts: &mut Option<f64>, pts: f64, speed: f64) {
+/// When the frame at `pts` seconds is due, relative to the first frame of this
+/// playthrough. `speed` compresses (>1) or stretches (<1) that timeline: the
+/// frame lands at `(pts - first)/speed`.
+///
+/// Separate from [`pace`] so the arithmetic is testable without sleeping — the
+/// only part with anything to get wrong, and the part that decides whether a
+/// clip plays at the right rate.
+fn due_at(base: Instant, first_pts: &mut Option<f64>, pts: f64, speed: f64) -> Instant {
     let fp = *first_pts.get_or_insert(pts);
-    let target = base + Duration::from_secs_f64(((pts - fp).max(0.0)) / speed);
+    base + Duration::from_secs_f64(((pts - fp).max(0.0)) / speed)
+}
+
+/// Sleep so the frame at `pts` seconds appears at the right wall-clock time.
+fn pace(base: Instant, first_pts: &mut Option<f64>, pts: f64, speed: f64) {
+    let target = due_at(base, first_pts, pts, speed);
     let now = Instant::now();
     if target > now {
         std::thread::sleep(target - now);
@@ -515,5 +524,71 @@ fn run_software(
             }
         }
         guard_empty_playthrough(sent_any);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The pacing clock: a playthrough's first frame is due immediately, and
+    /// every later frame at its offset from that one, divided by `speed`.
+    #[test]
+    fn due_at_paces_from_the_first_frame_of_the_playthrough() {
+        let base = Instant::now();
+        let mut first = None;
+
+        // A clip trimmed to start at 10 s is still due *now* on its first frame:
+        // the offset is from the first frame seen, not from zero.
+        assert_eq!(due_at(base, &mut first, 10.0, 1.0), base);
+        assert_eq!(first, Some(10.0));
+
+        assert_eq!(
+            due_at(base, &mut first, 10.5, 1.0),
+            base + Duration::from_millis(500)
+        );
+        // Double speed halves the wait; half speed doubles it.
+        assert_eq!(
+            due_at(base, &mut first, 10.5, 2.0),
+            base + Duration::from_millis(250)
+        );
+        assert_eq!(
+            due_at(base, &mut first, 10.5, 0.5),
+            base + Duration::from_millis(1000)
+        );
+    }
+
+    /// Out-of-order timestamps are due immediately rather than in the past:
+    /// `Duration` cannot be negative, and computing one would panic.
+    #[test]
+    fn due_at_clamps_a_timestamp_before_the_first() {
+        let base = Instant::now();
+        let mut first = Some(10.0);
+        assert_eq!(due_at(base, &mut first, 9.0, 1.0), base);
+    }
+
+    #[test]
+    fn take_restart_drains_and_reports() {
+        let (tx, rx) = bounded::<()>(4);
+        assert!(!take_restart(&rx), "nothing pending");
+        tx.send(()).unwrap();
+        tx.send(()).unwrap();
+        // One restart, however many requests piled up — a re-loop is a re-loop.
+        assert!(take_restart(&rx));
+        assert!(!take_restart(&rx), "the queue is drained, not just peeked");
+    }
+
+    /// `should_stop` is true for a closed *or* dropped close channel: a dropped
+    /// sender means the app is gone, which is at least as good a reason to stop.
+    #[test]
+    fn should_stop_on_a_signal_or_a_dropped_sender() {
+        let (tx, rx) = bounded::<()>(1);
+        assert!(!should_stop(&rx));
+        tx.send(()).unwrap();
+        assert!(should_stop(&rx));
+
+        let (tx, rx) = bounded::<()>(1);
+        drop(tx);
+        assert!(should_stop(&rx));
     }
 }
