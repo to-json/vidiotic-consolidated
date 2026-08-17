@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # release-web — assemble deployable /play and /chop web artifacts.
 #
-# Builds and packages both vidiotic-play and vidiotic-chop into dist/web/ (and
-# syncs dist/play for backwards compatibility).
+# Builds and packages both vidiotic-play and vidiotic-chop into dist/web/.
+#
+# It also used to copy the whole tree to dist/play, for one reader:
+# `serve-play.sh`, which only knew that path. The copy did not actually work —
+# the rehearsal rig read a two-page artifact as if it were a one-page one and
+# degraded silently — so `serve-play.sh` reads dist/web directly now and the copy
+# is gone. `release-play.sh` still writes dist/play; nothing else does.
 #
 # Output: dist/web/ — self-contained, relative-path, no server-side anything.
 
@@ -288,10 +293,6 @@ if [ -d "$OUT" ]; then mv "$OUT" "$OUT.old" || die "cannot move previous $OUT as
 mkdir -p "$(dirname "$OUT")"
 mv "$TMP" "$OUT" || { mv "$OUT.old" "$OUT" 2>/dev/null; die "cannot publish $OUT"; }
 rm -rf "$OUT.old"
-
-# Also sync to dist/play for legacy compatibility
-rm -rf dist/play
-cp -r "$OUT" dist/play
 
 echo "assembled $OUT — build $STAMP"
 echo "  play bundle:  $PKG_PLAY"

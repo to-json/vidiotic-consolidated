@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
-# serve-play — run dist/play behind the same nginx the server will run.
+# serve-play — run the web release behind the same nginx the server will run.
+#
+# Reads dist/web (what `release-web.sh` builds, two pages and two bundles) and
+# falls back to dist/play (what `release-play.sh` builds, one of each). It used
+# to read dist/play only, which `release-web.sh` kept filled with a copy of
+# dist/web purely to keep this script working — and the copy did not keep it
+# working: the bundle scan grabbed whichever of `pkg-play-*`/`pkg-chop-*` came
+# first, and the hash check looked for a `wasm_sha256` key that the two-page
+# version.json does not have. Both degraded quietly, which is the exact failure
+# class this script exists to catch.
 #
 # `build-play.sh --serve` and `python3 -m http.server` both answer "does the
 # page work", and both are blind to everything the *deployment* can get wrong:
@@ -77,21 +86,31 @@ if [ "$STOP" = 1 ]; then
 fi
 
 command -v docker >/dev/null 2>&1 || { echo "docker is not installed" >&2; exit 2; }
-[ -f dist/play/index.html ] || { echo "no dist/play — run scripts/release-play.sh" >&2; exit 2; }
-[ -f dist/play/nginx.conf ] || { echo "dist/play/nginx.conf is missing — rebuild it" >&2; exit 2; }
+# Which artifact to rehearse: the two-page release if it is there, else the
+# single-page one. Named once, because everything below reads it.
+ART=dist/web
+[ -f "$ART/index.html" ] || ART=dist/play
+if [ ! -f "$ART/index.html" ]; then
+  echo "no dist/web or dist/play — run scripts/release-web.sh" >&2
+  exit 2
+fi
+[ -f "$ART/nginx.conf" ] || { echo "$ART/nginx.conf is missing — rebuild it" >&2; exit 2; }
+echo "rehearsing $ART"
+
+
 
 # The artifact records the prefix it was generated for. Serving it under a
 # different one is the silent-failure shape this script exists to expose, so say
 # so rather than quietly producing a confusing run.
-ART_BASE=$(sed -n 's/.*"base": "\(.*\)".*/\1/p' dist/play/version.json)
+ART_BASE=$(sed -n 's/.*"base": "\(.*\)".*/\1/p' "$ART/version.json")
 ART_BASE=${ART_BASE%/}
 [ -n "$ART_BASE" ] || ART_BASE="/"
 WANT_BASE=${BASE:-/}
 if [ "$ART_BASE" != "$WANT_BASE" ]; then
-  echo "dist/play was released for base '$ART_BASE' but you asked to serve it at '$WANT_BASE'."
+  echo "$ART was released for base '$ART_BASE' but you asked to serve it at '$WANT_BASE'."
   echo "That mismatch makes every location in its nginx.conf match nothing —"
   echo "which is a real failure mode, but it is not a test of the artifact."
-  echo "  scripts/release-play.sh --no-build --base $WANT_BASE"
+  echo "  scripts/release-web.sh --no-build --base $WANT_BASE"
   exit 2
 fi
 
@@ -110,7 +129,7 @@ sed "s|SITE_DIR|$SITE_DIR|" docker/play/nginx.conf >"$CONF" || exit 1
 
 stop
 echo "starting nginx on http://localhost:$PORT$BASE/ (tls https://localhost:$TLS_PORT$BASE/)"
-# dist/play read-only: the container must not be able to change the artifact it
+# The artifact is read-only: the container must not be able to change the file it
 # is supposed to be serving faithfully. It is mounted at the position in the
 # document root that its own --base claims, which is what makes a subdirectory
 # rehearsal a real one rather than an alias trick.
@@ -120,7 +139,7 @@ echo "starting nginx on http://localhost:$PORT$BASE/ (tls https://localhost:$TLS
 # and is not part of what gets deployed.
 docker run -d --name "$NAME" \
   -p "$PORT:80" -p "$TLS_PORT:443" \
-  -v "$PWD/dist/play:/srv/root${BASE}:ro" \
+  -v "$PWD/$ART:/srv/root${BASE}:ro" \
   -v "$PWD/clips:/srv/clips:ro" \
   -v "$CONF:/etc/nginx/http.d/play.conf:ro" \
   "$IMAGE" >/dev/null || exit 1
@@ -140,9 +159,18 @@ for _ in $(seq 40); do
 done
 
 SITE="http://localhost:$PORT$BASE"
-PKG=$(basename "$(find dist/play -maxdepth 1 -type d -name 'pkg-*' | head -1)")
+# The play bundle: `pkg-play-<hash>` under dist/web, plain `pkg-<hash>` under
+# dist/play. Named by prefix rather than "the first pkg-* found", which under
+# dist/web was as likely to be the chop bundle as the play one.
+PKG=$(find "$ART" -maxdepth 1 -type d -name 'pkg-play-*' | sort | head -1)
+[ -n "$PKG" ] || PKG=$(find "$ART" -maxdepth 1 -type d -name 'pkg-*' ! -name 'pkg-*-*' | sort | head -1)
+[ -n "$PKG" ] || { echo "no play bundle in $ART" >&2; stop; rm -f "$CONF"; exit 2; }
+PKG=$(basename "$PKG")
 WASM="/$PKG/vidiotic_play_bg.wasm"
 GLUE="/$PKG/vidiotic_play.js"
+# Present only in a dist/web release. Empty means there is no /chop to check.
+PKG_CHOP=$(find "$ART" -maxdepth 1 -type d -name 'pkg-chop-*' | sort | head -1)
+[ -z "$PKG_CHOP" ] || PKG_CHOP=$(basename "$PKG_CHOP")
 
 fails=0
 ok()  { echo "[ OK ] $1"; }
@@ -179,60 +207,83 @@ case "$CC" in
   *) bad "the bare $BASE/ has Cache-Control '${CC:-absent}' — the URL people type is the uncached one" ;;
 esac
 
-H=$(hdr "$WASM")
-CT=$(field "$H" content-type)
-CC=$(field "$H" cache-control)
-if [ "$CT" = "application/wasm" ]; then
-  ok "the module is application/wasm — instantiateStreaming can compile as it downloads"
-else
-  bad "the module is '${CT:-absent}', not application/wasm"
-fi
-case "$CC" in
-  *immutable*) ok "the bundle is $CC" ;;
-  *) bad "the bundle Cache-Control is '${CC:-absent}' — every visit re-downloads 6 MB" ;;
-esac
-
 CT=$(field "$(hdr "$GLUE")" content-type)
 case "$CT" in
   *javascript*) ok "the glue is $CT" ;;
   *) bad "the glue is '${CT:-absent}' — a module script with the wrong type is refused outright" ;;
 esac
 
-# Not just "did it come back compressed" — decompress it and compare against the
-# hash the release recorded. A truncated .br is served with a perfectly correct
-# Content-Encoding under a year of `immutable`, and this is the only check here
-# that can tell the difference.
-WANT=$(sed -n 's/.*"wasm_sha256": "\(.*\)".*/\1/p' dist/play/version.json)
+# `wasm_play_sha256` in a dist/web manifest, `wasm_sha256` in a dist/play one.
+WANT=$(sed -n 's/.*"wasm_play_sha256": "\(.*\)".*/\1/p' "$ART/version.json")
+[ -n "$WANT" ] || WANT=$(sed -n 's/.*"wasm_sha256": "\(.*\)".*/\1/p' "$ART/version.json")
+[ -n "$WANT" ] || bad "version.json records no wasm hash — nothing to compare the wire against"
 # A release made with --no-brotli ships no .br and comments the directive out.
 # Failing it for that would be this script disagreeing with a deliberate choice.
-HAS_BR=$(sed -n 's/.*"brotli": \(true\|false\).*/\1/p' dist/play/version.json)
-for enc in br gzip; do
-  if [ "$enc" = br ] && [ "$HAS_BR" = false ]; then
-    echo "[NOTE] br: released with --no-brotli — gzip only, 580 KiB more per cold visit"
-    continue
-  fi
-  H=$(hdr "$WASM" "Accept-Encoding: $enc")
-  CE=$(field "$H" content-encoding)
-  LEN=$(field "$H" content-length)
-  if [ "$CE" != "$enc" ]; then
-    bad "$enc: got '${CE:-none}' — nginx is compressing on every request, or ${enc}_static is off"
-    continue
-  fi
-  case "$enc" in
-    br)   dec=$(command -v brotli >/dev/null 2>&1 && echo "brotli -dc") ;;
-    gzip) dec="gzip -dc" ;;
-  esac
-  if [ -z "${dec:-}" ]; then
-    ok "$enc: served precompressed, $(( ${LEN:-0} / 1024 )) KiB on the wire (no local $enc to verify the body)"
-    continue
-  fi
-  GOT=$(curl -fsS -H "Accept-Encoding: $enc" "$SITE$WASM" 2>/dev/null | $dec 2>/dev/null | sha256)
-  if [ "$GOT" = "$WANT" ]; then
-    ok "$enc: $(( ${LEN:-0} / 1024 )) KiB on the wire, and it decompresses to the module that was built"
+HAS_BR=$(sed -n 's/.*"brotli": \(true\|false\).*/\1/p' "$ART/version.json")
+
+# One bundle's module: its type, its caching, and — the part nothing else can
+# check — that what comes off the wire precompressed actually decompresses to the
+# bytes the release recorded. A truncated .br is served with a perfectly correct
+# Content-Encoding under a year of `immutable`.
+#
+# A function because a dist/web release ships two of these and nginx treats them
+# identically, so asserting one and assuming the other is how the play bundle
+# came to stand in for both.
+check_module() {
+  local path=$1 want=$2 label=$3 H CT CC CE LEN dec GOT
+  H=$(hdr "$path")
+  CT=$(field "$H" content-type)
+  CC=$(field "$H" cache-control)
+  if [ "$CT" = "application/wasm" ]; then
+    ok "$label: the module is application/wasm — instantiateStreaming can compile as it downloads"
   else
-    bad "$enc: the body does not decompress to the released wasm — truncated or corrupt precompressed file"
+    bad "$label: the module is '${CT:-absent}', not application/wasm"
   fi
-done
+  case "$CC" in
+    *immutable*) ok "$label: the bundle is $CC" ;;
+    *) bad "$label: the bundle Cache-Control is '${CC:-absent}' — every visit re-downloads 6 MB" ;;
+  esac
+  for enc in br gzip; do
+    if [ "$enc" = br ] && [ "$HAS_BR" = false ]; then
+      echo "[NOTE] $label br: released with --no-brotli — gzip only, 580 KiB more per cold visit"
+      continue
+    fi
+    H=$(hdr "$path" "Accept-Encoding: $enc")
+    CE=$(field "$H" content-encoding)
+    LEN=$(field "$H" content-length)
+    if [ "$CE" != "$enc" ]; then
+      bad "$label $enc: got '${CE:-none}' — nginx is compressing on every request, or ${enc}_static is off"
+      continue
+    fi
+    case "$enc" in
+      br)   dec=$(command -v brotli >/dev/null 2>&1 && echo "brotli -dc") ;;
+      gzip) dec="gzip -dc" ;;
+    esac
+    if [ -z "${dec:-}" ]; then
+      ok "$label $enc: served precompressed, $(( ${LEN:-0} / 1024 )) KiB on the wire (no local $enc to verify the body)"
+      continue
+    fi
+    GOT=$(curl -fsS -H "Accept-Encoding: $enc" "$SITE$path" 2>/dev/null | $dec 2>/dev/null | sha256)
+    if [ "$GOT" = "$want" ]; then
+      ok "$label $enc: $(( ${LEN:-0} / 1024 )) KiB on the wire, and it decompresses to the module that was built"
+    else
+      bad "$label $enc: the body does not decompress to the released wasm — truncated or corrupt precompressed file"
+    fi
+  done
+}
+
+check_module "$WASM" "$WANT" /play
+
+# /chop, when the artifact has one. Same nginx, same locations, same claims.
+if [ -n "$PKG_CHOP" ]; then
+  WANT_CHOP=$(sed -n 's/.*"wasm_chop_sha256": "\(.*\)".*/\1/p' "$ART/version.json")
+  check_module "/$PKG_CHOP/vidiotic_chop_bg.wasm" "$WANT_CHOP" /chop
+  CC=$(field "$(hdr /chop.html)" cache-control)
+  case "$CC" in
+    *no-cache*) ok "chop.html is $CC — a new build is picked up on reload" ;;
+    *) bad "chop.html Cache-Control is '${CC:-absent}', so a stale page can pin an old bundle forever" ;;
+  esac
+fi
 
 # Compression for the two small files as well: nginx's default gzip_types is
 # text/html only and gzip is off entirely in several stock configs, so these are

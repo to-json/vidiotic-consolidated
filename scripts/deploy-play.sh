@@ -76,12 +76,21 @@ while IFS= read -r dir; do
 done < <(find "$OUT" -maxdepth 1 -type d -name 'pkg-*' | sort)
 [ "${#PKGS[@]}" -gt 0 ] || { echo "no bundle directory in $OUT — rebuild it" >&2; exit 2; }
 
-# Check stamp in boot.js or chop.js inside any bundle directory
-BOOT_FILE=$(find "$OUT" -name "boot.js" -o -name "chop.js" | head -1)
-if [ -z "$BOOT_FILE" ] || grep -q "const BUILD = 'dev';" "$BOOT_FILE"; then
-  echo "$OUT is missing stamped boot files — run scripts/release-web.sh" >&2
-  exit 2
-fi
+# Every boot file must carry a real build stamp, not just the first one found.
+#
+# `find … | head -1` checked one of them and passed the other through unlooked
+# at, which is the wrong half of the two-bundle release exactly as often as not:
+# an unstamped /chop next to a stamped /play deployed clean, and the page that
+# went out said `build dev` in its console with no version to correlate a bug
+# report against.
+BOOT_FILES=$(find "$OUT" \( -name 'boot.js' -o -name 'chop.js' \))
+[ -n "$BOOT_FILES" ] || { echo "$OUT has no boot files — run scripts/release-web.sh" >&2; exit 2; }
+while IFS= read -r boot; do
+  if grep -q "const BUILD = 'dev';" "$boot"; then
+    echo "$boot is unstamped — run scripts/release-web.sh" >&2
+    exit 2
+  fi
+done <<< "$BOOT_FILES"
 BUILD=$(sed -n 's/.*"build": "\(.*\)".*/\1/p' "$OUT/version.json")
 
 # Ask the server what its nginx can do, before anything is uploaded.
