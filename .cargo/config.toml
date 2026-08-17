@@ -1,0 +1,16 @@
+# How `cargo test --target wasm32-unknown-unknown` gets executed.
+#
+# A `.wasm` is not an executable, so without a runner cargo hands the module to
+# the OS and gets "cannot execute binary file" (exit 126). `scripts/wasm-gate.sh`
+# has always intended to run the portable crates' own test modules under wasm32
+# in a real engine — that is the half of the ratchet that proves behavior rather
+# than compilation — and it could not, because this file did not exist.
+#
+# `wasm-bindgen-test-runner` comes from `wasm-bindgen-cli`, at exactly the
+# version in Cargo.lock (it rejects a module built by a different one). The gate
+# prints the install line when it is missing.
+#
+# No crate calls `wasm_bindgen_test_configure!(run_in_browser)`, so this runs in
+# Node's V8. Nothing here changes a native build.
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
