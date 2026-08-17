@@ -345,13 +345,10 @@ impl Shell {
         match cmd {
             Command::Undo => self.engine.undo_document(),
             Command::Redo => self.engine.redo_document(),
-            Command::SaveProject | Command::SaveProjectAs => self.save_project(None),
-            Command::SaveProjectTo(p) => self.save_project(Some(&p)),
-            c @ (Command::RefreshCameras
-            | Command::SetCameraOnAir(..)
-            | Command::AddCameraCue(_)
-            | Command::RelinkCamera { .. }) => self.camera_command(c),
             other => {
+                let Some(other) = self.shell_command(other) else {
+                    return;
+                };
                 self.engine.record_undo(&other);
                 let boundary = crate::undo::is_history_boundary(&other);
                 if let Some(rest) = self.engine.apply_command(other) {
@@ -363,6 +360,28 @@ impl Shell {
                 }
             }
         }
+    }
+
+    /// The commands this shell answers itself instead of the engine: a file the
+    /// page has to choose, a save the page has to download, a camera the page
+    /// owns. Returns the command untouched if it is none of them.
+    ///
+    /// Natively `PickIsf`/`PickShader` open an `rfd` dialog; here they ask the
+    /// page for a file and the answer arrives later through `load_isf_source` /
+    /// `load_shader_source`.
+    fn shell_command(&mut self, cmd: Command) -> Option<Command> {
+        match cmd {
+            Command::PickIsf => request_file(PICK_ISF),
+            Command::PickShader => request_file(PICK_SHADER),
+            Command::SaveProject | Command::SaveProjectAs => self.save_project(None),
+            Command::SaveProjectTo(p) => self.save_project(Some(&p)),
+            c @ (Command::RefreshCameras
+            | Command::SetCameraOnAir(..)
+            | Command::AddCameraCue(_)
+            | Command::RelinkCamera { .. }) => self.camera_command(c),
+            other => return Some(other),
+        }
+        None
     }
 
     fn handle_keys(&mut self) {
@@ -682,29 +701,15 @@ impl Shell {
             crate::ui::control_ui(ui, &self.mirror, &self.cmd_tx, &self.thumbs);
         });
 
-        // Drain on the same frame the panels filled it. Anything the engine does
-        // not implement comes back, and the browser says so in its status line
-        // rather than swallowing it — a verb that resolves and then does nothing
-        // is indistinguishable from a broken one unless it tells you.
+        // Drain on the same frame the panels filled it, through the same
+        // `dispatch` a key press takes. It used to be a second `match` with its
+        // own subset of the arms, and the subsets had already drifted: the
+        // Command Palette posts `Undo`/`Redo` here, this loop handed them to
+        // `apply_command`, and `apply_command` ignores both — so the palette's
+        // undo silently did nothing while the keyboard's worked. One path also
+        // means panel commands record undo steps, which this arm never did.
         while let Ok(cmd) = self.cmd_rx.try_recv() {
-            // The two the page can answer. Natively these open an `rfd` dialog;
-            // here they ask the page for a file and come back through
-            // `load_isf_source` / `load_shader_source`.
-            match cmd {
-                Command::PickIsf => request_file(PICK_ISF),
-                Command::PickShader => request_file(PICK_SHADER),
-                Command::SaveProject | Command::SaveProjectAs => self.save_project(None),
-                Command::SaveProjectTo(p) => self.save_project(Some(&p)),
-                c @ (Command::RefreshCameras
-                | Command::SetCameraOnAir(..)
-                | Command::AddCameraCue(_)
-                | Command::RelinkCamera { .. }) => self.camera_command(c),
-                other => {
-                    if let Some(rest) = self.engine.apply_command(other) {
-                        self.status = format!("{rest:?} is not something /play can do");
-                    }
-                }
-            }
+            self.dispatch(cmd);
         }
 
         UiFrame {
