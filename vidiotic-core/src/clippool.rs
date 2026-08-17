@@ -89,9 +89,23 @@ pub fn scan(dir: &Path) -> Vec<Clip> {
 /// Like [`scan`], but assign clip ids from `start_id` upward so several scanned
 /// directories can share one flat, globally-unique id space.
 pub fn scan_from(dir: &Path, start_id: ClipId) -> Vec<Clip> {
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
-        .into_iter()
-        .flatten()
+    // A directory that cannot be read is not an empty directory, and the
+    // difference is the whole diagnostic: a mistyped `--clip-dir` used to come
+    // back as a pool with no clips in it and nothing said anywhere, which reads
+    // as "there are no videos in there".
+    //
+    // Still not an error return: the caller scans several directories and one bad
+    // path should not lose the others. Saying so is enough.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            log::warn!("clip directory {}: {e}", dir.display());
+            return Vec::new();
+        }
+    };
+    let mut paths: Vec<PathBuf> = entries
+        // A single unreadable entry within a readable directory *is* skipped
+        // quietly — one bad `stat` in a folder of clips is not worth a line.
         .flatten()
         .map(|e| e.path())
         .filter(|p| {
@@ -199,4 +213,78 @@ fn first_frame_rgba(path: &Path, tw: u32, th: u32) -> anyhow::Result<(usize, usi
         }
     }
     anyhow::bail!("no decodable frame")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A real directory, because `scan_from` reads one directly rather than
+    /// through the `Fs` trait — a clip pool is a native-only concept; the browser
+    /// shells build theirs from files the visitor handed over.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("vidiotic-clippool-{}-{tag}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("create temp dir");
+            Self(dir)
+        }
+
+        fn touch(&self, name: &str) {
+            std::fs::write(self.0.join(name), b"not really a video").expect("write");
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn scan_takes_videos_by_extension_in_name_order() {
+        let d = TempDir::new("exts");
+        // Deliberately not in sorted order on disk.
+        for name in ["b.mov", "a.MP4", "c.webm", "notes.txt", "cover.png", "x"] {
+            d.touch(name);
+        }
+        let clips = scan(&d.0);
+        let names: Vec<&str> = clips.iter().map(|c| &*c.name).collect();
+        // Case-insensitive on the extension; sorted by path; everything that is
+        // not a video left out — including an extensionless file.
+        assert_eq!(names, ["a.MP4", "b.mov", "c.webm"]);
+        assert_eq!(clips.iter().map(|c| c.id).collect::<Vec<_>>(), [0, 1, 2]);
+        assert!(clips.iter().all(|c| c.bpm.is_none()));
+    }
+
+    /// Ids are handed out from `start_id` so several directories can share one
+    /// flat id space — a clip's id is what a `.viproj` cue points at, so a
+    /// collision between two banks would repoint cues at the wrong video.
+    #[test]
+    fn scan_from_continues_an_existing_id_space() {
+        let d = TempDir::new("ids");
+        d.touch("one.mov");
+        d.touch("two.mov");
+        let clips = scan_from(&d.0, 7);
+        assert_eq!(clips.iter().map(|c| c.id).collect::<Vec<_>>(), [7, 8]);
+    }
+
+    #[test]
+    fn an_empty_directory_scans_to_nothing() {
+        let d = TempDir::new("empty");
+        assert!(scan(&d.0).is_empty());
+    }
+
+    /// The case that used to be indistinguishable from the one above. The pool is
+    /// still empty — one bad path must not lose the other directories — but the
+    /// warning is what tells a mistyped `--clip-dir` apart from an empty folder.
+    #[test]
+    fn a_missing_directory_scans_to_nothing_rather_than_panicking() {
+        let missing = std::env::temp_dir().join("vidiotic-clippool-does-not-exist");
+        let _ = std::fs::remove_dir_all(&missing);
+        assert!(scan(&missing).is_empty());
+    }
 }

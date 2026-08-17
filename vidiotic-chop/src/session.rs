@@ -24,6 +24,13 @@ use vidiotic_core::project::SessionDefaults;
 use crate::editor::Editor;
 use crate::spans::Span;
 
+/// Bumped on any breaking change to the sidecar's shape.
+///
+/// Written on every save and, since it is worth anything only if somebody reads
+/// it, checked on every parse — a newer file is refused rather than silently
+/// half-loaded through nanoserde's `#[nserde(default)]` fields, which would look
+/// like a session that lost half its spans. `vidiotic-ctl`'s `MAP_VERSION` does
+/// the same for the map.
 pub const SESSION_VERSION: u32 = 1;
 
 /// Everything worth restoring about a marking session, minus the media itself.
@@ -132,9 +139,17 @@ impl SessionFile {
 ///
 /// # Errors
 /// Propagates the RON parse error, labelled with `label` — a path natively, a
-/// storage key in a browser.
+/// storage key in a browser — or refuses a sidecar written by a newer build than
+/// this one understands.
 pub fn parse(text: &str, label: &str) -> anyhow::Result<SessionFile> {
-    SessionFile::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))
+    let file =
+        SessionFile::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))?;
+    anyhow::ensure!(
+        file.version <= SESSION_VERSION,
+        "{label} is session v{} but this build reads up to v{SESSION_VERSION} — update vidiotic",
+        file.version
+    );
+    Ok(file)
 }
 
 /// Serialize a sidecar.

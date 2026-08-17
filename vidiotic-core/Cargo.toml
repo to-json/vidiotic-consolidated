@@ -23,12 +23,14 @@ name = "vidiotic_core"
 # decode is gated. `scripts/wasm-gate.sh` holds the boundary.
 [features]
 default = ["ffmpeg"]
-ffmpeg = ["dep:ffmpeg-next"]
+# `crossbeam-channel` rides along because the only thing that uses it is the
+# thumbnailer, which is the thing being gated.
+ffmpeg = ["dep:ffmpeg-next", "dep:crossbeam-channel"]
 
 [dependencies]
 nanoserde = "0.2"
 ffmpeg-next = { version = "8.1", optional = true }
-crossbeam-channel = "0.5"
+crossbeam-channel = { version = "0.5", optional = true }
 anyhow = "1"
 log = "0.4"
 # std::time's `Instant` panics on wasm32, so the session-model clock — used by

@@ -649,9 +649,21 @@ fn parse_vec2(v: Option<&JVal>) -> Option<[f32; 2]> {
 /// Detect and parse an ISF header from a shader source. Returns `None` if the
 /// source has no leading `/* … */` JSON header with ISF-identifying keys — a
 /// plain `.fs`/`.frag` is not ISF just by extension.
+///
+/// A header that is present but *malformed* also returns `None`, because there
+/// is nothing else it can return — but it says so first. Silently, an author who
+/// left a trailing comma in their `INPUTS` gets their shader compiled as plain
+/// GLSL, and the first thing they hear about it is naga complaining about an
+/// undeclared uniform several hundred lines away.
 pub fn detect(src: &str) -> Option<IsfHeader> {
     let header_json = extract_header(src)?;
-    let v = parse_json(&header_json).ok()?;
+    let v = match parse_json(&header_json) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!("ISF: a leading JSON header is present but does not parse, so this is compiling as plain GLSL: {e}");
+            return None;
+        }
+    };
     if !matches!(v, JVal::Obj(_)) {
         return None;
     }
