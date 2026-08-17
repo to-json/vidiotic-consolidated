@@ -83,8 +83,14 @@ impl Opener for WebSources {
                 self.paused.clone(),
             )));
         }
-        let ClipSource::File(_) = &req.clip.source else { return None };
-        let bytes = self.library.borrow().get(&req.clip.id).map(|l| Rc::clone(&l.bytes))?;
+        let ClipSource::File(_) = &req.clip.source else {
+            return None;
+        };
+        let bytes = self
+            .library
+            .borrow()
+            .get(&req.clip.id)
+            .map(|l| Rc::clone(&l.bytes))?;
         let movie = match Movie::open(bytes) {
             Ok(m) => m,
             Err(e) => {
@@ -101,7 +107,11 @@ impl Opener for WebSources {
             movie,
             in_sec: req.in_sec.min(duration),
             span: (end - req.in_sec).max(0.0),
-            speed: if req.speed.is_finite() && req.speed > 0.0 { req.speed } else { 1.0 },
+            speed: if req.speed.is_finite() && req.speed > 0.0 {
+                req.speed
+            } else {
+                1.0
+            },
             pos: 0.0,
             last_poll: Instant::now(),
             paused: self.paused.clone(),
@@ -140,13 +150,20 @@ impl Source for ClipPlayer {
         // Clamp the step so a backgrounded tab does not fast-forward the clip by
         // however long it was hidden — the same reason the native decode worker
         // paces rather than catching up.
-        let dt = now.saturating_duration_since(self.last_poll).as_secs_f64().min(0.25);
+        let dt = now
+            .saturating_duration_since(self.last_poll)
+            .as_secs_f64()
+            .min(0.25);
         self.last_poll = now;
         if !self.paused.get() {
             self.pos += dt * self.speed;
         }
 
-        let t = if self.span > 0.0 { self.pos.rem_euclid(self.span) } else { 0.0 };
+        let t = if self.span > 0.0 {
+            self.pos.rem_euclid(self.span)
+        } else {
+            0.0
+        };
         let idx = self.movie.sample_index_at(self.in_sec + t);
         let soft = self.soft.get();
         if self.last == Some(idx) && soft == self.last_soft {

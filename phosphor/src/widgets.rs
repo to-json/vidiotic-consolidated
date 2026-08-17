@@ -27,7 +27,10 @@ pub const BLOCKS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', 
 
 /// Advance width of one buffer cell in the current mono font.
 pub fn cell_width(ui: &Ui) -> f32 {
-    ui.painter().layout_no_wrap("─".into(), mono(), Color32::WHITE).size().x
+    ui.painter()
+        .layout_no_wrap("─".into(), mono(), Color32::WHITE)
+        .size()
+        .x
 }
 
 /// Lay out `text` in the buffer font and paint it centered on a fresh
@@ -35,8 +38,11 @@ pub fn cell_width(ui: &Ui) -> f32 {
 fn alloc_text(ui: &mut Ui, text: &str, color: Color32) -> (Rect, egui::Response) {
     let galley = ui.painter().layout_no_wrap(text.to_string(), mono(), color);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::click());
-    ui.painter()
-        .galley(egui::pos2(rect.min.x, rect.center().y - galley.size().y * 0.5), galley, color);
+    ui.painter().galley(
+        egui::pos2(rect.min.x, rect.center().y - galley.size().y * 0.5),
+        galley,
+        color,
+    );
     (rect, resp)
 }
 
@@ -57,8 +63,14 @@ pub fn segmented(
 
     for (i, label) in labels.iter().enumerate() {
         let is_selected = selected == Some(i);
-        let text = if is_selected { format!("[{label}]") } else { format!(" {label} ") };
-        let galley = ui.painter().layout_no_wrap(text.clone(), mono(), p.fg_muted);
+        let text = if is_selected {
+            format!("[{label}]")
+        } else {
+            format!(" {label} ")
+        };
+        let galley = ui
+            .painter()
+            .layout_no_wrap(text.clone(), mono(), p.fg_muted);
         let (rect, _) = ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::hover());
         let resp = ui.interact(rect, base_id.with(i), Sense::click());
         let color = if is_selected {
@@ -143,7 +155,9 @@ pub fn detent_scroll_uint(
 /// drag (painting happens after step handling so the updated value shows
 /// immediately).
 fn detent_frame(ui: &mut Ui, text: &str) -> (Rect, Response) {
-    let galley = ui.painter().layout_no_wrap(text.to_string(), mono(), Color32::WHITE);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_string(), mono(), Color32::WHITE);
     ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::click_and_drag())
 }
 
@@ -186,7 +200,13 @@ fn detent_step(ui: &mut Ui, id: egui::Id, resp: &Response, count: usize) -> Opti
 fn detent_paint(ui: &mut Ui, rect: Rect, text: &str, hovered: bool) {
     let p = palette();
     let color = if hovered { p.accent } else { p.fg_primary };
-    ui.painter().text(egui::pos2(rect.min.x, rect.center().y), Align2::LEFT_CENTER, text, mono(), color);
+    ui.painter().text(
+        egui::pos2(rect.min.x, rect.center().y),
+        Align2::LEFT_CENTER,
+        text,
+        mono(),
+        color,
+    );
 }
 
 /// Small lowercase muted label for grouping controls, e.g. "next every".
@@ -194,7 +214,10 @@ fn detent_paint(ui: &mut Ui, rect: Rect, text: &str, hovered: bool) {
 pub fn section_label(ui: &mut Ui, text: &str) -> Response {
     unit_label(
         ui,
-        egui::RichText::new(text.to_lowercase()).monospace().size(10.0).color(palette().fg_muted),
+        egui::RichText::new(text.to_lowercase())
+            .monospace()
+            .size(10.0)
+            .color(palette().fg_muted),
     )
 }
 
@@ -251,13 +274,18 @@ pub struct ChipResponse {
 pub fn chip(ui: &mut Ui, text: &str, tint: Option<Color32>, removable: bool) -> ChipResponse {
     let p = palette();
     let color = tint.unwrap_or(p.fg_secondary);
-    let display = if removable { format!("({text} ×)") } else { format!("({text})") };
+    let display = if removable {
+        format!("({text} ×)")
+    } else {
+        format!("({text})")
+    };
     let (rect, resp) = alloc_text(ui, &display, color);
 
     let mut removed = false;
     if removable {
         let cw = cell_width(ui);
-        let close_rect = Rect::from_min_max(egui::pos2(rect.max.x - cw * 2.5, rect.min.y), rect.max);
+        let close_rect =
+            Rect::from_min_max(egui::pos2(rect.max.x - cw * 2.5, rect.min.y), rect.max);
         let close_resp = ui.interact(close_rect, resp.id.with("close"), Sense::click());
         if close_resp.hovered() {
             ui.painter().text(
@@ -271,7 +299,11 @@ pub fn chip(ui: &mut Ui, text: &str, tint: Option<Color32>, removable: bool) -> 
         removed = close_resp.clicked();
     }
 
-    ChipResponse { clicked: resp.clicked() && !removed, removed, rect }
+    ChipResponse {
+        clicked: resp.clicked() && !removed,
+        removed,
+        rect,
+    }
 }
 
 /// What a [`media_tile`] needs painted: a clip pool tile or a cue chip.
@@ -314,7 +346,11 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
     if let Some(tex) = spec.tex {
         egui::Image::new((tex.id(), art.size())).paint_at(ui, art);
         if resp.hovered() {
-            painter.rect_filled(art, CornerRadius::ZERO, theme::with_alpha(Color32::WHITE, 20));
+            painter.rect_filled(
+                art,
+                CornerRadius::ZERO,
+                theme::with_alpha(Color32::WHITE, 20),
+            );
         }
     } else {
         painter.text(
@@ -332,7 +368,11 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
         TileRole::Armed => "○",
         TileRole::None => " ",
     };
-    let name_color = if spec.selected { p.accent } else { p.fg_primary };
+    let name_color = if spec.selected {
+        p.accent
+    } else {
+        p.fg_primary
+    };
     let mut job = LayoutJob::single_section(
         format!("{glyph}{}", spec.name),
         TextFormat::simple(FontId::monospace(10.0), name_color),
@@ -340,7 +380,10 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
     job.wrap = TextWrapping::truncate_at_width((spec.size.x - 6.0).max(0.0));
     let galley = painter.layout_job(job);
     painter.galley(
-        egui::pos2(rect.min.x + 3.0, rect.max.y - name_h * 0.5 - galley.size().y * 0.5),
+        egui::pos2(
+            rect.min.x + 3.0,
+            rect.max.y - name_h * 0.5 - galley.size().y * 0.5,
+        ),
         galley,
         name_color,
     );
@@ -356,7 +399,12 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
     } else {
         p.border
     };
-    painter.rect_stroke(rect, CornerRadius::ZERO, Stroke::new(1.0, border), StrokeKind::Inside);
+    painter.rect_stroke(
+        rect,
+        CornerRadius::ZERO,
+        Stroke::new(1.0, border),
+        StrokeKind::Inside,
+    );
     if spec.role == TileRole::Playing {
         let alpha = 120 + (spec.beat_pulse.powi(2) * 135.0) as u8;
         painter.rect_stroke(
@@ -381,7 +429,9 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
 pub fn bracket_button(ui: &mut Ui, label: &str, color: Option<Color32>, flash: f32) -> Response {
     let p = palette();
     let text = format!("[ {label} ]");
-    let galley = ui.painter().layout_no_wrap(text.clone(), mono(), p.fg_primary);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.clone(), mono(), p.fg_primary);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::click());
     let mut fg = color.unwrap_or(p.fg_primary);
     if resp.hovered() {
@@ -389,12 +439,22 @@ pub fn bracket_button(ui: &mut Ui, label: &str, color: Option<Color32>, flash: f
     }
     let painter = ui.painter();
     if flash > 0.0 {
-        painter.rect_filled(rect, CornerRadius::ZERO, theme::with_alpha(p.accent, 60 + (flash * 195.0) as u8));
+        painter.rect_filled(
+            rect,
+            CornerRadius::ZERO,
+            theme::with_alpha(p.accent, 60 + (flash * 195.0) as u8),
+        );
         fg = p.bg_inset;
     } else if resp.is_pointer_button_down_on() {
         painter.rect_filled(rect, CornerRadius::ZERO, p.accent_dim);
     }
-    painter.text(egui::pos2(rect.min.x, rect.center().y), Align2::LEFT_CENTER, text, mono(), fg);
+    painter.text(
+        egui::pos2(rect.min.x, rect.center().y),
+        Align2::LEFT_CENTER,
+        text,
+        mono(),
+        fg,
+    );
     resp
 }
 
@@ -403,18 +463,33 @@ pub fn bracket_button(ui: &mut Ui, label: &str, color: Option<Color32>, flash: f
 pub fn glyph_checkbox(ui: &mut Ui, checked: &mut bool, label: &str) -> Response {
     let p = palette();
     let box_text = if *checked { "[x]" } else { "[ ]" };
-    let text = if label.is_empty() { box_text.to_string() } else { format!("{box_text} {label}") };
+    let text = if label.is_empty() {
+        box_text.to_string()
+    } else {
+        format!("{box_text} {label}")
+    };
     let galley = ui.painter().layout_no_wrap(text, mono(), p.fg_primary);
-    let (rect, mut resp) = ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::click());
+    let (rect, mut resp) =
+        ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::click());
     if resp.clicked() {
         *checked = !*checked;
         resp.mark_changed();
     }
     let box_color = if *checked { p.playing } else { p.fg_muted };
-    let label_color = if resp.hovered() { p.accent } else { p.fg_primary };
+    let label_color = if resp.hovered() {
+        p.accent
+    } else {
+        p.fg_primary
+    };
     let painter = ui.painter();
     let box_text = if *checked { "[x]" } else { "[ ]" };
-    painter.text(egui::pos2(rect.min.x, rect.center().y), Align2::LEFT_CENTER, box_text, mono(), box_color);
+    painter.text(
+        egui::pos2(rect.min.x, rect.center().y),
+        Align2::LEFT_CENTER,
+        box_text,
+        mono(),
+        box_color,
+    );
     if !label.is_empty() {
         let cw = cell_width(ui);
         painter.text(
@@ -447,8 +522,13 @@ pub fn fader(
     // nowhere. Widen it by an epsilon so the fader draws pinned at its floor
     // and drags are inert, rather than painting garbage.
     let max = if max > min { max } else { min + f32::EPSILON };
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(cw * (n as f32 + 2.0), row()), Sense::hover());
-    let mut resp = ui.interact(rect, ui.make_persistent_id(id_salt), Sense::click_and_drag());
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(cw * (n as f32 + 2.0), row()), Sense::hover());
+    let mut resp = ui.interact(
+        rect,
+        ui.make_persistent_id(id_salt),
+        Sense::click_and_drag(),
+    );
     if resp.dragged() || resp.clicked() {
         if let Some(pos) = resp.interact_pointer_pos() {
             let t = ((pos.x - rect.min.x - cw) / (cw * n as f32)).clamp(0.0, 1.0);
@@ -464,7 +544,11 @@ pub fn fader(
     let mut track = String::with_capacity(n + 2);
     track.push('├');
     for k in 0..n {
-        track.push(if k > 0 && k % (n / 4).max(1) == 0 { '┼' } else { '─' });
+        track.push(if k > 0 && k % (n / 4).max(1) == 0 {
+            '┼'
+        } else {
+            '─'
+        });
     }
     track.push('┤');
     let painter = ui.painter();
@@ -503,12 +587,19 @@ pub fn glyph_level(ui: &mut Ui, mag: f32, cells: usize) {
     let mut s = String::with_capacity(cells);
     for k in 0..cells {
         let f = (filled - k as f32).clamp(0.0, 1.0);
-        s.push(if f <= 0.0 { '▁' } else { BLOCKS[((f * 7.99) as usize).min(7)] });
+        s.push(if f <= 0.0 {
+            '▁'
+        } else {
+            BLOCKS[((f * 7.99) as usize).min(7)]
+        });
     }
     let galley = ui.painter().layout_no_wrap(s, mono(), color);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(galley.size().x, row()), Sense::hover());
-    ui.painter()
-        .galley(egui::pos2(rect.min.x, rect.center().y - galley.size().y * 0.5), galley, color);
+    ui.painter().galley(
+        egui::pos2(rect.min.x, rect.center().y - galley.size().y * 0.5),
+        galley,
+        color,
+    );
 }
 
 /// Spectrum as per-column eighth blocks (magnitudes already 0..1): green with
@@ -516,7 +607,8 @@ pub fn glyph_level(ui: &mut Ui, mag: f32, cells: usize) {
 pub fn glyph_fft(ui: &mut Ui, mags: &[f32]) {
     let p = palette();
     let cw = cell_width(ui);
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(cw * mags.len() as f32, row()), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(cw * mags.len() as f32, row()), Sense::hover());
     let painter = ui.painter();
     for (k, &mag) in mags.iter().enumerate() {
         let mag = mag.clamp(0.0, 1.0);
@@ -566,7 +658,11 @@ fn segments<T: PartialEq + Copy>(
     let mut col = col;
     for (lab, value) in options {
         let selected = *current == *value;
-        let text = if selected { format!("[{lab}]") } else { format!(" {lab} ") };
+        let text = if selected {
+            format!("[{lab}]")
+        } else {
+            format!(" {lab} ")
+        };
         let w = text.chars().count() as f32;
         let r = Rect::from_min_size(
             egui::pos2(row_rect.min.x + col * cw, row_rect.min.y),
@@ -580,8 +676,13 @@ fn segments<T: PartialEq + Copy>(
         } else {
             p.fg_secondary
         };
-        ui.painter()
-            .text(egui::pos2(r.min.x, r.center().y), Align2::LEFT_CENTER, text, mono(), color);
+        ui.painter().text(
+            egui::pos2(r.min.x, r.center().y),
+            Align2::LEFT_CENTER,
+            text,
+            mono(),
+            color,
+        );
         if resp.clicked() {
             *current = *value;
         }
@@ -646,20 +747,31 @@ pub fn theme_controls(ui: &mut Ui, rect: Rect) {
     if resp.dragged() || resp.clicked() {
         if let Some(pos) = resp.interact_pointer_pos() {
             // Hue is circular: the strip's right edge wraps back to 0.
-            st.hue = (((pos.x - strip.min.x) / strip.width()).clamp(0.0, 1.0) * 360.0).rem_euclid(360.0);
+            st.hue =
+                (((pos.x - strip.min.x) / strip.width()).clamp(0.0, 1.0) * 360.0).rem_euclid(360.0);
         }
     }
     const N: usize = 28;
     for k in 0..N {
         let cell = Rect::from_min_size(
-            egui::pos2(strip.min.x + strip.width() * k as f32 / N as f32, strip.min.y),
+            egui::pos2(
+                strip.min.x + strip.width() * k as f32 / N as f32,
+                strip.min.y,
+            ),
             egui::vec2(strip.width() / N as f32 + 0.5, strip.height()),
         );
-        painter.rect_filled(cell, CornerRadius::ZERO, theme::hsl(k as f32 / N as f32 * 360.0, 0.5, 0.5));
+        painter.rect_filled(
+            cell,
+            CornerRadius::ZERO,
+            theme::hsl(k as f32 / N as f32 * 360.0, 0.5, 0.5),
+        );
     }
     let x = strip.min.x + strip.width() * st.hue / 360.0;
     painter.line_segment(
-        [egui::pos2(x, strip.min.y - 2.0), egui::pos2(x, strip.max.y + 2.0)],
+        [
+            egui::pos2(x, strip.min.y - 2.0),
+            egui::pos2(x, strip.max.y + 2.0),
+        ],
         Stroke::new(2.0, p.fg_primary),
     );
 
@@ -691,18 +803,29 @@ pub fn theme_toggle(ui: &mut Ui, rect: Rect) {
     let resp = ui
         .interact(rect, ui.id().with("theme_toggle"), Sense::click())
         .on_hover_text("theme: dark/light + hue");
-    let glyph = if theme::state(ui.ctx()).dark { "[◐]" } else { "[◑]" };
-    let color = if resp.hovered() { p.accent } else { p.fg_secondary };
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, glyph, mono(), color);
+    let glyph = if theme::state(ui.ctx()).dark {
+        "[◐]"
+    } else {
+        "[◑]"
+    };
+    let color = if resp.hovered() {
+        p.accent
+    } else {
+        p.fg_secondary
+    };
+    ui.painter()
+        .text(rect.center(), Align2::CENTER_CENTER, glyph, mono(), color);
 
-    Popup::from_toggle_button_response(&resp).align(RectAlign::TOP).show(|ui| {
-        let cw = cell_width(ui);
-        let (prect, _) = ui.allocate_exact_size(
-            egui::vec2(cw * (THEME_CELLS + 2.0), row() * THEME_ROWS + theme::SP_MD),
-            Sense::hover(),
-        );
-        theme_controls(ui, prect);
-    });
+    Popup::from_toggle_button_response(&resp)
+        .align(RectAlign::TOP)
+        .show(|ui| {
+            let cw = cell_width(ui);
+            let (prect, _) = ui.allocate_exact_size(
+                egui::vec2(cw * (THEME_CELLS + 2.0), row() * THEME_ROWS + theme::SP_MD),
+                Sense::hover(),
+            );
+            theme_controls(ui, prect);
+        });
 }
 
 /// The shared statusline strip: a full-width `select`-filled bar with a mode
@@ -714,8 +837,7 @@ pub fn theme_toggle(ui: &mut Ui, rect: Rect) {
 pub fn statusline(ui: &mut Ui, mode: (&str, Option<Color32>), summary: &str) -> bool {
     let p = palette();
     let cw = cell_width(ui);
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), row()), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), row()), Sense::hover());
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::ZERO, p.accent_dim);
 
@@ -727,7 +849,11 @@ pub fn statusline(ui: &mut Ui, mode: (&str, Option<Color32>), summary: &str) -> 
         painter.rect_filled(mode_rect, CornerRadius::ZERO, bg);
     }
     let mode_resp = ui.interact(mode_rect, ui.id().with("statusline_mode"), Sense::click());
-    let mode_fg = if mode_bg.is_some() { p.bg_inset } else { p.fg_primary };
+    let mode_fg = if mode_bg.is_some() {
+        p.bg_inset
+    } else {
+        p.fg_primary
+    };
     ui.painter().text(
         egui::pos2(rect.min.x + cw, rect.center().y),
         Align2::LEFT_CENTER,
@@ -784,8 +910,12 @@ mod tests {
                     let mut a = Rect::NOTHING;
                     let mut b = Rect::NOTHING;
                     wrap_unit(ui, "unit", |ui| {
-                        a = ui.allocate_exact_size(egui::vec2(30.0, 10.0), Sense::hover()).0;
-                        b = ui.allocate_exact_size(egui::vec2(90.0, 10.0), Sense::hover()).0;
+                        a = ui
+                            .allocate_exact_size(egui::vec2(30.0, 10.0), Sense::hover())
+                            .0;
+                        b = ui
+                            .allocate_exact_size(egui::vec2(90.0, 10.0), Sense::hover())
+                            .0;
                     });
                     out = Some((filler, a, b));
                 });
@@ -806,7 +936,10 @@ mod tests {
     fn wrap_unit_breaks_to_next_row_intact() {
         // 100 filler + 120 unit > 180 row: the unit moves down whole.
         let (filler, a, b) = run_wrap_unit(180.0);
-        assert!(a.min.y > filler.max.y, "unit should start a new row, got {a:?}");
+        assert!(
+            a.min.y > filler.max.y,
+            "unit should start a new row, got {a:?}"
+        );
         assert_eq!(a.min.x, 0.0, "unit should start at the row edge");
         assert_eq!(b.min.y, a.min.y, "children stay on one row");
         assert_eq!(b.min.x, a.max.x, "children stay adjacent");
@@ -818,58 +951,64 @@ mod tests {
         let (filler, a, b) = run_wrap_unit(100.0);
         assert!(a.min.y > filler.max.y, "unit should leave the filler's row");
         assert_eq!(a.min.x, 0.0, "first child starts at the row edge");
-        assert!(b.min.y >= a.max.y, "second child wraps below the first, got a={a:?} b={b:?}");
+        assert!(
+            b.min.y >= a.max.y,
+            "second child wraps below the first, got a={a:?} b={b:?}"
+        );
     }
 
-// Scratch reproduction of the transport cadence row, appended to widgets.rs
-// tests temporarily. Prints where each cluster lands at several widths.
+    // Scratch reproduction of the transport cadence row, appended to widgets.rs
+    // tests temporarily. Prints where each cluster lands at several widths.
 
-#[test]
-fn repro_cadence_row() {
-    for width in [900.0_f32, 700.0, 560.0, 420.0, 320.0, 240.0] {
-        let ctx = egui::Context::default();
-        let mut rows = Vec::new();
-        for _ in 0..3 {
-            rows.clear();
-            let input = egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(width, 400.0),
-                )),
-                ..Default::default()
-            };
-            let _ = ctx.run_ui(input, |ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(8.0, 7.0);
-                ui.horizontal_wrapped(|ui| {
-                    let nl = section_label(ui, "next every").rect;
-                    segmented(ui, "next_cadence", &["1", "2", "4", "8", "16"], Some(2));
-                    ui.add_space(8.0);
-                    let mut ll = Rect::NOTHING;
-                    let mut last = Rect::NOTHING;
-                    wrap_unit(ui, "loop_every_unit", |ui| {
-                        ll = section_label(ui, "loop every").rect;
-                        segmented(
-                            ui,
-                            "loop_cadence",
-                            &["off", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16"],
-                            Some(0),
-                        );
-                        last = ui.min_rect();
+    #[test]
+    fn repro_cadence_row() {
+        for width in [900.0_f32, 700.0, 560.0, 420.0, 320.0, 240.0] {
+            let ctx = egui::Context::default();
+            let mut rows = Vec::new();
+            for _ in 0..3 {
+                rows.clear();
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(width, 400.0),
+                    )),
+                    ..Default::default()
+                };
+                let _ = ctx.run_ui(input, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 7.0);
+                    ui.horizontal_wrapped(|ui| {
+                        let nl = section_label(ui, "next every").rect;
+                        segmented(ui, "next_cadence", &["1", "2", "4", "8", "16"], Some(2));
+                        ui.add_space(8.0);
+                        let mut ll = Rect::NOTHING;
+                        let mut last = Rect::NOTHING;
+                        wrap_unit(ui, "loop_every_unit", |ui| {
+                            ll = section_label(ui, "loop every").rect;
+                            segmented(
+                                ui,
+                                "loop_cadence",
+                                &["off", "1/8", "1/4", "1/2", "1", "2", "4", "8", "16"],
+                                Some(0),
+                            );
+                            last = ui.min_rect();
+                        });
+                        ui.add_space(8.0);
+                        let mut pp = true;
+                        let ppr = glyph_checkbox(ui, &mut pp, "preserve playhead").rect;
+                        rows.push(("next_label", nl));
+                        rows.push(("loop_label", ll));
+                        rows.push(("loop_unit", last));
+                        rows.push(("preserve", ppr));
                     });
-                    ui.add_space(8.0);
-                    let mut pp = true;
-                    let ppr = glyph_checkbox(ui, &mut pp, "preserve playhead").rect;
-                    rows.push(("next_label", nl));
-                    rows.push(("loop_label", ll));
-                    rows.push(("loop_unit", last));
-                    rows.push(("preserve", ppr));
                 });
-            });
-        }
-        println!("--- width {width} ---");
-        for (name, r) in &rows {
-            println!("{name:12} x {:7.1}..{:7.1}  y {:5.1}..{:5.1}", r.min.x, r.max.x, r.min.y, r.max.y);
+            }
+            println!("--- width {width} ---");
+            for (name, r) in &rows {
+                println!(
+                    "{name:12} x {:7.1}..{:7.1}  y {:5.1}..{:5.1}",
+                    r.min.x, r.max.x, r.min.y, r.max.y
+                );
+            }
         }
     }
-}
 }

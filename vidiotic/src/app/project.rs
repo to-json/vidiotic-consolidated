@@ -66,7 +66,10 @@ impl App {
                 return;
             }
         };
-        let dir = path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+        let dir = path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf();
         let resolved = project::resolve(project, &dir);
         if !resolved.missing.is_empty() {
             log::error!(
@@ -82,7 +85,8 @@ impl App {
         // Swap the pool and banks (the `set_clip_dir` pattern: decoders,
         // playback, selection, and thumbnails all restart).
         self.thumb_rx = Some(clippool::spawn_thumbnailer(assembled.clips.clone()));
-        self.engine.replace_pool(assembled.clips, assembled.clip_banks, assembled.cue_banks);
+        self.engine
+            .replace_pool(assembled.clips, assembled.clip_banks, assembled.cue_banks);
         self.clip_meta = assembled.clip_meta;
 
         // Session defaults, then rebuild the sequencer over the new live bank.
@@ -90,7 +94,9 @@ impl App {
             self.engine.clock.set_bpm(d.bpm);
         }
         self.engine.time_sig = d.time_sig();
-        self.engine.clock.set_quantum(self.engine.time_sig.quantum());
+        self.engine
+            .clock
+            .set_quantum(self.engine.time_sig.quantum());
         self.engine.phrase_cadence = d.phrase_cadence();
         self.engine.loop_cadence = d.loop_cadence();
         self.engine.preserve_playhead = d.preserve_playhead;
@@ -99,7 +105,8 @@ impl App {
             SyncSpec::Internal => SyncKind::Internal,
             SyncSpec::Link => SyncKind::Link,
         });
-        self.engine.sequencer = Sequencer::new(self.engine.phrase_cadence.beats(self.engine.time_sig));
+        self.engine.sequencer =
+            Sequencer::new(self.engine.phrase_cadence.beats(self.engine.time_sig));
         self.engine.apply_cadences();
         let steps = self.engine.cue_steps(self.engine.live_bank);
         let ev = self.engine.sequencer.set_active_set(steps);
@@ -124,7 +131,8 @@ impl App {
     /// Advance the session generation — the whole clip/cue id space just turned
     /// over, so IPC clients holding older ids must re-query. See [`Self::epoch`].
     pub(super) fn bump_epoch(&self) {
-        self.epoch.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.epoch
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Save in place and launch the project editor (vidiotic-prep) on the
@@ -136,6 +144,9 @@ impl App {
             return;
         };
         self.save_project_to(&path);
-        spawn_project_editor(&path, self.ipc.as_ref().map(crate::ipc::IpcEngine::socket_path));
+        spawn_project_editor(
+            &path,
+            self.ipc.as_ref().map(crate::ipc::IpcEngine::socket_path),
+        );
     }
 }

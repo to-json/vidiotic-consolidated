@@ -369,8 +369,14 @@ mod tests {
             }),
             WireReply::Pool(WirePool {
                 clip_banks: vec![
-                    WireClipBankView { name: "setA".into(), clip_count: 2 },
-                    WireClipBankView { name: "setB".into(), clip_count: 0 },
+                    WireClipBankView {
+                        name: "setA".into(),
+                        clip_count: 2,
+                    },
+                    WireClipBankView {
+                        name: "setB".into(),
+                        clip_count: 0,
+                    },
                 ],
                 active_clip_bank: 0,
                 clips: vec![
@@ -409,7 +415,10 @@ mod tests {
                 }],
             }),
             WireReply::Cues(WireCues {
-                banks: vec![WireBankView { name: "bank 1".into(), cue_count: 1 }],
+                banks: vec![WireBankView {
+                    name: "bank 1".into(),
+                    cue_count: 1,
+                }],
                 live_bank: 0,
                 edit_bank: 0,
                 cues: vec![WireCueView {
@@ -431,7 +440,10 @@ mod tests {
                     dwell: Some(128),
                     loop_len: None,
                     loop_phase: WireToggleI32 { on: true, val: -4 },
-                    start_nudge: WireToggleF64 { on: false, val: 0.02 },
+                    start_nudge: WireToggleF64 {
+                        on: false,
+                        val: 0.02,
+                    },
                     trig_delay: WireToggleU32 { on: true, val: 16 },
                     bpm: None,
                     clip_bpm: Some(120.0),
@@ -439,7 +451,11 @@ mod tests {
                     speed_mul: WireToggleF64 { on: true, val: 0.5 },
                     speed: 0.5625,
                     camera: false,
-                    delay: WireCamDelay { value: 2.0, beats: true, quantize: false },
+                    delay: WireCamDelay {
+                        value: 2.0,
+                        beats: true,
+                        quantize: false,
+                    },
                     delay_eff: 0.933,
                 }],
                 selected_cue: Some(5),
@@ -453,7 +469,11 @@ mod tests {
                         WireIsfInput {
                             name: "amount".into(),
                             label: Some("Amount".into()),
-                            kind: WireIsfInputKind::Float { min: 0.0, max: 1.0, default: 0.25 },
+                            kind: WireIsfInputKind::Float {
+                                min: 0.0,
+                                max: 1.0,
+                                default: 0.25,
+                            },
                         },
                         WireIsfInput {
                             name: "mode".into(),
@@ -484,8 +504,8 @@ mod tests {
     fn every_reply_round_trips() {
         for reply in reply_catalog() {
             let json = reply.serialize_json();
-            let back = WireReply::deserialize_json(&json)
-                .unwrap_or_else(|e| panic!("{e} in {json}"));
+            let back =
+                WireReply::deserialize_json(&json).unwrap_or_else(|e| panic!("{e} in {json}"));
             assert_eq!(back, reply, "round-trip mismatch");
         }
     }
@@ -526,14 +546,20 @@ mod tests {
             assert_eq!(WireIsfValue::deserialize_json(&json).unwrap(), v, "{json}");
         }
         let kinds = [
-            WireIsfInputKind::Float { min: -1.0, max: 1.0, default: 0.0 },
+            WireIsfInputKind::Float {
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+            },
             WireIsfInputKind::Bool { default: true },
             WireIsfInputKind::Long {
                 values: vec![1, 2],
                 labels: vec!["one".into(), "two".into()],
                 default: 2,
             },
-            WireIsfInputKind::Color { default: [0.0, 0.5, 1.0, 1.0] },
+            WireIsfInputKind::Color {
+                default: [0.0, 0.5, 1.0, 1.0],
+            },
             WireIsfInputKind::Point2D {
                 min: [0.0, 0.0],
                 max: [1.0, 1.0],
@@ -546,7 +572,11 @@ mod tests {
         ];
         for k in kinds {
             let json = k.serialize_json();
-            assert_eq!(WireIsfInputKind::deserialize_json(&json).unwrap(), k, "{json}");
+            assert_eq!(
+                WireIsfInputKind::deserialize_json(&json).unwrap(),
+                k,
+                "{json}"
+            );
         }
     }
 }

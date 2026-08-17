@@ -368,7 +368,7 @@ mod tests {
     fn backward_jump_does_not_fire() {
         let mut t = BoundaryTracker::new();
         assert_eq!(t.crossed(31.5, 16.0), None); // prime, phrase 1
-        // tap snaps beat back to 30.0 (still phrase 1) — must NOT fire
+                                                 // tap snaps beat back to 30.0 (still phrase 1) — must NOT fire
         assert_eq!(t.crossed(30.0, 16.0), None);
         // and continuing forward from 30 into 32 fires once
         assert_eq!(t.crossed(32.2, 16.0), Some(2));
@@ -378,7 +378,7 @@ mod tests {
     fn multi_phrase_skip_fires_once() {
         let mut t = BoundaryTracker::new();
         assert_eq!(t.crossed(1.0, 16.0), None); // prime
-        // a frame hitch skips from phrase 0 to phrase 3 — fires once
+                                                // a frame hitch skips from phrase 0 to phrase 3 — fires once
         assert_eq!(t.crossed(50.0, 16.0), Some(3));
     }
 
@@ -454,7 +454,10 @@ mod tests {
         spin(5);
         c.tap_downbeat();
         let phase = c.snapshot().phase;
-        assert!(!(0.05..=3.95).contains(&phase), "phase not near boundary: {phase}");
+        assert!(
+            !(0.05..=3.95).contains(&phase),
+            "phase not near boundary: {phase}"
+        );
     }
 
     #[test]
@@ -488,7 +491,10 @@ mod tests {
         t.tap(t0 + ms * 500);
         t.tap(t0 + ms * 1000);
         let bpm = t.tap(t0 + ms * 1600).expect("four taps"); // 100 ms late
-        assert!((100.0..120.0).contains(&bpm), "one late tap swung it to {bpm}");
+        assert!(
+            (100.0..120.0).contains(&bpm),
+            "one late tap swung it to {bpm}"
+        );
     }
 
     #[test]
@@ -527,7 +533,9 @@ mod tests {
         let mut t = TapTempo::default();
         let t0 = Instant::now();
         t.tap(t0);
-        let bpm = t.tap(t0 + core::time::Duration::from_micros(1)).expect("two taps");
+        let bpm = t
+            .tap(t0 + core::time::Duration::from_micros(1))
+            .expect("two taps");
         assert_eq!(bpm, BPM_MAX, "clamped to the range InternalClock accepts");
     }
 
@@ -536,7 +544,10 @@ mod tests {
         // A high tempo so a few beats accrue quickly, then reset → beat ~0.
         let mut c = InternalClock::new(600.0, 4.0);
         spin(30);
-        assert!(c.snapshot().beat > 0.1, "expected the beat to advance first");
+        assert!(
+            c.snapshot().beat > 0.1,
+            "expected the beat to advance first"
+        );
         c.reset();
         let beat = c.snapshot().beat;
         assert!(beat < 0.05, "beat not at origin after reset: {beat}");

@@ -347,7 +347,11 @@ impl SessionDefaults {
     /// signatures existed.
     pub fn time_sig(&self) -> TimeSig {
         if self.ts_num > 0 {
-            TimeSig { num: self.ts_num, den: self.ts_den.max(1) }.sanitized()
+            TimeSig {
+                num: self.ts_num,
+                den: self.ts_den.max(1),
+            }
+            .sanitized()
         } else {
             TimeSig::default()
         }
@@ -393,7 +397,8 @@ pub enum SyncSpec {
 /// # Errors
 /// Propagates RON parse errors and refuses a newer format version.
 pub fn from_ron_versioned(text: &str, label: &str) -> anyhow::Result<Project> {
-    let mut p = Project::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))?;
+    let mut p =
+        Project::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))?;
     anyhow::ensure!(
         p.version <= FORMAT_VERSION,
         "{label} is format v{} but this vidiotic reads up to v{FORMAT_VERSION} — update vidiotic",
@@ -502,7 +507,11 @@ pub fn resolve_path(project_dir: &Path, stored: &str) -> PathBuf {
 /// the base away again; relying on one bug to cancel another is not a plan.
 /// Caught by the wasm gate, not by inspection.
 pub fn absolutize(base: &Path, p: &Path) -> PathBuf {
-    let joined = if p.has_root() { p.to_path_buf() } else { base.join(p) };
+    let joined = if p.has_root() {
+        p.to_path_buf()
+    } else {
+        base.join(p)
+    };
     lexical_clean(&joined)
 }
 
@@ -664,7 +673,13 @@ pub fn assemble(resolved: &ResolvedProject) -> RuntimeAssembly {
         // Camera clips have no resolved path (resolve() skips them); to_clip
         // ignores the placeholder and rebuilds the camera source from the spec.
         .map(|spec| {
-            spec.to_clip(resolved.clip_paths.get(&spec.id).cloned().unwrap_or_default())
+            spec.to_clip(
+                resolved
+                    .clip_paths
+                    .get(&spec.id)
+                    .cloned()
+                    .unwrap_or_default(),
+            )
         })
         .collect();
     let clip_banks: Vec<ClipBank> = resolved
@@ -864,7 +879,10 @@ impl ClipSpec {
             }
             crate::clippool::ClipSource::Camera { uid, name } => (
                 String::new(),
-                Some(CameraSpec { uid: uid.to_string(), name: name.to_string() }),
+                Some(CameraSpec {
+                    uid: uid.to_string(),
+                    name: name.to_string(),
+                }),
             ),
         };
         Self {
@@ -922,7 +940,9 @@ impl CueSpec {
                         .collect(),
                 }),
                 SlotRef::Pinned(id) => {
-                    log::warn!("dropping pinned shader {id} from saved cue chain (not persistable)");
+                    log::warn!(
+                        "dropping pinned shader {id} from saved cue chain (not persistable)"
+                    );
                     None
                 }
             })
@@ -959,7 +979,9 @@ impl CueSpec {
             .iter()
             .map(|e| match e {
                 CueEffectSpec::Live => ChainSlot::new(SlotRef::Live),
-                CueEffectSpec::Builtin(name) => ChainSlot::new(SlotRef::Builtin(name.as_str().into())),
+                CueEffectSpec::Builtin(name) => {
+                    ChainSlot::new(SlotRef::Builtin(name.as_str().into()))
+                }
                 CueEffectSpec::Isf { path, params } => {
                     let abs = resolve_path(dir, path);
                     ChainSlot {
@@ -988,9 +1010,13 @@ impl CueSpec {
             bpm: self.bpm,
             bpm_sync_on: self.bpm_sync_on,
             speed_mul: toggle(self.speed_mul, 1.0),
-            delay: self.cam_delay.map_or_else(crate::bank::CamDelay::default, |d| {
-                crate::bank::CamDelay { value: d.value, beats: d.beats, quantize: d.quantize }
-            }),
+            delay: self
+                .cam_delay
+                .map_or_else(crate::bank::CamDelay::default, |d| crate::bank::CamDelay {
+                    value: d.value,
+                    beats: d.beats,
+                    quantize: d.quantize,
+                }),
         }
     }
 }
@@ -1013,7 +1039,11 @@ impl CueBankSpec {
     pub fn from_bank(b: &Bank, base: &Path, dir: &Path) -> Self {
         Self {
             name: b.name.to_string(),
-            cues: b.cues.iter().map(|c| CueSpec::from_cue(c, base, dir)).collect(),
+            cues: b
+                .cues
+                .iter()
+                .map(|c| CueSpec::from_cue(c, base, dir))
+                .collect(),
         }
     }
 }
@@ -1060,7 +1090,10 @@ impl Project {
                 })
                 .collect(),
             clip_banks: clip_banks.iter().map(ClipBankSpec::from_bank).collect(),
-            cue_banks: cue_banks.iter().map(|b| CueBankSpec::from_bank(b, base, dir)).collect(),
+            cue_banks: cue_banks
+                .iter()
+                .map(|b| CueBankSpec::from_bank(b, base, dir))
+                .collect(),
             // Callers that track live control mappings overwrite this after
             // `from_runtime` returns (Phase 7: `App::save_project_to`).
             controls: vidiotic_ctl::ControlMap::default(),
@@ -1072,14 +1105,16 @@ impl Project {
 fn toggle<T>(opt: Option<T>, default: T) -> Toggle<T> {
     match opt {
         Some(val) => Toggle { on: true, val },
-        None => Toggle { on: false, val: default },
+        None => Toggle {
+            on: false,
+            val: default,
+        },
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     // Under wasm32 there is no built-in test harness; aliasing the attribute lets
     // these same tests run unmodified under `wasm-bindgen-test` (web-port.md §7a).
@@ -1107,7 +1142,11 @@ mod tests {
         }
 
         fn walk(&self, root: &Path) -> Vec<PathBuf> {
-            self.0.iter().filter(|f| f.starts_with(root)).cloned().collect()
+            self.0
+                .iter()
+                .filter(|f| f.starts_with(root))
+                .cloned()
+                .collect()
         }
     }
 
@@ -1168,7 +1207,10 @@ mod tests {
                     bpm: Some(128.0),
                     bpm_sync_on: true,
                     speed_mul: Some(1.5),
-                    chain: vec![CueEffectSpec::Builtin("kaleido".into()), CueEffectSpec::Live],
+                    chain: vec![
+                        CueEffectSpec::Builtin("kaleido".into()),
+                        CueEffectSpec::Live,
+                    ],
                     cam_delay: None,
                 }],
             }],
@@ -1307,8 +1349,15 @@ mod tests {
             shader_path: Some("shaders/demo.frag".into()),
         };
 
-        let proj =
-            Project::from_runtime(base(), dir, &clips, &clip_banks, &cue_banks, &clip_meta, defaults);
+        let proj = Project::from_runtime(
+            base(),
+            dir,
+            &clips,
+            &clip_banks,
+            &cue_banks,
+            &clip_meta,
+            defaults,
+        );
         let back = from_ron_versioned(&proj.serialize_ron(), "out.viproj").expect("load");
 
         // Clip path relativized against the save dir; retained metadata survives.
@@ -1320,7 +1369,10 @@ mod tests {
         // The effect chain round-trips intact.
         assert_eq!(
             back.cue_banks[0].cues[0].chain,
-            vec![CueEffectSpec::Builtin("kaleido".into()), CueEffectSpec::Live]
+            vec![
+                CueEffectSpec::Builtin("kaleido".into()),
+                CueEffectSpec::Live
+            ]
         );
         assert_eq!(back.defaults.bpm, 128.0);
         assert_eq!(back.defaults.sync, SyncSpec::Link);
@@ -1341,8 +1393,12 @@ mod tests {
             name: "clip.mov".into(),
             bpm: None,
         };
-        let spec =
-            ClipSpec::from_clip(&clip, base(), Path::new("/elsewhere/proj"), ClipMeta::default());
+        let spec = ClipSpec::from_clip(
+            &clip,
+            base(),
+            Path::new("/elsewhere/proj"),
+            ClipMeta::default(),
+        );
         assert_eq!(spec.path, "/cwd/some/relative/clip.mov");
         // `has_root`, not `is_absolute` — the latter is false for every path on
         // wasm32-unknown-unknown, so asserting it here fails in V8 while passing
@@ -1363,7 +1419,10 @@ mod tests {
         let dir = Path::new("/proj");
         let clip = Clip {
             id: 3,
-            source: ClipSource::Camera { uid: "UID-123".into(), name: "FaceTime HD".into() },
+            source: ClipSource::Camera {
+                uid: "UID-123".into(),
+                name: "FaceTime HD".into(),
+            },
             name: "FaceTime HD".into(),
             bpm: None,
         };
@@ -1372,18 +1431,29 @@ mod tests {
         assert_eq!(spec.camera.as_ref().unwrap().uid, "UID-123");
 
         let mut cue = CueSpec::full_length(3, "cam".into()).to_cue(1, dir);
-        cue.delay = crate::bank::CamDelay { value: 1.5, beats: true, quantize: true };
+        cue.delay = crate::bank::CamDelay {
+            value: 1.5,
+            beats: true,
+            quantize: true,
+        };
         let cue_spec = CueSpec::from_cue(&cue, base(), dir);
         assert_eq!(
             cue_spec.cam_delay,
-            Some(CamDelaySpec { value: 1.5, beats: true, quantize: true })
+            Some(CamDelaySpec {
+                value: 1.5,
+                beats: true,
+                quantize: true
+            })
         );
 
         // Through RON text and back to runtime.
         let project = Project {
             version: FORMAT_VERSION,
             clips: vec![spec],
-            cue_banks: vec![CueBankSpec { name: "A".into(), cues: vec![cue_spec] }],
+            cue_banks: vec![CueBankSpec {
+                name: "A".into(),
+                cues: vec![cue_spec],
+            }],
             ..Default::default()
         };
         let text = project.serialize_ron();
@@ -1391,7 +1461,14 @@ mod tests {
         let clip_back = back.clips[0].to_clip(PathBuf::new());
         assert_eq!(clip_back.camera_uid(), Some("UID-123"));
         let cue_back = back.cue_banks[0].cues[0].to_cue(9, dir);
-        assert_eq!(cue_back.delay, crate::bank::CamDelay { value: 1.5, beats: true, quantize: true });
+        assert_eq!(
+            cue_back.delay,
+            crate::bank::CamDelay {
+                value: 1.5,
+                beats: true,
+                quantize: true
+            }
+        );
 
         // A camera clip never path-checks: no missing flag, no resolved path.
         // An empty `Fs` proves it — nothing exists, and the clip is still not
@@ -1405,7 +1482,10 @@ mod tests {
     fn default_cam_delay_is_not_written() {
         let cue = CueSpec::full_length(0, "x".into());
         let text = cue.serialize_ron();
-        assert!(!text.contains("cam_delay: Some"), "default delay must stay absent: {text}");
+        assert!(
+            !text.contains("cam_delay: Some"),
+            "default delay must stay absent: {text}"
+        );
     }
 
     // Portable since web-port.md §8 step 1: the version check lives in
@@ -1416,7 +1496,10 @@ mod tests {
         p.version = FORMAT_VERSION + 1;
         let err = from_ron_versioned(&p.serialize_ron(), "future.viproj")
             .expect_err("future version must refuse");
-        assert!(err.to_string().contains("format v"), "unexpected error: {err}");
+        assert!(
+            err.to_string().contains("format v"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -1480,10 +1563,16 @@ mod tests {
         migrate(&mut p);
         assert_eq!(p.version, 4);
         assert_eq!(p.controls.bindings.len(), 2);
-        assert_eq!(p.controls.bindings[0].action, vidiotic_ctl::Action::TapDownbeat);
+        assert_eq!(
+            p.controls.bindings[0].action,
+            vidiotic_ctl::Action::TapDownbeat
+        );
         assert_eq!(
             p.controls.bindings[1].action,
-            vidiotic_ctl::Action::SetBpm { min: 60.0, max: 180.0 }
+            vidiotic_ctl::Action::SetBpm {
+                min: 60.0,
+                max: 180.0
+            }
         );
     }
 
@@ -1507,7 +1596,10 @@ mod tests {
                     channel: 1,
                     cc: 21,
                 },
-                action: vidiotic_ctl::Action::SetBpm { min: 60.0, max: 180.0 },
+                action: vidiotic_ctl::Action::SetBpm {
+                    min: 60.0,
+                    max: 180.0,
+                },
             },
         ];
         let text = p.serialize_ron();
@@ -1545,7 +1637,15 @@ mod tests {
     #[test]
     fn crop_rect_normalized_and_pixel_mapping() {
         let crop = CropRect::normalized(0.25, 0.25, 0.5, 0.5);
-        assert_eq!(crop, CropRect { x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+        assert_eq!(
+            crop,
+            CropRect {
+                x: 0.25,
+                y: 0.25,
+                w: 0.5,
+                h: 0.5
+            }
+        );
         let (px, py, pw, ph) = crop.to_pixel_rect(1920, 1080);
         assert_eq!((px, py, pw, ph), (480, 270, 960, 540));
     }

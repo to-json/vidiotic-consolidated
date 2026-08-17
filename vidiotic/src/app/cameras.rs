@@ -52,8 +52,12 @@ impl App {
             .collect();
         for (id, target, quantize) in targets {
             let is_current = self.engine.current == Some(id);
-            let Some(src) = self.engine.decoders.get_mut(&id) else { continue };
-            let Some(current) = src.delay_eff() else { continue };
+            let Some(src) = self.engine.decoders.get_mut(&id) else {
+                continue;
+            };
+            let Some(current) = src.delay_eff() else {
+                continue;
+            };
             if quantize && is_current {
                 if boundary_crossed {
                     src.set_delay_eff(target);
@@ -111,5 +115,8 @@ impl App {
 /// A free function (not an `App` method) so its borrow covers only the
 /// enumeration, leaving `self.engine` free for the mutable call that follows.
 pub(super) fn camera_device_pairs(devices: &[capture::DeviceInfo]) -> Vec<(&str, &str)> {
-    devices.iter().map(|d| (d.uid.as_str(), d.name.as_str())).collect()
+    devices
+        .iter()
+        .map(|d| (d.uid.as_str(), d.name.as_str()))
+        .collect()
 }

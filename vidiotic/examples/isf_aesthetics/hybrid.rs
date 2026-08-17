@@ -13,11 +13,13 @@
 //! fixed-dark in both — a CRT is glass, not paper. The palette, theme bar,
 //! and grid helpers live in [`crate::everforest`], shared with Phosphor.
 
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, vec2};
+use egui::{
+    vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui,
+};
 
-use crate::everforest::{Grid, Theme, mono, put, theme, theme_bar};
+use crate::everforest::{mono, put, theme, theme_bar, Grid, Theme};
 use crate::nf;
-use crate::schema::{DemoState, MidiState, MockKind, MockRole, Value, mock_clips};
+use crate::schema::{mock_clips, DemoState, MidiState, MockKind, MockRole, Value};
 use crate::util;
 
 fn alpha(c: Color32, a: u8) -> Color32 {
@@ -36,7 +38,11 @@ fn rows_of(kind: &MockKind) -> usize {
 
 /// Render the whole direction panel.
 pub fn show(ui: &mut Ui, st: &mut DemoState) {
-    let cw = ui.painter().layout_no_wrap("─".into(), mono(), Color32::WHITE).size().x;
+    let cw = ui
+        .painter()
+        .layout_no_wrap("─".into(), mono(), Color32::WHITE)
+        .size()
+        .x;
     let g = Grid { cw, rh: 18.0 };
     ui.add_space(8.0);
 
@@ -56,7 +62,12 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
     let (frame, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let painter = ui.painter();
     painter.rect_filled(frame, CornerRadius::same(2), th.bg);
-    painter.rect_stroke(frame, CornerRadius::same(2), Stroke::new(1.0, th.frame), StrokeKind::Inside);
+    painter.rect_stroke(
+        frame,
+        CornerRadius::same(2),
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Inside,
+    );
     // Winbar-style title: break the border behind it so it reads as part
     // of the frame in both modes.
     let title = "─ kaleido-bloom.fs · hw ─";
@@ -64,7 +75,10 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
     let title_pos = Pos2::new(frame.min.x + g.cw * 2.0, frame.min.y);
     painter.rect_filled(
         Rect::from_min_size(
-            Pos2::new(title_pos.x - g.cw * 0.5, title_pos.y - galley.size().y * 0.5),
+            Pos2::new(
+                title_pos.x - g.cw * 0.5,
+                title_pos.y - galley.size().y * 0.5,
+            ),
             galley.size() + vec2(g.cw, 0.0),
         ),
         CornerRadius::ZERO,
@@ -73,7 +87,12 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
     painter.text(title_pos, Align2::LEFT_CENTER, title, mono(), th.dim);
 
     let mut cursor = frame.min.y + 8.0;
-    let DemoState { inputs, values, midi, .. } = st;
+    let DemoState {
+        inputs,
+        values,
+        midi,
+        ..
+    } = st;
     for (i, (inp, val)) in inputs.iter().zip(values.iter_mut()).enumerate() {
         let row_count = rows_of(&inp.kind);
         let row = Rect::from_min_size(
@@ -84,7 +103,11 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 
         if armed && MidiState::bindable(&inp.kind) {
             let pulse = 0.5 + 0.5 * ((time * 6.0).sin() as f32);
-            ui.painter().rect_filled(row, CornerRadius::ZERO, alpha(th.select, 160 + (pulse * 80.0) as u8));
+            ui.painter().rect_filled(
+                row,
+                CornerRadius::ZERO,
+                alpha(th.select, 160 + (pulse * 80.0) as u8),
+            );
             let resp = ui.interact(row, ui.id().with(("learn", i)), Sense::click());
             if resp.clicked() {
                 midi.learn_click(i, &inp.kind);
@@ -92,7 +115,9 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
         }
 
         let frozen = *val;
-        control(ui, &g, &th, row, i, inp.label, inp.name, &inp.kind, val, time, nerd, midi);
+        control(
+            ui, &g, &th, row, i, inp.label, inp.name, &inp.kind, val, time, nerd, midi,
+        );
         if armed {
             *val = frozen;
         }
@@ -150,7 +175,11 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 /// detented selector feel for cadence, scope-glass meters — all under the
 /// Everforest HSL theme.
 pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
-    let cw = ui.painter().layout_no_wrap("─".into(), mono(), Color32::WHITE).size().x;
+    let cw = ui
+        .painter()
+        .layout_no_wrap("─".into(), mono(), Color32::WHITE)
+        .size()
+        .x;
     let g = Grid { cw, rh: 18.0 };
     ui.add_space(8.0);
     let th = theme(st.dark, st.hue);
@@ -166,20 +195,31 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     let (frame, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let painter = ui.painter();
     painter.rect_filled(frame, CornerRadius::same(2), th.bg);
-    painter.rect_stroke(frame, CornerRadius::same(2), Stroke::new(1.0, th.frame), StrokeKind::Inside);
+    painter.rect_stroke(
+        frame,
+        CornerRadius::same(2),
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Inside,
+    );
     let title = "─ vidiotic · widgets · hw ─";
     let galley = painter.layout_no_wrap(title.into(), mono(), th.dim);
     let title_pos = Pos2::new(frame.min.x + g.cw * 2.0, frame.min.y);
     painter.rect_filled(
         Rect::from_min_size(
-            Pos2::new(title_pos.x - g.cw * 0.5, title_pos.y - galley.size().y * 0.5),
+            Pos2::new(
+                title_pos.x - g.cw * 0.5,
+                title_pos.y - galley.size().y * 0.5,
+            ),
             galley.size() + vec2(g.cw, 0.0),
         ),
         CornerRadius::ZERO,
         th.bg,
     );
     painter.text(title_pos, Align2::LEFT_CENTER, title, mono(), th.dim);
-    let body = Rect::from_min_size(Pos2::new(frame.min.x + 4.0, frame.min.y + 8.0), vec2(frame.width() - 8.0, rows * g.rh));
+    let body = Rect::from_min_size(
+        Pos2::new(frame.min.x + 4.0, frame.min.y + 8.0),
+        vec2(frame.width() - 8.0, rows * g.rh),
+    );
 
     // Row 0: taps + jewel-lamp beat dots + phrase strip + bpm.
     put(ui, &g, body, 1.0, 0, "transport", th.dim);
@@ -190,19 +230,27 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         let resp = ui.interact(r, ui.id().with(("wtap", label)), Sense::click());
         let flash = util::tap_flash(ui, ui.id().with(("wtapf", label)), resp.clicked(), time);
         if flash > 0.0 {
-            ui.painter().rect_filled(r, CornerRadius::ZERO, alpha(th.yellow, 60 + (flash * 195.0) as u8));
+            ui.painter().rect_filled(
+                r,
+                CornerRadius::ZERO,
+                alpha(th.yellow, 60 + (flash * 195.0) as u8),
+            );
             put(ui, &g, body, col, 0, &text, th.bg);
         }
         col += text.chars().count() as f32 + 1.0;
     }
     for k in 0..4 {
-        let c = Pos2::new(body.min.x + (col + 1.5 + k as f32 * 2.0) * g.cw, body.min.y + 0.5 * g.rh);
+        let c = Pos2::new(
+            body.min.x + (col + 1.5 + k as f32 * 2.0) * g.cw,
+            body.min.y + 0.5 * g.rh,
+        );
         if k == beat {
             ui.painter().circle_filled(c, 5.0, alpha(th.phosphor, 60));
             ui.painter().circle_filled(c, 3.0 + pulse, th.phosphor);
         } else {
             ui.painter().circle_filled(c, 2.5, th.select);
-            ui.painter().circle_stroke(c, 2.5, Stroke::new(1.0, th.frame));
+            ui.painter()
+                .circle_stroke(c, 2.5, Stroke::new(1.0, th.frame));
         }
     }
     let pos = util::phrase(time);
@@ -225,7 +273,10 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     put(ui, &g, body, 1.0, 3, "pool", th.dim);
     for (k, clip) in mock_clips().iter().enumerate() {
         let tile = Rect::from_min_size(
-            Pos2::new(body.min.x + (12.0 + k as f32 * 13.0) * g.cw, body.min.y + 3.2 * g.rh),
+            Pos2::new(
+                body.min.x + (12.0 + k as f32 * 13.0) * g.cw,
+                body.min.y + 3.2 * g.rh,
+            ),
             vec2(g.cw * 12.0, g.rh * 4.2),
         );
         let painter = ui.painter();
@@ -236,19 +287,35 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         } else {
             th.frame
         };
-        painter.rect_stroke(tile, CornerRadius::ZERO, Stroke::new(1.0, border), StrokeKind::Inside);
+        painter.rect_stroke(
+            tile,
+            CornerRadius::ZERO,
+            Stroke::new(1.0, border),
+            StrokeKind::Inside,
+        );
         let art = tile.shrink2(vec2(3.0, 3.0));
         for gy in 0..3 {
             for gx in 0..8 {
                 let h = util::hash01(clip.seed, gy * 8 + gx);
                 let cell = Rect::from_min_size(
-                    Pos2::new(art.min.x + art.width() * gx as f32 / 8.0, art.min.y + (art.height() - g.rh) * gy as f32 / 3.0),
+                    Pos2::new(
+                        art.min.x + art.width() * gx as f32 / 8.0,
+                        art.min.y + (art.height() - g.rh) * gy as f32 / 3.0,
+                    ),
                     vec2(art.width() / 8.0 - 1.0, (art.height() - g.rh) / 3.0 - 1.0),
                 );
                 painter.rect_filled(
                     cell,
                     CornerRadius::ZERO,
-                    util::hsl(st.hue + 60.0 + h * 120.0, 0.25, if st.dark { 0.14 + util::hash01(clip.seed, gy * 8 + gx + 31) * 0.18 } else { 0.55 + util::hash01(clip.seed, gy * 8 + gx + 31) * 0.25 }),
+                    util::hsl(
+                        st.hue + 60.0 + h * 120.0,
+                        0.25,
+                        if st.dark {
+                            0.14 + util::hash01(clip.seed, gy * 8 + gx + 31) * 0.18
+                        } else {
+                            0.55 + util::hash01(clip.seed, gy * 8 + gx + 31) * 0.25
+                        },
+                    ),
                 );
             }
         }
@@ -268,10 +335,16 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     }
 
     // Rows 9–11: level as scope glass, spectrum in theme green.
-    let meter_row = Rect::from_min_size(Pos2::new(body.min.x, body.min.y + 8.6 * g.rh), vec2(body.width(), g.rh * 2.0));
+    let meter_row = Rect::from_min_size(
+        Pos2::new(body.min.x, body.min.y + 8.6 * g.rh),
+        vec2(body.width(), g.rh * 2.0),
+    );
     put(ui, &g, meter_row, 1.0, 0, "level", th.dim);
     scope_wave(ui, &g, &th, meter_row, 12.0, time);
-    let fft_row = Rect::from_min_size(Pos2::new(body.min.x, body.min.y + 11.0 * g.rh), vec2(body.width(), g.rh));
+    let fft_row = Rect::from_min_size(
+        Pos2::new(body.min.x, body.min.y + 11.0 * g.rh),
+        vec2(body.width(), g.rh),
+    );
     put(ui, &g, fft_row, 1.0, 0, "fft", th.dim);
     phosphor_fft(ui, &g, &th, fft_row, 12.0, time);
 
@@ -280,7 +353,8 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         Pos2::new(frame.min.x + 1.0, frame.max.y - 19.0),
         vec2(frame.width() - 2.0, 18.0),
     );
-    ui.painter().rect_filled(status, CornerRadius::ZERO, th.select);
+    ui.painter()
+        .rect_filled(status, CornerRadius::ZERO, th.select);
     let tag = if nerd { nf::check(nf::MIDI) } else { "midi" };
     ui.painter().text(
         Pos2::new(status.min.x + g.cw, status.center().y),
@@ -322,16 +396,54 @@ fn control(
             let center = Pos2::new(row.min.x + (CTL + 3.0) * g.cw, row.center().y);
             let bipolar = *min < 0.0 && *max > 0.0;
             let ghost = midi.binding(i).and_then(|_| midi.incoming_pos(i, time));
-            chickenhead(ui, th, i, center, 13.0, (*v - min) / (max - min), bipolar, ghost, |t| {
-                *v = min + t * (max - min);
-            });
+            chickenhead(
+                ui,
+                th,
+                i,
+                center,
+                13.0,
+                (*v - min) / (max - min),
+                bipolar,
+                ghost,
+                |t| {
+                    *v = min + t * (max - min);
+                },
+            );
             put(ui, g, row, CTL + 8.0, 0, &format!("{v:>7.2}"), th.fg);
-            put(ui, g, row, CTL + 8.0, 1, if bipolar { "-1 ·· +1" } else { "" }, alpha(th.dim, 140));
+            put(
+                ui,
+                g,
+                row,
+                CTL + 8.0,
+                1,
+                if bipolar { "-1 ·· +1" } else { "" },
+                alpha(th.dim, 140),
+            );
         }
         (MockKind::Bool { .. }, Value::Bool(b)) => {
-            let r = put(ui, g, row, CTL, 0, if *b { "[x]" } else { "[ ]" }, if *b { th.green } else { th.dim });
-            put(ui, g, row, CTL + 4.0, 0, if *b { "on" } else { "off" }, th.fg);
-            let resp = ui.interact(r.expand2(vec2(g.cw * 2.0, 0.0)), ui.id().with(("bool", i)), Sense::click());
+            let r = put(
+                ui,
+                g,
+                row,
+                CTL,
+                0,
+                if *b { "[x]" } else { "[ ]" },
+                if *b { th.green } else { th.dim },
+            );
+            put(
+                ui,
+                g,
+                row,
+                CTL + 4.0,
+                0,
+                if *b { "on" } else { "off" },
+                th.fg,
+            );
+            let resp = ui.interact(
+                r.expand2(vec2(g.cw * 2.0, 0.0)),
+                ui.id().with(("bool", i)),
+                Sense::click(),
+            );
             if resp.clicked() {
                 *b = !*b;
             }
@@ -349,9 +461,23 @@ fn control(
                 let dir = util::knob_dir(k as f32 / (n - 1) as f32);
                 let pos = center + dir * 26.0;
                 let color = if k == *sel { th.yellow } else { th.dim };
-                ui.painter().text(pos, Align2::CENTER_CENTER, *lab, FontId::monospace(10.0), color);
+                ui.painter().text(
+                    pos,
+                    Align2::CENTER_CENTER,
+                    *lab,
+                    FontId::monospace(10.0),
+                    color,
+                );
             }
-            put(ui, g, row, CTL + 10.0, 1, &format!("= {}", values[*sel]), th.dim);
+            put(
+                ui,
+                g,
+                row,
+                CTL + 10.0,
+                1,
+                &format!("= {}", values[*sel]),
+                th.dim,
+            );
         }
         (MockKind::Event, Value::EventAt(at)) => {
             let flash = util::event_flash(time, *at);
@@ -360,9 +486,21 @@ fn control(
             } else {
                 "[ fire ]".to_string()
             };
-            let r = put(ui, g, row, CTL, 0, &fire, if flash > 0.0 { th.bg } else { th.fg });
+            let r = put(
+                ui,
+                g,
+                row,
+                CTL,
+                0,
+                &fire,
+                if flash > 0.0 { th.bg } else { th.fg },
+            );
             if flash > 0.0 {
-                ui.painter().rect_filled(r, CornerRadius::ZERO, alpha(th.yellow, 60 + (flash * 195.0) as u8));
+                ui.painter().rect_filled(
+                    r,
+                    CornerRadius::ZERO,
+                    alpha(th.yellow, 60 + (flash * 195.0) as u8),
+                );
                 put(ui, g, row, CTL, 0, &fire, th.bg);
             }
             let resp = ui.interact(r, ui.id().with(("event", i)), Sense::click());
@@ -372,14 +510,38 @@ fn control(
         }
         (MockKind::Point2D { min, max, .. }, Value::Point(p)) => {
             scope_xy(ui, g, th, row, i, CTL, min, max, p);
-            put(ui, g, row, CTL + 29.0, 1, &format!("x {:>5.2}", p[0]), th.fg);
-            put(ui, g, row, CTL + 29.0, 2, &format!("y {:>5.2}", p[1]), th.fg);
+            put(
+                ui,
+                g,
+                row,
+                CTL + 29.0,
+                1,
+                &format!("x {:>5.2}", p[0]),
+                th.fg,
+            );
+            put(
+                ui,
+                g,
+                row,
+                CTL + 29.0,
+                2,
+                &format!("y {:>5.2}", p[1]),
+                th.fg,
+            );
         }
         (MockKind::Color { .. }, Value::Color(c)) => {
             let color = Color32::from(*c);
             let [r8, g8, b8, _] = color.to_array();
             put(ui, g, row, CTL, 0, "███", color);
-            put(ui, g, row, CTL + 4.0, 0, &format!("#{r8:02x}{g8:02x}{b8:02x}"), th.fg);
+            put(
+                ui,
+                g,
+                row,
+                CTL + 4.0,
+                0,
+                &format!("#{r8:02x}{g8:02x}{b8:02x}"),
+                th.fg,
+            );
             // Mini chickenheads for the HSV triple, on their own line with
             // labels clear of the skirt ticks.
             for (k, ch_label) in ["h", "s", "v"].iter().enumerate() {
@@ -391,14 +553,24 @@ fn control(
                 let x = row.min.x + (CTL + 1.5 + k as f32 * 8.0) * g.cw;
                 let center = Pos2::new(x, row.min.y + 2.0 * g.rh);
                 put(ui, g, row, CTL - 2.0 + k as f32 * 8.0, 2, ch_label, th.dim);
-                chickenhead(ui, th, i * 8 + k, center, 6.5, *ch, false, None, |t| *ch = t);
+                chickenhead(ui, th, i * 8 + k, center, 6.5, *ch, false, None, |t| {
+                    *ch = t;
+                });
             }
         }
         (MockKind::Image, _) => {
             if nerd {
                 put(ui, g, row, CTL - 3.0, 0, nf::check(nf::IMAGE), th.blue);
             }
-            put(ui, g, row, CTL, 0, &format!("src ▸ {}", name.to_lowercase()), th.blue);
+            put(
+                ui,
+                g,
+                row,
+                CTL,
+                0,
+                &format!("src ▸ {}", name.to_lowercase()),
+                th.blue,
+            );
             put(ui, g, row, CTL + 24.0, 0, ":route", th.dim);
         }
         (MockKind::Audio, _) => {
@@ -446,12 +618,25 @@ fn chickenhead(
     for (k, tick) in [0.0_f32, 0.25, 0.5, 0.75, 1.0].iter().enumerate() {
         let dir = util::knob_dir(*tick);
         let major = k % 2 == 0;
-        let color = if bipolar && k == 2 { th.fg } else { alpha(th.dim, if major { 200 } else { 110 }) };
-        painter.line_segment([center + dir * (r + 3.0), center + dir * (r + if major { 7.0 } else { 5.0 })], Stroke::new(1.0, color));
+        let color = if bipolar && k == 2 {
+            th.fg
+        } else {
+            alpha(th.dim, if major { 200 } else { 110 })
+        };
+        painter.line_segment(
+            [
+                center + dir * (r + 3.0),
+                center + dir * (r + if major { 7.0 } else { 5.0 }),
+            ],
+            Stroke::new(1.0, color),
+        );
     }
     if let Some(gt) = ghost {
         let dir = util::knob_dir(gt);
-        painter.line_segment([center + dir * (r + 3.0), center + dir * (r + 8.0)], Stroke::new(2.0, th.yellow));
+        painter.line_segment(
+            [center + dir * (r + 3.0), center + dir * (r + 8.0)],
+            Stroke::new(2.0, th.yellow),
+        );
     }
 
     // Body: circle arc with a notch replaced by the pointer apex — one
@@ -462,13 +647,26 @@ fn chickenhead(
     pts.push(center + dir * (r * 1.45));
     let half_notch = 0.45_f32; // radians each side of the apex
     for k in 0..=22 {
-        let a = apex_angle + half_notch + (std::f32::consts::TAU - 2.0 * half_notch) * (k as f32 / 22.0);
+        let a = apex_angle
+            + half_notch
+            + (std::f32::consts::TAU - 2.0 * half_notch) * (k as f32 / 22.0);
         pts.push(center + egui::Vec2::angled(a) * r);
     }
-    let stroke_color = if resp.dragged() || resp.hovered() { th.fg } else { th.frame };
-    painter.add(Shape::convex_polygon(pts, th.knob, Stroke::new(1.0, stroke_color)));
+    let stroke_color = if resp.dragged() || resp.hovered() {
+        th.fg
+    } else {
+        th.frame
+    };
+    painter.add(Shape::convex_polygon(
+        pts,
+        th.knob,
+        Stroke::new(1.0, stroke_color),
+    ));
     // Pointer line down the tip, in the value color.
-    painter.line_segment([center + dir * (r * 0.25), center + dir * (r * 1.35)], Stroke::new(1.5, th.green));
+    painter.line_segment(
+        [center + dir * (r * 0.25), center + dir * (r * 1.35)],
+        Stroke::new(1.5, th.green),
+    );
     painter.circle_filled(center, 1.5, alpha(th.fg, 90));
 }
 
@@ -476,7 +674,17 @@ fn chickenhead(
 /// marks, phosphor beam with a persistence trail (drag history kept in egui
 /// temp memory).
 #[allow(clippy::too_many_arguments)]
-fn scope_xy(ui: &mut Ui, g: &Grid, th: &Theme, row: Rect, i: usize, col: f32, min: &[f32; 2], max: &[f32; 2], p: &mut [f32; 2]) {
+fn scope_xy(
+    ui: &mut Ui,
+    g: &Grid,
+    th: &Theme,
+    row: Rect,
+    i: usize,
+    col: f32,
+    min: &[f32; 2],
+    max: &[f32; 2],
+    p: &mut [f32; 2],
+) {
     let screen = Rect::from_min_size(
         Pos2::new(row.min.x + col * g.cw, row.min.y + 4.0),
         vec2(g.cw * 26.0, row.height() - 8.0),
@@ -492,7 +700,12 @@ fn scope_xy(ui: &mut Ui, g: &Grid, th: &Theme, row: Rect, i: usize, col: f32, mi
     }
     let painter = ui.painter();
     painter.rect_filled(screen, CornerRadius::same(2), th.screen);
-    painter.rect_stroke(screen, CornerRadius::same(2), Stroke::new(1.0, th.frame), StrokeKind::Inside);
+    painter.rect_stroke(
+        screen,
+        CornerRadius::same(2),
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Inside,
+    );
 
     // Graticule: dot glyphs off-axis, dim solid center axes with ticks.
     let grat = alpha(util::hsl(150.0, 0.1, 0.6), 110);
@@ -511,15 +724,33 @@ fn scope_xy(ui: &mut Ui, g: &Grid, th: &Theme, row: Rect, i: usize, col: f32, mi
         }
     }
     let mid = screen.center();
-    painter.line_segment([Pos2::new(screen.min.x, mid.y), Pos2::new(screen.max.x, mid.y)], Stroke::new(1.0, alpha(grat, 70)));
-    painter.line_segment([Pos2::new(mid.x, screen.min.y), Pos2::new(mid.x, screen.max.y)], Stroke::new(1.0, alpha(grat, 70)));
+    painter.line_segment(
+        [
+            Pos2::new(screen.min.x, mid.y),
+            Pos2::new(screen.max.x, mid.y),
+        ],
+        Stroke::new(1.0, alpha(grat, 70)),
+    );
+    painter.line_segment(
+        [
+            Pos2::new(mid.x, screen.min.y),
+            Pos2::new(mid.x, screen.max.y),
+        ],
+        Stroke::new(1.0, alpha(grat, 70)),
+    );
     for gx in 0..=DX * 2 {
         let x = screen.min.x + gx as f32 / (DX * 2) as f32 * screen.width();
-        painter.line_segment([Pos2::new(x, mid.y - 2.0), Pos2::new(x, mid.y + 2.0)], Stroke::new(1.0, grat));
+        painter.line_segment(
+            [Pos2::new(x, mid.y - 2.0), Pos2::new(x, mid.y + 2.0)],
+            Stroke::new(1.0, grat),
+        );
     }
     for gy in 0..=DY * 2 {
         let y = screen.min.y + gy as f32 / (DY * 2) as f32 * screen.height();
-        painter.line_segment([Pos2::new(mid.x - 2.0, y), Pos2::new(mid.x + 2.0, y)], Stroke::new(1.0, grat));
+        painter.line_segment(
+            [Pos2::new(mid.x - 2.0, y), Pos2::new(mid.x + 2.0, y)],
+            Stroke::new(1.0, grat),
+        );
     }
 
     // Beam: persistence trail through recent positions, then the glow dot.
@@ -530,7 +761,10 @@ fn scope_xy(ui: &mut Ui, g: &Grid, th: &Theme, row: Rect, i: usize, col: f32, mi
         screen.min.y + screen.height() * ty,
     );
     let hist_id = ui.id().with(("scope-hist", i));
-    let mut hist: Vec<(f32, f32)> = ui.ctx().data_mut(|d| d.get_temp(hist_id)).unwrap_or_default();
+    let mut hist: Vec<(f32, f32)> = ui
+        .ctx()
+        .data_mut(|d| d.get_temp(hist_id))
+        .unwrap_or_default();
     hist.push((dot.x, dot.y));
     if hist.len() > 32 {
         let excess = hist.len() - 32;
@@ -557,9 +791,17 @@ fn scope_wave(ui: &Ui, g: &Grid, th: &Theme, row: Rect, col: f32, time: f64) {
     );
     let painter = ui.painter();
     painter.rect_filled(screen, CornerRadius::same(2), th.screen);
-    painter.rect_stroke(screen, CornerRadius::same(2), Stroke::new(1.0, th.frame), StrokeKind::Inside);
+    painter.rect_stroke(
+        screen,
+        CornerRadius::same(2),
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Inside,
+    );
     painter.line_segment(
-        [Pos2::new(screen.min.x, screen.center().y), Pos2::new(screen.max.x, screen.center().y)],
+        [
+            Pos2::new(screen.min.x, screen.center().y),
+            Pos2::new(screen.max.x, screen.center().y),
+        ],
         Stroke::new(1.0, alpha(util::hsl(150.0, 0.1, 0.6), 70)),
     );
     const N: usize = 56;
@@ -583,23 +825,47 @@ fn phosphor_fft(ui: &Ui, g: &Grid, th: &Theme, row: Rect, col: f32, time: f64) {
         let mag = util::fft(time, k, n);
         let h = (g.rh - 5.0) * mag;
         let cell = Rect::from_min_max(
-            Pos2::new(row.min.x + (col + k as f32) * g.cw, row.min.y + g.rh - 2.0 - h),
-            Pos2::new(row.min.x + (col + k as f32) * g.cw + g.cw - 2.0, row.min.y + g.rh - 2.0),
+            Pos2::new(
+                row.min.x + (col + k as f32) * g.cw,
+                row.min.y + g.rh - 2.0 - h,
+            ),
+            Pos2::new(
+                row.min.x + (col + k as f32) * g.cw + g.cw - 2.0,
+                row.min.y + g.rh - 2.0,
+            ),
         );
         let color = if mag > 0.85 { th.red } else { th.green };
-        painter.rect_filled(cell, CornerRadius::ZERO, alpha(color, 90 + (mag * 165.0) as u8));
+        painter.rect_filled(
+            cell,
+            CornerRadius::ZERO,
+            alpha(color, 90 + (mag * 165.0) as u8),
+        );
     }
 }
 
 /// Same right-edge `<cc74>` tag as Terminal.
 #[allow(clippy::too_many_arguments)]
-fn bind_tag(ui: &Ui, g: &Grid, th: &Theme, midi: &MidiState, idx: usize, kind: &MockKind, row: Rect, time: f64, nerd: bool) {
+fn bind_tag(
+    ui: &Ui,
+    g: &Grid,
+    th: &Theme,
+    midi: &MidiState,
+    idx: usize,
+    kind: &MockKind,
+    row: Rect,
+    time: f64,
+    nerd: bool,
+) {
     if !MidiState::bindable(kind) {
         return;
     }
     if let Some(b) = midi.binding(idx) {
         let act = midi.activity(idx, time);
-        let color = if act > 0.0 { th.yellow } else { alpha(th.yellow, 140) };
+        let color = if act > 0.0 {
+            th.yellow
+        } else {
+            alpha(th.yellow, 140)
+        };
         let text = if nerd {
             format!("{} <{}>", nf::check(nf::MIDI), b.label().to_lowercase())
         } else {

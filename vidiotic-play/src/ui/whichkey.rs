@@ -48,5 +48,9 @@ pub(super) fn show(ctx: &egui::Context, modal: &GrammarModalView) {
 /// One `key label` pair, padded to a fixed column so rows align.
 fn option(ui: &mut egui::Ui, key: &str, label: &str, key_color: Color32, color: Color32) {
     ui.label(RichText::new(key).font(mono()).color(key_color));
-    ui.label(RichText::new(format!("{label:<14}")).font(mono()).color(color));
+    ui.label(
+        RichText::new(format!("{label:<14}"))
+            .font(mono())
+            .color(color),
+    );
 }

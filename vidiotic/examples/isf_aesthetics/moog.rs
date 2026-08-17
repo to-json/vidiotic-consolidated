@@ -6,9 +6,11 @@
 //! screen shouldn't. Absolute knobs mean MIDI needs soft pickup: bound knobs
 //! ghost the incoming CC position as a translucent pointer.
 
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, vec2};
+use egui::{
+    vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui,
+};
 
-use crate::schema::{DemoState, MidiState, MockKind, MockRole, Value, mock_clips};
+use crate::schema::{mock_clips, DemoState, MidiState, MockKind, MockRole, Value};
 use crate::util;
 
 const PANEL: Color32 = Color32::from_rgb(24, 20, 17);
@@ -29,7 +31,8 @@ fn alpha(c: Color32, a: u8) -> Color32 {
 /// Render the whole direction panel.
 pub fn show(ui: &mut Ui, st: &mut DemoState) {
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), PANEL);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), PANEL);
 
     // Panel legend with a double rule, engraved-plate style.
     let (hrect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
@@ -54,7 +57,12 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 
     let time = st.time;
     let armed = st.midi.armed;
-    let DemoState { inputs, values, midi, .. } = st;
+    let DemoState {
+        inputs,
+        values,
+        midi,
+        ..
+    } = st;
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(14.0, 14.0);
         for (i, (inp, val)) in inputs.iter().zip(values.iter_mut()).enumerate() {
@@ -92,15 +100,25 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 /// levels. Interactive state parks in egui temp memory.
 pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), PANEL);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), PANEL);
     let time = st.time;
     let (beat, pulse) = util::beat(time);
 
     let (hrect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
-    ui.painter().text(hrect.left_center(), Align2::LEFT_CENTER, "VIDIOTIC · WIDGETS", FontId::proportional(13.0), CREAM);
+    ui.painter().text(
+        hrect.left_center(),
+        Align2::LEFT_CENTER,
+        "VIDIOTIC · WIDGETS",
+        FontId::proportional(13.0),
+        CREAM,
+    );
     for dy in [-4.0, -1.0] {
         ui.painter().line_segment(
-            [Pos2::new(hrect.min.x + 150.0, hrect.center().y + dy), Pos2::new(hrect.max.x, hrect.center().y + dy)],
+            [
+                Pos2::new(hrect.min.x + 150.0, hrect.center().y + dy),
+                Pos2::new(hrect.max.x, hrect.center().y + dy),
+            ],
             Stroke::new(1.0, EDGE),
         );
     }
@@ -128,13 +146,28 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         }
         let y = rect.min.y + 52.0;
         let pos = util::phrase(time);
-        painter.line_segment([Pos2::new(rect.min.x + 10.0, y), Pos2::new(rect.max.x - 10.0, y)], Stroke::new(1.0, CREAM_DIM));
+        painter.line_segment(
+            [
+                Pos2::new(rect.min.x + 10.0, y),
+                Pos2::new(rect.max.x - 10.0, y),
+            ],
+            Stroke::new(1.0, CREAM_DIM),
+        );
         for k in 0..16 {
             let x = rect.min.x + 10.0 + (rect.width() - 20.0) * k as f32 / 15.0;
             let major = k % 4 == 0;
-            painter.line_segment([Pos2::new(x, y), Pos2::new(x, y - if major { 6.0 } else { 4.0 })], Stroke::new(1.0, CREAM_DIM));
+            painter.line_segment(
+                [
+                    Pos2::new(x, y),
+                    Pos2::new(x, y - if major { 6.0 } else { 4.0 }),
+                ],
+                Stroke::new(1.0, CREAM_DIM),
+            );
             if k == pos {
-                painter.line_segment([Pos2::new(x, y + 2.0), Pos2::new(x, y + 9.0)], Stroke::new(2.0, CREAM));
+                painter.line_segment(
+                    [Pos2::new(x, y + 2.0), Pos2::new(x, y + 9.0)],
+                    Stroke::new(2.0, CREAM),
+                );
             }
         }
         legend(ui, rect, "Clock", "120 BPM");
@@ -157,8 +190,19 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 Pos2::new(rect.center().x, rect.min.y + 20.0 + k as f32 * 26.0),
                 vec2(74.0, 18.0),
             );
-            painter.rect_stroke(plate, CornerRadius::same(2), Stroke::new(1.0, CREAM_DIM), StrokeKind::Inside);
-            painter.text(plate.center(), Align2::CENTER_CENTER, *text, FontId::proportional(9.0), *color);
+            painter.rect_stroke(
+                plate,
+                CornerRadius::same(2),
+                Stroke::new(1.0, CREAM_DIM),
+                StrokeKind::Inside,
+            );
+            painter.text(
+                plate.center(),
+                Align2::CENTER_CENTER,
+                *text,
+                FontId::proportional(9.0),
+                *color,
+            );
         }
         legend(ui, rect, "Status", "");
 
@@ -173,7 +217,15 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                         Pos2::new(win.min.x, win.min.y + win.height() * k as f32 / 5.0),
                         vec2(win.width(), win.height() / 5.0 + 1.0),
                     );
-                    painter.rect_filled(band, CornerRadius::ZERO, util::hsl(28.0 + h0 * 30.0, 0.35, 0.10 + util::hash01(seed, k + 9) * 0.16));
+                    painter.rect_filled(
+                        band,
+                        CornerRadius::ZERO,
+                        util::hsl(
+                            28.0 + h0 * 30.0,
+                            0.35,
+                            0.10 + util::hash01(seed, k + 9) * 0.16,
+                        ),
+                    );
                 }
             });
             let painter = ui.painter();
@@ -189,7 +241,12 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 MockRole::None => {}
             }
             if clip.selected {
-                painter.rect_stroke(rect.shrink(1.0), CornerRadius::same(4), Stroke::new(1.5, CREAM), StrokeKind::Inside);
+                painter.rect_stroke(
+                    rect.shrink(1.0),
+                    CornerRadius::same(4),
+                    Stroke::new(1.5, CREAM),
+                    StrokeKind::Inside,
+                );
             }
         }
         vu_block(ui, time);
@@ -260,7 +317,16 @@ fn control(
                     _ => &mut c.v,
                 };
                 let shown = *ch;
-                out.push(knob_block(ui, i, k + 1, ch_label, &format!("{shown:.2}"), ch, 34.0, None));
+                out.push(knob_block(
+                    ui,
+                    i,
+                    k + 1,
+                    ch_label,
+                    &format!("{shown:.2}"),
+                    ch,
+                    34.0,
+                    None,
+                ));
             }
             let color = Color32::from(*c);
             out.push(window_block(ui, label, |painter, win| {
@@ -322,10 +388,25 @@ fn knob_block(
     for k in 0..=10 {
         let tt = k as f32 / 10.0;
         let dir = util::knob_dir(tt);
-        painter.line_segment([center + dir * (r + 3.0), center + dir * (r + 7.0)], Stroke::new(1.0, CREAM_DIM));
+        painter.line_segment(
+            [center + dir * (r + 3.0), center + dir * (r + 7.0)],
+            Stroke::new(1.0, CREAM_DIM),
+        );
     }
-    painter.text(center + util::knob_dir(0.0) * (r + 13.0), Align2::CENTER_CENTER, "0", FontId::proportional(8.0), CREAM_DIM);
-    painter.text(center + util::knob_dir(1.0) * (r + 13.0), Align2::CENTER_CENTER, "10", FontId::proportional(8.0), CREAM_DIM);
+    painter.text(
+        center + util::knob_dir(0.0) * (r + 13.0),
+        Align2::CENTER_CENTER,
+        "0",
+        FontId::proportional(8.0),
+        CREAM_DIM,
+    );
+    painter.text(
+        center + util::knob_dir(1.0) * (r + 13.0),
+        Align2::CENTER_CENTER,
+        "10",
+        FontId::proportional(8.0),
+        CREAM_DIM,
+    );
 
     // Body: skirt with flutes, then the hat.
     painter.circle_filled(center, r, KNOB_BODY);
@@ -333,7 +414,10 @@ fn knob_block(
     for k in 0..18 {
         let a = k as f32 / 18.0 * std::f32::consts::TAU;
         let dir = egui::Vec2::angled(a);
-        painter.line_segment([center + dir * (r - 4.0), center + dir * r], Stroke::new(1.2, KNOB_HAT));
+        painter.line_segment(
+            [center + dir * (r - 4.0), center + dir * r],
+            Stroke::new(1.2, KNOB_HAT),
+        );
     }
     let hat_r = r * 0.62;
     painter.circle_filled(center, hat_r, KNOB_HAT);
@@ -342,10 +426,16 @@ fn knob_block(
     // Ghost pointer first, so the real pointer wins where they overlap.
     if let Some(inc) = incoming {
         let dir = util::knob_dir(inc);
-        painter.line_segment([center + dir * (hat_r * 0.2), center + dir * (r - 1.0)], Stroke::new(2.0, alpha(CREAM, 70)));
+        painter.line_segment(
+            [center + dir * (hat_r * 0.2), center + dir * (r - 1.0)],
+            Stroke::new(2.0, alpha(CREAM, 70)),
+        );
     }
     let dir = util::knob_dir(*t);
-    painter.line_segment([center + dir * (hat_r * 0.15), center + dir * (r - 1.0)], Stroke::new(2.0, CREAM));
+    painter.line_segment(
+        [center + dir * (hat_r * 0.15), center + dir * (r - 1.0)],
+        Stroke::new(2.0, CREAM),
+    );
 
     legend(ui, rect, label, value);
     let _ = (i, sub);
@@ -358,19 +448,49 @@ fn rocker_block(ui: &mut Ui, label: &str, b: &mut bool) -> Rect {
         *b = !*b;
     }
     let painter = ui.painter();
-    let sw = Rect::from_center_size(Pos2::new(rect.center().x, rect.min.y + 34.0), vec2(24.0, 44.0));
+    let sw = Rect::from_center_size(
+        Pos2::new(rect.center().x, rect.min.y + 34.0),
+        vec2(24.0, 44.0),
+    );
     painter.rect_filled(sw, CornerRadius::same(4), KNOB_BODY);
-    painter.rect_stroke(sw, CornerRadius::same(4), Stroke::new(1.0, EDGE), StrokeKind::Inside);
+    painter.rect_stroke(
+        sw,
+        CornerRadius::same(4),
+        Stroke::new(1.0, EDGE),
+        StrokeKind::Inside,
+    );
     // The pressed half sits dark; the raised half catches light.
     let (raised, pressed) = if *b {
-        (Rect::from_min_max(sw.min, Pos2::new(sw.max.x, sw.center().y)), Rect::from_min_max(Pos2::new(sw.min.x, sw.center().y), sw.max))
+        (
+            Rect::from_min_max(sw.min, Pos2::new(sw.max.x, sw.center().y)),
+            Rect::from_min_max(Pos2::new(sw.min.x, sw.center().y), sw.max),
+        )
     } else {
-        (Rect::from_min_max(Pos2::new(sw.min.x, sw.center().y), sw.max), Rect::from_min_max(sw.min, Pos2::new(sw.max.x, sw.center().y)))
+        (
+            Rect::from_min_max(Pos2::new(sw.min.x, sw.center().y), sw.max),
+            Rect::from_min_max(sw.min, Pos2::new(sw.max.x, sw.center().y)),
+        )
     };
     painter.rect_filled(raised.shrink(2.0), CornerRadius::same(3), KNOB_HAT);
-    painter.rect_filled(pressed.shrink(2.0), CornerRadius::same(3), Color32::from_rgb(10, 9, 8));
-    painter.text(Pos2::new(sw.center().x, sw.min.y - 7.0), Align2::CENTER_CENTER, "ON", FontId::proportional(8.0), if *b { CREAM } else { CREAM_DIM });
-    painter.text(Pos2::new(sw.center().x, sw.max.y + 7.0), Align2::CENTER_CENTER, "OFF", FontId::proportional(8.0), if *b { CREAM_DIM } else { CREAM });
+    painter.rect_filled(
+        pressed.shrink(2.0),
+        CornerRadius::same(3),
+        Color32::from_rgb(10, 9, 8),
+    );
+    painter.text(
+        Pos2::new(sw.center().x, sw.min.y - 7.0),
+        Align2::CENTER_CENTER,
+        "ON",
+        FontId::proportional(8.0),
+        if *b { CREAM } else { CREAM_DIM },
+    );
+    painter.text(
+        Pos2::new(sw.center().x, sw.max.y + 7.0),
+        Align2::CENTER_CENTER,
+        "OFF",
+        FontId::proportional(8.0),
+        if *b { CREAM_DIM } else { CREAM },
+    );
     legend(ui, rect, label, "");
     rect
 }
@@ -393,9 +513,18 @@ fn selector_block(ui: &mut Ui, i: usize, label: &str, labels: &[&str], sel: &mut
         let tt = k as f32 / (n - 1) as f32;
         let pos = center + util::knob_dir(tt) * (r + 11.0);
         let color = if k == *sel { CREAM } else { CREAM_DIM };
-        painter.text(pos, Align2::CENTER_CENTER, *name, FontId::proportional(8.0), color);
+        painter.text(
+            pos,
+            Align2::CENTER_CENTER,
+            *name,
+            FontId::proportional(8.0),
+            color,
+        );
         let dir = util::knob_dir(tt);
-        painter.line_segment([center + dir * (r + 2.0), center + dir * (r + 5.0)], Stroke::new(1.0, CREAM_DIM));
+        painter.line_segment(
+            [center + dir * (r + 2.0), center + dir * (r + 5.0)],
+            Stroke::new(1.0, CREAM_DIM),
+        );
     }
     painter.circle_filled(center, r, KNOB_BODY);
     painter.circle_stroke(center, r, Stroke::new(1.0, EDGE));
@@ -416,7 +545,11 @@ fn momentary_block(ui: &mut Ui, label: &str, at: &mut f64, time: f64) -> Rect {
     let center = Pos2::new(rect.center().x, rect.min.y + 34.0);
     let painter = ui.painter();
     painter.circle_stroke(center, 14.0, Stroke::new(2.0, CREAM_DIM));
-    let fill = if resp.is_pointer_button_down_on() { Color32::from_rgb(8, 7, 6) } else { KNOB_BODY };
+    let fill = if resp.is_pointer_button_down_on() {
+        Color32::from_rgb(8, 7, 6)
+    } else {
+        KNOB_BODY
+    };
     painter.circle_filled(center, 11.0, fill);
     if flash > 0.0 {
         painter.circle_filled(center, 11.0, alpha(RED, (flash * 150.0) as u8));
@@ -436,9 +569,17 @@ fn momentary_block(ui: &mut Ui, label: &str, at: &mut f64, time: f64) -> Rect {
 /// A cream-bezeled panel window with custom contents (position dot, swatch).
 fn window_block(ui: &mut Ui, label: &str, paint: impl FnOnce(&egui::Painter, Rect)) -> Rect {
     let (rect, _) = ui.allocate_exact_size(vec2(74.0, BLOCK_H), Sense::hover());
-    let win = Rect::from_center_size(Pos2::new(rect.center().x, rect.min.y + 34.0), vec2(62.0, 48.0));
+    let win = Rect::from_center_size(
+        Pos2::new(rect.center().x, rect.min.y + 34.0),
+        vec2(62.0, 48.0),
+    );
     let painter = ui.painter();
-    painter.rect_stroke(win.expand(2.0), CornerRadius::same(3), Stroke::new(2.0, CREAM_DIM), StrokeKind::Outside);
+    painter.rect_stroke(
+        win.expand(2.0),
+        CornerRadius::same(3),
+        Stroke::new(2.0, CREAM_DIM),
+        StrokeKind::Outside,
+    );
     painter.rect_filled(win, CornerRadius::same(2), Color32::from_rgb(10, 9, 8));
     paint(painter, win.shrink(4.0));
     legend(ui, rect, label, "");
@@ -463,9 +604,17 @@ fn jack_block(ui: &mut Ui, label: &str, kind: &str) -> Rect {
 
 fn vu_block(ui: &mut Ui, time: f64) -> Rect {
     let (rect, _) = ui.allocate_exact_size(vec2(110.0, BLOCK_H), Sense::hover());
-    let face = Rect::from_center_size(Pos2::new(rect.center().x, rect.min.y + 36.0), vec2(100.0, 58.0));
+    let face = Rect::from_center_size(
+        Pos2::new(rect.center().x, rect.min.y + 36.0),
+        vec2(100.0, 58.0),
+    );
     let painter = ui.painter();
-    painter.rect_stroke(face.expand(2.0), CornerRadius::same(4), Stroke::new(2.0, EDGE), StrokeKind::Outside);
+    painter.rect_stroke(
+        face.expand(2.0),
+        CornerRadius::same(4),
+        Stroke::new(2.0, EDGE),
+        StrokeKind::Outside,
+    );
     painter.rect_filled(face, CornerRadius::same(3), VU_FACE);
     let pivot = Pos2::new(face.center().x, face.max.y - 6.0);
     // Scale arc with a red overload zone, needle from the pivot.
@@ -483,18 +632,35 @@ fn vu_block(ui: &mut Ui, time: f64) -> Rect {
     painter.add(arc(0.78, 1.0, RED, 2.0));
     let lvl = util::level(time, 0.5);
     let needle_dir = egui::Vec2::angled((250.0 + lvl * 40.0).to_radians());
-    painter.line_segment([pivot, pivot + needle_dir * 48.0], Stroke::new(1.5, Color32::from_rgb(30, 25, 20)));
+    painter.line_segment(
+        [pivot, pivot + needle_dir * 48.0],
+        Stroke::new(1.5, Color32::from_rgb(30, 25, 20)),
+    );
     painter.circle_filled(pivot, 3.0, Color32::from_rgb(30, 25, 20));
-    painter.text(face.min + vec2(6.0, 6.0), Align2::LEFT_TOP, "VU", FontId::proportional(8.0), Color32::from_rgb(90, 78, 60));
+    painter.text(
+        face.min + vec2(6.0, 6.0),
+        Align2::LEFT_TOP,
+        "VU",
+        FontId::proportional(8.0),
+        Color32::from_rgb(90, 78, 60),
+    );
     legend(ui, rect, "Level", "");
     rect
 }
 
 fn spectrum_block(ui: &mut Ui, time: f64) -> Rect {
     let (rect, _) = ui.allocate_exact_size(vec2(110.0, BLOCK_H), Sense::hover());
-    let face = Rect::from_center_size(Pos2::new(rect.center().x, rect.min.y + 36.0), vec2(100.0, 58.0));
+    let face = Rect::from_center_size(
+        Pos2::new(rect.center().x, rect.min.y + 36.0),
+        vec2(100.0, 58.0),
+    );
     let painter = ui.painter();
-    painter.rect_stroke(face.expand(2.0), CornerRadius::same(4), Stroke::new(2.0, EDGE), StrokeKind::Outside);
+    painter.rect_stroke(
+        face.expand(2.0),
+        CornerRadius::same(4),
+        Stroke::new(2.0, EDGE),
+        StrokeKind::Outside,
+    );
     painter.rect_filled(face, CornerRadius::same(3), VU_FACE);
     let n = 24;
     let inner = face.shrink(6.0);
@@ -532,11 +698,22 @@ fn bind_legend(ui: &Ui, midi: &MidiState, idx: usize, kind: &MockKind, rect: Rec
 }
 
 /// Learn mode: a pulsing cream ring around each block; click (un)binds.
-fn learn_ring(ui: &mut Ui, midi: &mut MidiState, idx: usize, kind: &MockKind, rect: Rect, time: f64) {
+fn learn_ring(
+    ui: &mut Ui,
+    midi: &mut MidiState,
+    idx: usize,
+    kind: &MockKind,
+    rect: Rect,
+    time: f64,
+) {
     if !midi.armed || !MidiState::bindable(kind) {
         return;
     }
-    let resp = ui.interact(rect, ui.id().with(("learn", idx, rect.min.x as i32)), Sense::click());
+    let resp = ui.interact(
+        rect,
+        ui.id().with(("learn", idx, rect.min.x as i32)),
+        Sense::click(),
+    );
     let pulse = 0.5 + 0.5 * ((time * 6.0).sin() as f32);
     ui.painter().rect_stroke(
         rect.shrink(1.0),

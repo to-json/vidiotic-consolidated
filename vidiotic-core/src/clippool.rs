@@ -133,7 +133,9 @@ pub fn spawn_thumbnailer(clips: Vec<Clip>) -> crossbeam_channel::Receiver<Thumbn
             for clip in clips {
                 // Camera clips have no file to decode; their pool row wears a
                 // static glyph instead.
-                let Some(path) = clip.file_path() else { continue };
+                let Some(path) = clip.file_path() else {
+                    continue;
+                };
                 match first_frame_rgba(path, THUMB_W, THUMB_H) {
                     Ok((w, h, rgba)) => {
                         let _ = tx.send(Thumbnail {
@@ -191,8 +193,7 @@ fn first_frame_rgba(path: &Path, tw: u32, th: u32) -> anyhow::Result<(usize, usi
             let mut packed = vec![0u8; row * th as usize];
             let src = rgba.data(0);
             for y in 0..th as usize {
-                packed[y * row..(y + 1) * row]
-                    .copy_from_slice(&src[y * stride..y * stride + row]);
+                packed[y * row..(y + 1) * row].copy_from_slice(&src[y * stride..y * stride + row]);
             }
             return Ok((tw as usize, th as usize, packed));
         }

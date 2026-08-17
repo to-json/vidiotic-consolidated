@@ -20,8 +20,8 @@ use crate::commands::{ClipId, Command, UiMirror};
 // moved to `vidiotic-play` so a browser could draw them too; this crate reaches
 // for them the same way it already reaches for `render`, `grammar` and the rest
 // (web-port.md §8 step 4g).
-use vidiotic_play::ui::control_ui;
 use crate::gfx::WindowSurface;
+use vidiotic_play::ui::control_ui;
 
 /// The control window's egui stack: context, winit input translation, wgpu
 /// paint renderer, and the cached clip thumbnails.
@@ -72,7 +72,11 @@ impl EguiCtl {
     }
 
     /// Feed a window event to egui. Returns (consumed, repaint).
-    pub fn on_window_event(&mut self, window: &Window, event: &winit::event::WindowEvent) -> (bool, bool) {
+    pub fn on_window_event(
+        &mut self,
+        window: &Window,
+        event: &winit::event::WindowEvent,
+    ) -> (bool, bool) {
         let r = self.state.on_window_event(window, event);
         (r.consumed, r.repaint)
     }
@@ -80,9 +84,9 @@ impl EguiCtl {
     /// Cache a thumbnail as an egui texture (called once per clip when decoded).
     pub fn set_thumbnail(&mut self, id: ClipId, w: usize, h: usize, rgba: &[u8]) {
         let image = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
-        let handle = self
-            .ctx
-            .load_texture(format!("thumb:{id}"), image, egui::TextureOptions::LINEAR);
+        let handle =
+            self.ctx
+                .load_texture(format!("thumb:{id}"), image, egui::TextureOptions::LINEAR);
         self.thumbs.insert(id, handle);
     }
 
@@ -129,7 +133,9 @@ impl EguiCtl {
                             depth_slice: None,
                             resolve_target: None,
                             ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu_clear_color(theme::palette().bg_base)),
+                                load: wgpu::LoadOp::Clear(wgpu_clear_color(
+                                    theme::palette().bg_base,
+                                )),
                                 store: wgpu::StoreOp::Store,
                             },
                         })],

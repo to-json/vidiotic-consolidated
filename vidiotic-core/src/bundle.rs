@@ -144,7 +144,13 @@ pub fn zip(entries: &[(String, Vec<u8>)]) -> Result<Vec<u8>, ZipErr> {
 pub fn sanitize(name: &str) -> String {
     let s: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if s.is_empty() {
         "span".into()
@@ -181,7 +187,11 @@ mod tests {
         assert_eq!(count, 2);
         let size = u32::from_le_bytes(z[end + 12..end + 16].try_into().unwrap()) as usize;
         let offset = u32::from_le_bytes(z[end + 16..end + 20].try_into().unwrap()) as usize;
-        assert_eq!(offset + size, end, "the central directory must abut the end record");
+        assert_eq!(
+            offset + size,
+            end,
+            "the central directory must abut the end record"
+        );
         assert_eq!(&z[offset..offset + 4], b"PK\x01\x02");
 
         // Each central entry's local-header offset must land on a signature,
@@ -195,7 +205,10 @@ mod tests {
             assert_eq!(&z[local + 30..local + 30 + n], name.as_bytes());
             let stored = u32::from_le_bytes(z[local + 18..local + 22].try_into().unwrap()) as usize;
             assert_eq!(stored, data.len());
-            assert_eq!(&z[local + 30 + n..local + 30 + n + data.len()], data.as_slice());
+            assert_eq!(
+                &z[local + 30 + n..local + 30 + n + data.len()],
+                data.as_slice()
+            );
             p += 46 + name.len();
         }
     }

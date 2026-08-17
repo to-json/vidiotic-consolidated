@@ -140,7 +140,11 @@ fn our_reader_and_ffmpegs_agree_on_a_file_we_wrote() {
     assert_eq!(ours.timescale as i32, theirs.timescale, "timescale");
 
     for (i, (want, dts)) in theirs.packets.iter().enumerate() {
-        assert_eq!(ours.sample_data(&bytes, i).unwrap(), &want[..], "sample {i} bytes");
+        assert_eq!(
+            ours.sample_data(&bytes, i).unwrap(),
+            &want[..],
+            "sample {i} bytes"
+        );
         assert_eq!(ours.samples[i].pts as i64, *dts, "sample {i} timing");
     }
     let _ = std::fs::remove_file(&path);
@@ -166,10 +170,21 @@ fn our_reader_and_ffmpegs_agree_on_files_ffmpeg_wrote() {
         let ours = demux(&bytes).unwrap_or_else(|e| panic!("{clip}: {e}"));
         let theirs = via_ffmpeg(path);
 
-        assert_eq!((ours.width, ours.height), (theirs.width, theirs.height), "{clip}: size");
-        assert_eq!(u32::from_le_bytes(ours.format), theirs.tag, "{clip}: codec tag");
+        assert_eq!(
+            (ours.width, ours.height),
+            (theirs.width, theirs.height),
+            "{clip}: size"
+        );
+        assert_eq!(
+            u32::from_le_bytes(ours.format),
+            theirs.tag,
+            "{clip}: codec tag"
+        );
         assert_eq!(ours.timescale as i32, theirs.timescale, "{clip}: timescale");
-        assert!(!ours.has_composition_offsets, "{clip}: HAP should have no ctts");
+        assert!(
+            !ours.has_composition_offsets,
+            "{clip}: HAP should have no ctts"
+        );
         assert!(
             ours.samples.len() >= theirs.packets.len(),
             "{clip}: we found fewer samples than ffmpeg — {} vs {}",
@@ -183,7 +198,10 @@ fn our_reader_and_ffmpegs_agree_on_files_ffmpeg_wrote() {
                 .unwrap_or_else(|| panic!("{clip}: sample {i} out of range"));
             assert_eq!(got.len(), want.len(), "{clip}: sample {i} length");
             assert_eq!(got, &want[..], "{clip}: sample {i} bytes");
-            assert_eq!(ours.samples[i].pts as i64, *dts, "{clip}: sample {i} timing");
+            assert_eq!(
+                ours.samples[i].pts as i64, *dts,
+                "{clip}: sample {i} timing"
+            );
         }
         checked += 1;
     }
@@ -223,7 +241,10 @@ fn the_zero_duration_tail_frame_is_real() {
         assert_eq!(extra, 1, "{clip}: expected exactly one trimmed tail frame");
 
         let last = ours.samples.last().unwrap();
-        assert_eq!(last.duration, 0, "{clip}: the tail frame should declare no duration");
+        assert_eq!(
+            last.duration, 0,
+            "{clip}: the tail frame should declare no duration"
+        );
 
         // Present and well-formed, not a phantom index entry.
         let data = ours
@@ -315,8 +336,16 @@ fn seeking_by_time_lands_on_the_frame_ffmpeg_would_show() {
     for (i, s) in t.samples.iter().enumerate() {
         assert_eq!(t.sample_at(s.pts), Some(i), "exact hit on sample {i}");
         if i > 0 {
-            assert_eq!(t.sample_at(s.pts - 1), Some(i - 1), "just before sample {i}");
+            assert_eq!(
+                t.sample_at(s.pts - 1),
+                Some(i - 1),
+                "just before sample {i}"
+            );
         }
     }
-    assert_eq!(t.sample_at(u64::MAX), Some(t.samples.len() - 1), "past the end holds");
+    assert_eq!(
+        t.sample_at(u64::MAX),
+        Some(t.samples.len() - 1),
+        "past the end holds"
+    );
 }

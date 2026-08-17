@@ -16,8 +16,7 @@ impl App {
 
         // --- the overlay: everything the engine has no way to answer ---
 
-        self.mirror.project_path =
-            self.project_path.as_ref().map(|p| p.display().to_string());
+        self.mirror.project_path = self.project_path.as_ref().map(|p| p.display().to_string());
         self.mirror.bpm_entry = self.bpm_entry.clone();
         self.mirror.audio_devices = self.audio_devices.clone();
         self.mirror.current_device = Some(self.audio_capture.device_name.clone());

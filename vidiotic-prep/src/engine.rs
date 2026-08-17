@@ -37,13 +37,22 @@ impl EngineLink {
         if let Some(sock) = std::env::var_os(vidiotic_wire::SOCK_ENV) {
             let socket = PathBuf::from(sock);
             if socket.exists() {
-                return Some(Self { socket, launched_us: true });
+                return Some(Self {
+                    socket,
+                    launched_us: true,
+                });
             }
-            log::warn!("engine: ${} points at a missing socket", vidiotic_wire::SOCK_ENV);
+            log::warn!(
+                "engine: ${} points at a missing socket",
+                vidiotic_wire::SOCK_ENV
+            );
         }
         let latest = std::env::temp_dir().join(LATEST_SOCK);
         if latest.exists() {
-            Some(Self { socket: latest, launched_us: false })
+            Some(Self {
+                socket: latest,
+                launched_us: false,
+            })
         } else {
             None
         }
@@ -69,12 +78,16 @@ impl EngineLink {
         let (tx, rx) = crossbeam_channel::bounded(1);
         let socket = self.socket.clone();
         let project = project.to_path_buf();
-        let spawned = std::thread::Builder::new().name("engine-reload".into()).spawn(move || {
-            let outcome = WireClient::connect(&socket)
-                .and_then(|mut c| c.command(WireCommand::LoadProject(project.display().to_string())))
-                .map_err(|e| e.to_string());
-            let _ = tx.send(outcome);
-        });
+        let spawned = std::thread::Builder::new()
+            .name("engine-reload".into())
+            .spawn(move || {
+                let outcome = WireClient::connect(&socket)
+                    .and_then(|mut c| {
+                        c.command(WireCommand::LoadProject(project.display().to_string()))
+                    })
+                    .map_err(|e| e.to_string());
+                let _ = tx.send(outcome);
+            });
         if let Err(e) = spawned {
             log::error!("engine: could not spawn reload thread: {e}");
         }

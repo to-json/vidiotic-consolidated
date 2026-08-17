@@ -30,8 +30,7 @@ mod macos {
     use vidiotic::video::capture;
 
     pub fn run() -> anyhow::Result<()> {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-            .init();
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
         let mut args = std::env::args().skip(1);
         let first = args.next();
         if first.as_deref() == Some("milestone") {
@@ -169,7 +168,11 @@ mod macos {
             let span = last_pts - pts0;
             println!(
                 "pulled {frames} frames over {span:.2}s of pts ({:.2} fps effective)",
-                if span > 0.0 { f64::from(frames - 1) / span } else { 0.0 }
+                if span > 0.0 {
+                    f64::from(frames - 1) / span
+                } else {
+                    0.0
+                }
             );
         } else {
             println!("no frames decoded (permission denied yields silence/black here)");
@@ -178,7 +181,10 @@ mod macos {
         // -- Teardown -------------------------------------------------------
         let t = Instant::now();
         drop(ictx);
-        println!("teardown (avformat_close_input incl. session stop): {:?}", t.elapsed());
+        println!(
+            "teardown (avformat_close_input incl. session stop): {:?}",
+            t.elapsed()
+        );
 
         // -- Double-open behavior (informational, 1.2) -----------------------
         println!("\ndouble-open check: opening the same device twice...");
@@ -215,7 +221,10 @@ mod macos {
             .and_then(|i| devices.iter().find(|d| d.index == i))
             .or_else(|| devices.first())
             .ok_or_else(|| anyhow::anyhow!("no capture devices found"))?;
-        println!("milestone: service on [{}] {:?} (uid={})", dev.index, dev.name, dev.uid);
+        println!(
+            "milestone: service on [{}] {:?} (uid={})",
+            dev.index, dev.name, dev.uid
+        );
 
         let service = CaptureService::start(dev.uid.clone());
         let t0 = Instant::now();
@@ -235,12 +244,11 @@ mod macos {
 
         // Offscreen GPU + the real renderer (mirrors spike_render's harness).
         let instance = wgpu::Instance::default();
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: None,
-                force_fallback_adapter: false,
-            }))?;
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }))?;
         let (device, queue) =
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
                 label: Some("spike-capture-device"),
@@ -288,11 +296,15 @@ mod macos {
             "live={live_frames} delayed={delayed_frames} renders={renders} \
              lag_samples={lag_samples} worst_lag_err={worst_lag_err:.3}s"
         );
-        let ok = live_frames > 60
-            && delayed_frames > 30
-            && lag_samples > 10
-            && worst_lag_err < 0.1;
-        println!("{}", if ok { "MILESTONE PASS" } else { "MILESTONE FAIL" });
+        let ok = live_frames > 60 && delayed_frames > 30 && lag_samples > 10 && worst_lag_err < 0.1;
+        println!(
+            "{}",
+            if ok {
+                "MILESTONE PASS"
+            } else {
+                "MILESTONE FAIL"
+            }
+        );
         std::process::exit(i32::from(!ok));
     }
 
@@ -307,7 +319,11 @@ mod macos {
         renderer.upload_frame(device, queue, frame);
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("offscreen"),
-            size: wgpu::Extent3d { width: 64, height: 64, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: 64,
+                height: 64,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,

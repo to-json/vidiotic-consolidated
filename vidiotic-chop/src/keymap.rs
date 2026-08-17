@@ -24,20 +24,37 @@
 //! gets the layering right on its own — a rebound key wins, an `Action::Nothing`
 //! masks a default outright, and anything untouched falls through.
 
-use vidiotic_ctl::{Action, Binding, ControlEvent, ControlMap, ControlSource, EventValue, Mapper, PrepVerb};
+use vidiotic_ctl::{
+    Action, Binding, ControlEvent, ControlMap, ControlSource, EventValue, Mapper, PrepVerb,
+};
 
 use crate::commands::Command;
 
 fn key(k: &str) -> ControlSource {
-    ControlSource::Key { key: k.into(), ctrl: false, alt: false, shift: false, cmd: false }
+    ControlSource::Key {
+        key: k.into(),
+        ctrl: false,
+        alt: false,
+        shift: false,
+        cmd: false,
+    }
 }
 
 fn shift_key(k: &str) -> ControlSource {
-    ControlSource::Key { key: k.into(), ctrl: false, alt: false, shift: true, cmd: false }
+    ControlSource::Key {
+        key: k.into(),
+        ctrl: false,
+        alt: false,
+        shift: true,
+        cmd: false,
+    }
 }
 
 fn bind(source: ControlSource, verb: PrepVerb) -> Binding {
-    Binding { source, action: Action::Prep(verb) }
+    Binding {
+        source,
+        action: Action::Prep(verb),
+    }
 }
 
 /// Prep's built-in key bindings — the mapper's base layer, which `prep.vmap`
@@ -93,7 +110,9 @@ pub fn resolve(
 /// player share one `Action` enum (they share the `.vmap` format and its
 /// editor) and each rejects the other's half.
 fn to_command(action: &Action, value: f32) -> Option<Command> {
-    let Action::Prep(verb) = action else { return None };
+    let Action::Prep(verb) = action else {
+        return None;
+    };
     Some(match verb {
         PrepVerb::TogglePlay => Command::TogglePlay,
         PrepVerb::Pause => Command::Pause,
@@ -180,20 +199,44 @@ mod tests {
     #[test]
     fn default_map_covers_every_previously_hardcoded_key() {
         let mut m = defaults();
-        assert!(matches!(press(&mut m, key("Space")), Some(Command::TogglePlay)));
-        assert!(matches!(press(&mut m, shift_key("Space")), Some(Command::PlayFromIn)));
+        assert!(matches!(
+            press(&mut m, key("Space")),
+            Some(Command::TogglePlay)
+        ));
+        assert!(matches!(
+            press(&mut m, shift_key("Space")),
+            Some(Command::PlayFromIn)
+        ));
         assert!(matches!(press(&mut m, key("j")), Some(Command::Shuttle(d)) if d < 0.0));
         assert!(matches!(press(&mut m, key("k")), Some(Command::Pause)));
         assert!(matches!(press(&mut m, key("l")), Some(Command::Shuttle(d)) if d > 0.0));
         assert!(matches!(press(&mut m, key("i")), Some(Command::SetIn)));
         assert!(matches!(press(&mut m, key("o")), Some(Command::SetOut)));
-        assert!(matches!(press(&mut m, key("Enter")), Some(Command::AddSpan)));
+        assert!(matches!(
+            press(&mut m, key("Enter")),
+            Some(Command::AddSpan)
+        ));
         assert!(matches!(press(&mut m, key("a")), Some(Command::AddSpan)));
-        assert!(matches!(press(&mut m, key("ArrowRight")), Some(Command::Step(1))));
-        assert!(matches!(press(&mut m, key("ArrowLeft")), Some(Command::Step(-1))));
-        assert!(matches!(press(&mut m, shift_key("ArrowRight")), Some(Command::Step(10))));
-        assert!(matches!(press(&mut m, shift_key("ArrowLeft")), Some(Command::Step(-10))));
-        assert!(matches!(press(&mut m, key("Home")), Some(Command::SeekStart)));
+        assert!(matches!(
+            press(&mut m, key("ArrowRight")),
+            Some(Command::Step(1))
+        ));
+        assert!(matches!(
+            press(&mut m, key("ArrowLeft")),
+            Some(Command::Step(-1))
+        ));
+        assert!(matches!(
+            press(&mut m, shift_key("ArrowRight")),
+            Some(Command::Step(10))
+        ));
+        assert!(matches!(
+            press(&mut m, shift_key("ArrowLeft")),
+            Some(Command::Step(-10))
+        ));
+        assert!(matches!(
+            press(&mut m, key("Home")),
+            Some(Command::SeekStart)
+        ));
         assert!(matches!(press(&mut m, key("End")), Some(Command::SeekEnd)));
     }
 
@@ -211,7 +254,10 @@ mod tests {
             repeat(&mut m, key("Space")).is_none(),
             "a held Space must not re-fire play/pause"
         );
-        assert!(repeat(&mut m, key("j")).is_none(), "a held J must not keep doubling speed");
+        assert!(
+            repeat(&mut m, key("j")).is_none(),
+            "a held J must not keep doubling speed"
+        );
     }
 
     /// The layering prep relies on: `prep.vmap` overrides a default, and an
@@ -221,19 +267,32 @@ mod tests {
         let over = ControlMap {
             bindings: vec![
                 bind(key("Space"), PrepVerb::AddSpan),
-                Binding { source: key("j"), action: Action::Nothing },
+                Binding {
+                    source: key("j"),
+                    action: Action::Nothing,
+                },
             ],
         };
         let mut m = Mapper::new(default_map(), over);
-        assert!(matches!(press(&mut m, key("Space")), Some(Command::AddSpan)), "rebound");
+        assert!(
+            matches!(press(&mut m, key("Space")), Some(Command::AddSpan)),
+            "rebound"
+        );
         assert!(press(&mut m, key("j")).is_none(), "masked");
-        assert!(matches!(press(&mut m, key("k")), Some(Command::Pause)), "untouched default");
+        assert!(
+            matches!(press(&mut m, key("k")), Some(Command::Pause)),
+            "untouched default"
+        );
     }
 
     #[test]
     fn scrub_lerps_across_the_source_and_clamps() {
-        assert!(matches!(to_command(&Action::Prep(PrepVerb::Scrub), 0.0), Some(Command::SeekFrac(t)) if t == 0.0));
-        assert!(matches!(to_command(&Action::Prep(PrepVerb::Scrub), 1.0), Some(Command::SeekFrac(t)) if t == 1.0));
+        assert!(
+            matches!(to_command(&Action::Prep(PrepVerb::Scrub), 0.0), Some(Command::SeekFrac(t)) if t == 0.0)
+        );
+        assert!(
+            matches!(to_command(&Action::Prep(PrepVerb::Scrub), 1.0), Some(Command::SeekFrac(t)) if t == 1.0)
+        );
     }
 
     #[test]

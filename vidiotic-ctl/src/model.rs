@@ -17,12 +17,32 @@ use nanoserde::{DeRon, SerRon};
 #[derive(SerRon, DeRon, Clone, Debug, PartialEq)]
 pub enum ControlSource {
     /// `channel` is 1-16 (already offset from the MIDI wire's 0-15).
-    MidiNote { device: String, channel: u8, note: u8 },
-    MidiCc { device: String, channel: u8, cc: u8 },
-    Key { key: String, ctrl: bool, alt: bool, shift: bool, cmd: bool },
+    MidiNote {
+        device: String,
+        channel: u8,
+        note: u8,
+    },
+    MidiCc {
+        device: String,
+        channel: u8,
+        cc: u8,
+    },
+    Key {
+        key: String,
+        ctrl: bool,
+        alt: bool,
+        shift: bool,
+        cmd: bool,
+    },
     /// `button` is a gilrs `Debug`-formatted button name, e.g. `"South"`.
-    PadButton { device: String, button: String },
-    PadAxis { device: String, axis: String },
+    PadButton {
+        device: String,
+        button: String,
+    },
+    PadAxis {
+        device: String,
+        axis: String,
+    },
 }
 
 /// What a binding does in `vidiotic-prep`'s span editor. Namespaced under
@@ -42,11 +62,15 @@ pub enum PrepVerb {
     /// J/L shuttle: a press in the current direction doubles speed, a press
     /// the other way (or from pause) starts 1x that way. The speed state
     /// lives in the app, so this stays edge-triggered.
-    Shuttle { dir: i32 },
+    Shuttle {
+        dir: i32,
+    },
     /// Pause and step the playhead by `frames` (signed). The only verb that
     /// re-fires on key-repeat — see
     /// `vidiotic_prep::commands::Command::repeats_on_hold`.
-    Step { frames: i32 },
+    Step {
+        frames: i32,
+    },
     SeekStart,
     SeekEnd,
     JumpToIn,
@@ -56,7 +80,9 @@ pub enum PrepVerb {
     SnapOut,
     AddSpan,
     /// Zoom the jog window by `factor` (<1 zooms in), anchored on the playhead.
-    ZoomView { factor: f64 },
+    ZoomView {
+        factor: f64,
+    },
     ZoomFit,
     ZoomToMarks,
     /// Continuous: value in `0..=1` seeks across the whole source — a fader
@@ -116,13 +142,26 @@ pub enum Action {
     CaptureShader,
     ToggleFullscreen,
     SaveProject,
-    BpmDelta { amount: f64 },
-    NudgeBpm { ratio: f64 },
-    CycleLiveBank { delta: i32 },
-    SetLiveBank { index: u32 },
-    SetEditBank { index: u32 },
+    BpmDelta {
+        amount: f64,
+    },
+    NudgeBpm {
+        ratio: f64,
+    },
+    CycleLiveBank {
+        delta: i32,
+    },
+    SetLiveBank {
+        index: u32,
+    },
+    SetEditBank {
+        index: u32,
+    },
     /// Continuous: value in `0..=1` lerps between `min` and `max`.
-    SetBpm { min: f64, max: f64 },
+    SetBpm {
+        min: f64,
+        max: f64,
+    },
     ToggleCommandPalette,
     Quit,
     /// Append one digit to the player's pending BPM entry;
@@ -132,7 +171,9 @@ pub enum Action {
     /// Ten bindings rather than one, because a binding names one physical
     /// control — which is what makes the entry reachable from a numeric pad
     /// and not just the number row.
-    BpmDigit { digit: u8 },
+    BpmDigit {
+        digit: u8,
+    },
     BpmCommit,
     BpmClear,
     Prep(PrepVerb),
@@ -316,11 +357,31 @@ mod tests {
 
     fn all_sources() -> Vec<ControlSource> {
         vec![
-            ControlSource::MidiNote { device: "Launchkey Mini MK3".into(), channel: 1, note: 60 },
-            ControlSource::MidiCc { device: "Launchkey Mini MK3".into(), channel: 1, cc: 21 },
-            ControlSource::Key { key: "t".into(), ctrl: false, alt: false, shift: true, cmd: false },
-            ControlSource::PadButton { device: "Xbox Controller".into(), button: "South".into() },
-            ControlSource::PadAxis { device: "Xbox Controller".into(), axis: "LeftStickX".into() },
+            ControlSource::MidiNote {
+                device: "Launchkey Mini MK3".into(),
+                channel: 1,
+                note: 60,
+            },
+            ControlSource::MidiCc {
+                device: "Launchkey Mini MK3".into(),
+                channel: 1,
+                cc: 21,
+            },
+            ControlSource::Key {
+                key: "t".into(),
+                ctrl: false,
+                alt: false,
+                shift: true,
+                cmd: false,
+            },
+            ControlSource::PadButton {
+                device: "Xbox Controller".into(),
+                button: "South".into(),
+            },
+            ControlSource::PadAxis {
+                device: "Xbox Controller".into(),
+                axis: "LeftStickX".into(),
+            },
         ]
     }
 
@@ -331,7 +392,10 @@ mod tests {
     #[test]
     fn every_source_variant_round_trips() {
         for source in all_sources() {
-            let binding = Binding { source: source.clone(), action: Action::TapDownbeat };
+            let binding = Binding {
+                source: source.clone(),
+                action: Action::TapDownbeat,
+            };
             let ron = binding.serialize_ron();
             let back = Binding::deserialize_ron(&ron).unwrap();
             assert_eq!(binding, back, "round-trip failed for {source:?}");
@@ -348,7 +412,10 @@ mod tests {
             cmd: false,
         };
         for action in all_actions() {
-            let binding = Binding { source: source.clone(), action };
+            let binding = Binding {
+                source: source.clone(),
+                action,
+            };
             let ron = binding.serialize_ron();
             let back = Binding::deserialize_ron(&ron).unwrap();
             assert_eq!(binding, back, "round-trip failed for {action:?}");
@@ -401,9 +468,14 @@ mod tests {
                 Action::CycleLiveBank { .. } => Action::CycleLiveBank { delta: 1 },
                 Action::SetLiveBank { .. } => Action::SetLiveBank { index: 0 },
                 Action::SetEditBank { .. } => Action::SetEditBank { index: 0 },
-                Action::SetBpm { .. } => Action::SetBpm { min: 60.0, max: 180.0 },
+                Action::SetBpm { .. } => Action::SetBpm {
+                    min: 60.0,
+                    max: 180.0,
+                },
                 Action::BpmDigit { .. } => Action::BpmDigit { digit: 0 },
-                Action::Prep(PrepVerb::Shuttle { .. }) => Action::Prep(PrepVerb::Shuttle { dir: 1 }),
+                Action::Prep(PrepVerb::Shuttle { .. }) => {
+                    Action::Prep(PrepVerb::Shuttle { dir: 1 })
+                }
                 Action::Prep(PrepVerb::Step { .. }) => Action::Prep(PrepVerb::Step { frames: 1 }),
                 Action::Prep(PrepVerb::ZoomView { .. }) => {
                     Action::Prep(PrepVerb::ZoomView { factor: 0.5 })
@@ -531,10 +603,16 @@ mod tests {
     #[test]
     fn namespaces_partition_the_catalog() {
         assert_eq!(Action::Nothing.namespace(), None);
-        for action in PLAYER_CATALOG.iter().filter(|a| !matches!(a, Action::Nothing)) {
+        for action in PLAYER_CATALOG
+            .iter()
+            .filter(|a| !matches!(a, Action::Nothing))
+        {
             assert_eq!(action.namespace(), Some("player"), "{action:?}");
         }
-        for action in PREP_CATALOG.iter().filter(|a| !matches!(a, Action::Nothing)) {
+        for action in PREP_CATALOG
+            .iter()
+            .filter(|a| !matches!(a, Action::Nothing))
+        {
             assert_eq!(action.namespace(), Some("prep"), "{action:?}");
         }
     }
@@ -544,7 +622,13 @@ mod tests {
         let continuous: Vec<_> = CATALOG.iter().filter(|a| a.is_continuous()).collect();
         assert_eq!(
             continuous,
-            vec![&Action::SetBpm { min: 60.0, max: 180.0 }, &Action::Prep(PrepVerb::Scrub)]
+            vec![
+                &Action::SetBpm {
+                    min: 60.0,
+                    max: 180.0
+                },
+                &Action::Prep(PrepVerb::Scrub)
+            ]
         );
     }
 
@@ -564,7 +648,10 @@ mod tests {
                         channel: 1,
                         cc: 21,
                     },
-                    action: Action::SetBpm { min: 60.0, max: 180.0 },
+                    action: Action::SetBpm {
+                        min: 60.0,
+                        max: 180.0,
+                    },
                 },
                 Binding {
                     source: ControlSource::Key {

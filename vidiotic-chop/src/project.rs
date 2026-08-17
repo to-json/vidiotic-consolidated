@@ -46,7 +46,10 @@ impl ReopenedProject {
 
         for clip in &proj.clips {
             let prov: &SpanProvenance = clip.source.as_ref().ok_or_else(|| {
-                anyhow::anyhow!("clip \"{}\" has no span provenance; can't retrim", clip.name)
+                anyhow::anyhow!(
+                    "clip \"{}\" has no span provenance; can't retrim",
+                    clip.name
+                )
             })?;
             match source {
                 None => source = Some(&prov.original_path),
@@ -91,7 +94,13 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
-    fn clip(id: u32, name: &str, src: &str, in_f: u64, out_f: u64) -> vidiotic_core::project::ClipSpec {
+    fn clip(
+        id: u32,
+        name: &str,
+        src: &str,
+        in_f: u64,
+        out_f: u64,
+    ) -> vidiotic_core::project::ClipSpec {
         vidiotic_core::project::ClipSpec {
             id,
             name: name.to_string(),
@@ -110,7 +119,10 @@ mod tests {
     #[test]
     fn spans_come_back_off_provenance() {
         let proj = Project {
-            clips: vec![clip(1, "a", "/v.mov", 10, 20), clip(2, "b", "/v.mov", 30, 40)],
+            clips: vec![
+                clip(1, "a", "/v.mov", 10, 20),
+                clip(2, "b", "/v.mov", 30, 40),
+            ],
             ..Default::default()
         };
         let re = ReopenedProject::from_project(&proj, "p").expect("reopen");
@@ -124,7 +136,10 @@ mod tests {
     #[test]
     fn clips_from_two_sources_are_refused() {
         let proj = Project {
-            clips: vec![clip(1, "a", "/v.mov", 0, 10), clip(2, "b", "/other.mov", 0, 10)],
+            clips: vec![
+                clip(1, "a", "/v.mov", 0, 10),
+                clip(2, "b", "/other.mov", 0, 10),
+            ],
             ..Default::default()
         };
         assert!(ReopenedProject::from_project(&proj, "p").is_err());
@@ -134,7 +149,10 @@ mod tests {
     /// defend against everywhere downstream.
     #[test]
     fn an_inverted_span_is_widened_rather_than_kept() {
-        let proj = Project { clips: vec![clip(1, "a", "/v.mov", 5, 5)], ..Default::default() };
+        let proj = Project {
+            clips: vec![clip(1, "a", "/v.mov", 5, 5)],
+            ..Default::default()
+        };
         let re = ReopenedProject::from_project(&proj, "p").expect("reopen");
         assert_eq!(re.spans[0].out_frame, 6);
     }

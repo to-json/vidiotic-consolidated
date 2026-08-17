@@ -14,14 +14,14 @@
 //! §3's browser backend. Neither is worth a portable shape invented before the
 //! thing it would abstract over exists.
 
-use phosphor::widgets;
 use phosphor::theme::palette;
+use phosphor::widgets;
 use vidiotic_ctl::ui as ctl_ui;
 use vidiotic_ctl::{Action, ControlSource};
 
 use crate::app::PrepApp;
-use vidiotic_chop::commands::Command;
 use crate::control_input::{Controls, LearnTarget};
+use vidiotic_chop::commands::Command;
 
 /// The inspector's two binding tables, drawn into the portable panel's scroll
 /// area through the hook [`vidiotic_chop::ui::draw`] takes for exactly this.
@@ -40,9 +40,9 @@ pub fn control_sections(c: &mut Controls, ui: &mut egui::Ui) {
 /// to nothing, since vidiotic's `to_command` rejects the other app's half.
 /// Prep's own keys are edited by [`prep_keys_section`], against `prep.vmap`.
 fn project_map_section(c: &mut Controls, ui: &mut egui::Ui) {
-    egui::CollapsingHeader::new("controls (this project → vidiotic)").default_open(false).show(
-        ui,
-        |ui| {
+    egui::CollapsingHeader::new("controls (this project → vidiotic)")
+        .default_open(false)
+        .show(ui, |ui| {
             let mut changed = false;
             let event = ctl_ui::binding_table(
                 ui,
@@ -63,13 +63,16 @@ fn project_map_section(c: &mut Controls, ui: &mut egui::Ui) {
             if c.global.bindings.is_empty() {
                 ui.weak("no global bindings");
             }
-            let project_sources: Vec<ControlSource> =
-                c.project.bindings.iter().map(|b| b.source.clone()).collect();
+            let project_sources: Vec<ControlSource> = c
+                .project
+                .bindings
+                .iter()
+                .map(|b| b.source.clone())
+                .collect();
             if let Some(source) = ctl_ui::readonly_map(ui, &c.global, &project_sources) {
                 c.mask_global_binding(source);
             }
-        },
-    );
+        });
 }
 
 /// Prep's *own* keys, persisted to the global `prep.vmap` — a user preference,
@@ -77,42 +80,49 @@ fn project_map_section(c: &mut Controls, ui: &mut egui::Ui) {
 /// and never travels with a `.viproj`. The built-in defaults show read-only
 /// beneath, so they're discoverable and one click from being masked.
 fn prep_keys_section(c: &mut Controls, ui: &mut egui::Ui) {
-    egui::CollapsingHeader::new("editor keys (this app)").default_open(false).show(ui, |ui| {
-        let mut changed = false;
-        let event = ctl_ui::binding_table(
-            ui,
-            &mut c.mapper.over,
-            c.learn.and_then(LearnTarget::prep_row),
-            Action::prep_catalog(),
-            &mut changed,
-        );
-        if changed {
-            c.mark_dirty();
-        }
-        match event {
-            Some(ctl_ui::TableEvent::Learn(i)) => c.start_learn(LearnTarget::PrepMap(i)),
-            Some(ctl_ui::TableEvent::Remove(i)) => c.remove_prep_binding(i),
-            Some(ctl_ui::TableEvent::Add) => c.add_prep_binding(),
-            None => {}
-        }
+    egui::CollapsingHeader::new("editor keys (this app)")
+        .default_open(false)
+        .show(ui, |ui| {
+            let mut changed = false;
+            let event = ctl_ui::binding_table(
+                ui,
+                &mut c.mapper.over,
+                c.learn.and_then(LearnTarget::prep_row),
+                Action::prep_catalog(),
+                &mut changed,
+            );
+            if changed {
+                c.mark_dirty();
+            }
+            match event {
+                Some(ctl_ui::TableEvent::Learn(i)) => c.start_learn(LearnTarget::PrepMap(i)),
+                Some(ctl_ui::TableEvent::Remove(i)) => c.remove_prep_binding(i),
+                Some(ctl_ui::TableEvent::Add) => c.add_prep_binding(),
+                None => {}
+            }
 
-        if !c.mapper.over.bindings.is_empty()
-            && widgets::bracket_button(ui, "reset to defaults", None, 0.0)
-                .on_hover_text("remove every override above")
-                .clicked()
-        {
-            c.reset_prep_map();
-        }
+            if !c.mapper.over.bindings.is_empty()
+                && widgets::bracket_button(ui, "reset to defaults", None, 0.0)
+                    .on_hover_text("remove every override above")
+                    .clicked()
+            {
+                c.reset_prep_map();
+            }
 
-        ui.add_space(8.0);
-        widgets::section_label(ui, "built-in defaults (read-only)");
-        let overridden: Vec<ControlSource> =
-            c.mapper.over.bindings.iter().map(|b| b.source.clone()).collect();
-        let defaults = crate::control_input::default_map();
-        if let Some(source) = ctl_ui::readonly_map(ui, &defaults, &overridden) {
-            c.mask_prep_default(source);
-        }
-    });
+            ui.add_space(8.0);
+            widgets::section_label(ui, "built-in defaults (read-only)");
+            let overridden: Vec<ControlSource> = c
+                .mapper
+                .over
+                .bindings
+                .iter()
+                .map(|b| b.source.clone())
+                .collect();
+            let defaults = crate::control_input::default_map();
+            if let Some(source) = ctl_ui::readonly_map(ui, &defaults, &overridden) {
+                c.mask_prep_default(source);
+            }
+        });
 }
 
 /// Destination, name, bake options, and live progress. A floating window, so
@@ -155,13 +165,18 @@ pub fn export_dialog(app: &mut PrepApp, ctx: &egui::Context) {
                 &mut app.export_high_quality,
                 "high-quality BC1 (ClusterFit, ~6x slower bake)",
             )
-            .on_hover_text("off = RangeFit: slightly softer gradients, much faster; fine for iterating");
+            .on_hover_text(
+                "off = RangeFit: slightly softer gradients, much faster; fine for iterating",
+            );
             ui.label(format!("{} span(s) to bake", app.editor.spans.spans.len()));
 
             if exporting {
                 if let Some(p) = &app.export_progress {
-                    let span_frac =
-                        if p.cur_total > 0 { p.cur_done as f32 / p.cur_total as f32 } else { 0.0 };
+                    let span_frac = if p.cur_total > 0 {
+                        p.cur_done as f32 / p.cur_total as f32
+                    } else {
+                        0.0
+                    };
                     let frac = if p.total > 0 {
                         (p.done as f32 + span_frac) / p.total as f32
                     } else {
@@ -210,17 +225,20 @@ pub fn export_dialog(app: &mut PrepApp, ctx: &egui::Context) {
             match &exported {
                 Some(Ok(path)) => {
                     ui.horizontal(|ui| {
-                        ui.colored_label(
-                            palette().phosphor,
-                            format!("wrote {}", path.display()),
-                        );
+                        ui.colored_label(palette().phosphor, format!("wrote {}", path.display()));
                         if widgets::bracket_button(ui, "reveal", None, 0.0)
                             .on_hover_text("show in Finder")
                             .clicked()
                         {
-                            let _ = std::process::Command::new("open").arg("-R").arg(path).spawn();
+                            let _ = std::process::Command::new("open")
+                                .arg("-R")
+                                .arg(path)
+                                .spawn();
                         }
-                        let engine = app.engine.as_ref().map(|e| e.socket().display().to_string());
+                        let engine = app
+                            .engine
+                            .as_ref()
+                            .map(|e| e.socket().display().to_string());
                         if let Some(socket) = engine {
                             ui.add_enabled_ui(!app.sending_to_engine(), |ui| {
                                 if widgets::bracket_button(ui, "send to vidiotic", None, 0.0)

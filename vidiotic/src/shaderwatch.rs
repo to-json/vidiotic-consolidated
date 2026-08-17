@@ -24,19 +24,20 @@ impl ShaderWatcher {
             .file_name()
             .ok_or_else(|| anyhow::anyhow!("shader path has no file name"))?
             .to_owned();
-        let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if let Ok(ev) = res {
-                let relevant = matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_));
-                if relevant
-                    && ev
-                        .paths
-                        .iter()
-                        .any(|p| p.file_name() == Some(target.as_os_str()))
-                {
-                    let _ = tx.send(());
+        let mut watcher =
+            notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+                if let Ok(ev) = res {
+                    let relevant = matches!(ev.kind, EventKind::Modify(_) | EventKind::Create(_));
+                    if relevant
+                        && ev
+                            .paths
+                            .iter()
+                            .any(|p| p.file_name() == Some(target.as_os_str()))
+                    {
+                        let _ = tx.send(());
+                    }
                 }
-            }
-        })?;
+            })?;
         let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
         let dir = parent.unwrap_or_else(|| Path::new("."));
         watcher.watch(dir, RecursiveMode::NonRecursive)?;

@@ -41,15 +41,17 @@ fn toolbar(app: &mut CtlApp, ui: &mut egui::Ui) {
                 app.revert();
             }
             if widgets::bracket_button(ui, "open…", None, 0.0).clicked() {
-                if let Some(path) =
-                    rfd::FileDialog::new().add_filter("vidiotic control map", &["vmap"]).pick_file()
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("vidiotic control map", &["vmap"])
+                    .pick_file()
                 {
                     app.open(path);
                 }
             }
             if widgets::bracket_button(ui, "save as…", None, 0.0).clicked() {
-                if let Some(path) =
-                    rfd::FileDialog::new().add_filter("vidiotic control map", &["vmap"]).save_file()
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("vidiotic control map", &["vmap"])
+                    .save_file()
                 {
                     app.save_as(path);
                 }
@@ -104,19 +106,21 @@ fn value_label(value: EventValue) -> String {
 
 fn monitor_panel(app: &CtlApp, ui: &mut egui::Ui) {
     let p = palette();
-    egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
-        for ev in app.monitor.iter().rev().take(12).rev() {
-            ui.label(
-                egui::RichText::new(format!(
-                    "{}  {}",
-                    source_key(&ev.source),
-                    value_label(ev.value)
-                ))
-                .monospace()
-                .color(p.fg_secondary),
-            );
-        }
-    });
+    egui::ScrollArea::vertical()
+        .stick_to_bottom(true)
+        .show(ui, |ui| {
+            for ev in app.monitor.iter().rev().take(12).rev() {
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{}  {}",
+                        source_key(&ev.source),
+                        value_label(ev.value)
+                    ))
+                    .monospace()
+                    .color(p.fg_secondary),
+                );
+            }
+        });
 }
 
 /// Vim-style mode word: ERROR on a failed op > LEARN while capturing >
@@ -133,8 +137,10 @@ fn mode_word(app: &CtlApp) -> (&'static str, Option<egui::Color32>) {
 }
 
 fn status_summary(app: &CtlApp) -> String {
-    let path =
-        app.path.as_ref().map_or_else(|| "(unsaved)".to_string(), |p| p.display().to_string());
+    let path = app
+        .path
+        .as_ref()
+        .map_or_else(|| "(unsaved)".to_string(), |p| p.display().to_string());
     let dirty = if app.dirty { " · dirty" } else { "" };
     format!("{path} · {} binding(s){dirty}", app.map.bindings.len())
 }

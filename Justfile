@@ -7,10 +7,34 @@ port := "8080"
 default:
     @just --list
 
-# Build both /play and /chop WASM binaries
-build:
-    bash scripts/build-play.sh
-    bash scripts/build-chop.sh
+# Build both /play and /chop WASM binaries (pass --debug for the fast, slow-running build)
+build *args:
+    bash scripts/build-play.sh {{args}}
+    bash scripts/build-chop.sh {{args}}
+
+# Rewrite every source file to rustfmt's defaults
+fmt:
+    cargo fmt --all
+
+# Fail if anything is unformatted. What CI runs.
+fmt-check:
+    cargo fmt --all -- --check
+
+# Lint at the workspace lint tier, tests and examples included
+lint:
+    cargo clippy --workspace --all-targets
+
+# The native test suite
+test:
+    cargo test --workspace
+
+# fmt, lint, test, and the wasm ratchet — the whole gate, locally
+check: fmt-check lint test gate
+
+# Drop build artifacts (cargo's, and the web/native release trees)
+clean:
+    cargo clean
+    rm -rf dist web/pkg web/pkg-chop
 
 # Assemble production web release in dist/web/
 release base="/":

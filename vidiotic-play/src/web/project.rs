@@ -100,7 +100,10 @@ pub fn missing_names(resolved: &project::ResolvedProject) -> Vec<String> {
 /// The ids in a `.viproj` are the project's, and `assemble` rebuilds the pool
 /// with its own; the bytes are keyed by neither. This is the join.
 #[must_use]
-pub fn rekey<T: Clone>(clips: &[crate::clippool::Clip], held: &HashMap<String, T>) -> HashMap<crate::chain::ClipId, T> {
+pub fn rekey<T: Clone>(
+    clips: &[crate::clippool::Clip],
+    held: &HashMap<String, T>,
+) -> HashMap<crate::chain::ClipId, T> {
     let mut out = HashMap::new();
     for clip in clips {
         if let Some(name) = pool_name(&clip.source) {
@@ -149,7 +152,10 @@ mod tests {
 
     #[test]
     fn a_camera_clip_has_no_pool_name() {
-        let cam = ClipSource::Camera { uid: "uid".into(), name: "FaceTime".into() };
+        let cam = ClipSource::Camera {
+            uid: "uid".into(),
+            name: "FaceTime".into(),
+        };
         assert!(pool_name(&cam).is_none());
     }
 }

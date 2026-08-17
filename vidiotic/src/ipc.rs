@@ -87,7 +87,10 @@ pub type ConnId = u64;
 enum IngressMsg {
     /// A new connection, carrying the sender half of its outbox so the engine
     /// can address replies to it.
-    Hello { conn: ConnId, outbox: Sender<String> },
+    Hello {
+        conn: ConnId,
+        outbox: Sender<String>,
+    },
     /// A parsed request line from a connection.
     Line { conn: ConnId, req: Request },
     /// A connection's reader ended (EOF, I/O error, or protocol violation).
@@ -232,7 +235,8 @@ impl Drop for IpcEngine {
 fn update_latest_symlink(latest: &std::path::Path, target: &std::path::Path) {
     let tmp = latest.with_file_name(format!("vidiotic-latest.{}.tmp", std::process::id()));
     let _ = std::fs::remove_file(&tmp);
-    let linked = std::os::unix::fs::symlink(target, &tmp).and_then(|()| std::fs::rename(&tmp, latest));
+    let linked =
+        std::os::unix::fs::symlink(target, &tmp).and_then(|()| std::fs::rename(&tmp, latest));
     if linked.is_err() {
         let _ = std::fs::remove_file(&tmp);
         log::debug!("ipc: could not update {}", latest.display());
@@ -251,11 +255,19 @@ fn accept_loop(listener: &UnixListener, ingress: &Sender<IngressMsg>, epoch: &Ar
         // Queue the greeting before the engine can enqueue any reply, so it is
         // always the connection's first line.
         let _ = out_tx.send(Greeting::new(epoch.load(Ordering::Relaxed)).to_json_line());
-        let Ok(write_half) = stream.try_clone() else { continue };
+        let Ok(write_half) = stream.try_clone() else {
+            continue;
+        };
         let _ = thread::Builder::new()
             .name(format!("ipc-write-{conn}"))
             .spawn(move || writer_loop(write_half, &out_rx));
-        if ingress.send(IngressMsg::Hello { conn, outbox: out_tx }).is_err() {
+        if ingress
+            .send(IngressMsg::Hello {
+                conn,
+                outbox: out_tx,
+            })
+            .is_err()
+        {
             break; // engine gone
         }
         let ingress = ingress.clone();
@@ -273,7 +285,9 @@ fn reader_loop(stream: UnixStream, conn: ConnId, ingress: &Sender<IngressMsg>) {
     let mut reader = BufReader::new(stream);
     loop {
         let mut buf = Vec::new();
-        let read = (&mut reader).take(MAX_LINE_BYTES).read_until(b'\n', &mut buf);
+        let read = (&mut reader)
+            .take(MAX_LINE_BYTES)
+            .read_until(b'\n', &mut buf);
         match read {
             Ok(0) => break, // EOF
             Ok(_) => {}
@@ -312,7 +326,11 @@ fn reader_loop(stream: UnixStream, conn: ConnId, ingress: &Sender<IngressMsg>) {
 /// dropped it, or the reader ended) or the socket errors.
 fn writer_loop(mut stream: UnixStream, outbox: &Receiver<String>) {
     for line in outbox.iter() {
-        if stream.write_all(line.as_bytes()).and_then(|()| stream.write_all(b"\n")).is_err() {
+        if stream
+            .write_all(line.as_bytes())
+            .and_then(|()| stream.write_all(b"\n"))
+            .is_err()
+        {
             break;
         }
     }
@@ -358,18 +376,28 @@ fn to_cue_param(p: WireCueParam) -> CueParam {
     match p {
         WireCueParam::Dwell(t) => CueParam::Dwell(t),
         WireCueParam::Loop(t) => CueParam::Loop(t),
-        WireCueParam::LoopPhase(WireToggleI32 { on, val }) => CueParam::LoopPhase(Toggle { on, val }),
+        WireCueParam::LoopPhase(WireToggleI32 { on, val }) => {
+            CueParam::LoopPhase(Toggle { on, val })
+        }
         WireCueParam::StartNudge(WireToggleF64 { on, val }) => {
             CueParam::StartNudge(Toggle { on, val })
         }
-        WireCueParam::TrigDelay(WireToggleU32 { on, val }) => CueParam::TrigDelay(Toggle { on, val }),
+        WireCueParam::TrigDelay(WireToggleU32 { on, val }) => {
+            CueParam::TrigDelay(Toggle { on, val })
+        }
         // Source tempo must stay finite and positive; the resolver divides by it.
         WireCueParam::Bpm(b) => CueParam::Bpm(b.filter(|v| v.is_finite() && *v > 0.0)),
         WireCueParam::BpmSync(on) => CueParam::BpmSync(on),
         WireCueParam::SpeedMul(WireToggleF64 { on, val }) => CueParam::SpeedMul(Toggle { on, val }),
-        WireCueParam::CamDelay(WireCamDelay { value, beats, quantize }) => {
-            CueParam::CamDelay(CamDelay { value, beats, quantize })
-        }
+        WireCueParam::CamDelay(WireCamDelay {
+            value,
+            beats,
+            quantize,
+        }) => CueParam::CamDelay(CamDelay {
+            value,
+            beats,
+            quantize,
+        }),
     }
 }
 
@@ -429,7 +457,12 @@ pub fn to_command(w: vidiotic_wire::command::WireCommand) -> Command {
         W::SetCueChain(id, chain) => {
             Command::SetCueChain(id, chain.into_iter().map(to_chain).collect())
         }
-        W::SetChainParam { cue, slot, name, value } => Command::SetChainParam {
+        W::SetChainParam {
+            cue,
+            slot,
+            name,
+            value,
+        } => Command::SetChainParam {
             cue,
             slot: slot as usize,
             name: Arc::from(name),
@@ -455,9 +488,10 @@ pub fn to_command(w: vidiotic_wire::command::WireCommand) -> Command {
         W::RefreshCameras => Command::RefreshCameras,
         W::SetCameraOnAir(uid, on) => Command::SetCameraOnAir(Arc::from(uid), on),
         W::AddCameraCue(uid) => Command::AddCameraCue(Arc::from(uid)),
-        W::RelinkCamera { from, to } => {
-            Command::RelinkCamera { from: Arc::from(from), to: Arc::from(to) }
-        }
+        W::RelinkCamera { from, to } => Command::RelinkCamera {
+            from: Arc::from(from),
+            to: Arc::from(to),
+        },
         W::SetShaderPath(path) => Command::SetShaderPath(PathBuf::from(path)),
         W::SetAudioDevice(d) => Command::SetAudioDevice(d),
         W::ToggleFullscreen => Command::ToggleFullscreen,
@@ -493,29 +527,36 @@ pub fn reject_reason(cmd: &Command, m: &UiMirror) -> Option<String> {
         | Command::SetCueOutToPlayhead(id)
         | Command::SetCuePreserve(id, _)
         | Command::SetCueChain(id, _)
-        | Command::SetCueParam(id, _) => {
-            (!cue_exists(*id)).then(|| format!("unknown cue {id}"))
-        }
+        | Command::SetCueParam(id, _) => (!cue_exists(*id)).then(|| format!("unknown cue {id}")),
         Command::SetChainParam { cue, slot, .. } => {
             if !cue_exists(*cue) {
                 return Some(format!("unknown cue {cue}"));
             }
-            let len = m.cues.iter().find(|c| c.id == *cue).map_or(0, |c| c.chain.len());
+            let len = m
+                .cues
+                .iter()
+                .find(|c| c.id == *cue)
+                .map_or(0, |c| c.chain.len());
             (*slot >= len).then(|| format!("chain slot {slot} out of range (len {len})"))
         }
         Command::MoveCue(id, idx) => {
             if !cue_exists(*id) {
                 return Some(format!("unknown cue {id}"));
             }
-            (*idx > m.cues.len()).then(|| format!("cue index {idx} out of range (len {})", m.cues.len()))
+            (*idx > m.cues.len())
+                .then(|| format!("cue index {idx} out of range (len {})", m.cues.len()))
         }
-        Command::SetLiveBank(i) | Command::SetEditBank(i) => {
-            (*i >= m.banks.len()).then(|| format!("bank index {i} out of range (len {})", m.banks.len()))
+        Command::SetLiveBank(i) | Command::SetEditBank(i) => (*i >= m.banks.len())
+            .then(|| format!("bank index {i} out of range (len {})", m.banks.len())),
+        Command::SetActiveClipBank(i) => (*i >= m.clip_banks.len()).then(|| {
+            format!(
+                "clip-bank index {i} out of range (len {})",
+                m.clip_banks.len()
+            )
+        }),
+        Command::RemoveShader(id) => {
+            (!m.shader_pool.iter().any(|s| s.id == *id)).then(|| format!("unknown shader {id}"))
         }
-        Command::SetActiveClipBank(i) => (*i >= m.clip_banks.len())
-            .then(|| format!("clip-bank index {i} out of range (len {})", m.clip_banks.len())),
-        Command::RemoveShader(id) => (!m.shader_pool.iter().any(|s| s.id == *id))
-            .then(|| format!("unknown shader {id}")),
         Command::SaveProject | Command::OpenProjectEditor => m
             .project_path
             .is_none()
@@ -544,7 +585,10 @@ fn w_sync(k: SyncKind) -> WireSyncKind {
 }
 
 fn w_time_sig(t: TimeSig) -> WireTimeSig {
-    WireTimeSig { num: t.num, den: t.den }
+    WireTimeSig {
+        num: t.num,
+        den: t.den,
+    }
 }
 
 fn w_cadence(c: Cadence) -> WireCadence {
@@ -555,17 +599,30 @@ fn w_cadence(c: Cadence) -> WireCadence {
 }
 
 fn w_toggle_i32(t: Toggle<i32>) -> WireToggleI32 {
-    WireToggleI32 { on: t.on, val: t.val }
+    WireToggleI32 {
+        on: t.on,
+        val: t.val,
+    }
 }
 fn w_toggle_f64(t: Toggle<f64>) -> WireToggleF64 {
-    WireToggleF64 { on: t.on, val: t.val }
+    WireToggleF64 {
+        on: t.on,
+        val: t.val,
+    }
 }
 fn w_toggle_u32(t: Toggle<u32>) -> WireToggleU32 {
-    WireToggleU32 { on: t.on, val: t.val }
+    WireToggleU32 {
+        on: t.on,
+        val: t.val,
+    }
 }
 
 fn w_cam_delay(d: CamDelay) -> WireCamDelay {
-    WireCamDelay { value: d.value, beats: d.beats, quantize: d.quantize }
+    WireCamDelay {
+        value: d.value,
+        beats: d.beats,
+        quantize: d.quantize,
+    }
 }
 
 fn w_chain(slot: &ChainSlot) -> WireChainSlot {
@@ -579,7 +636,10 @@ fn w_chain(slot: &ChainSlot) -> WireChainSlot {
         params: slot
             .params
             .iter()
-            .map(|(name, value)| WireParam { name: name.to_string(), value: value.clone() })
+            .map(|(name, value)| WireParam {
+                name: name.to_string(),
+                value: value.clone(),
+            })
             .collect(),
     }
 }
@@ -654,7 +714,10 @@ pub fn build_reply(query: &WireQuery, m: &UiMirror, epoch: u64) -> WireReply {
             clip_banks: m
                 .clip_banks
                 .iter()
-                .map(|b| WireClipBankView { name: b.name.to_string(), clip_count: b.clip_count as u64 })
+                .map(|b| WireClipBankView {
+                    name: b.name.to_string(),
+                    clip_count: b.clip_count as u64,
+                })
                 .collect(),
             active_clip_bank: m.active_clip_bank as u64,
             clips: m.clips.iter().map(w_clip).collect(),
@@ -677,7 +740,10 @@ pub fn build_reply(query: &WireQuery, m: &UiMirror, epoch: u64) -> WireReply {
             banks: m
                 .banks
                 .iter()
-                .map(|b| WireBankView { name: b.name.to_string(), cue_count: b.cue_count as u64 })
+                .map(|b| WireBankView {
+                    name: b.name.to_string(),
+                    cue_count: b.cue_count as u64,
+                })
                 .collect(),
             live_bank: m.live_bank as u64,
             edit_bank: m.edit_bank as u64,
@@ -791,8 +857,17 @@ mod tests {
         assert_eq!(greeting.vidiotic.epoch, 7);
         assert_eq!(greeting.vidiotic.wire, vidiotic_wire::WIRE_VERSION);
 
-        let req = Request { id: 42, epoch: None, req: ReqBody::Get(WireQuery::Status) };
-        writeln!(&mut { client.try_clone().unwrap() }, "{}", req.to_json_line()).unwrap();
+        let req = Request {
+            id: 42,
+            epoch: None,
+            req: ReqBody::Get(WireQuery::Status),
+        };
+        writeln!(
+            &mut { client.try_clone().unwrap() },
+            "{}",
+            req.to_json_line()
+        )
+        .unwrap();
 
         // Drive the engine the way the tick does, until the request lands.
         let mirror = UiMirror::default();
@@ -808,7 +883,14 @@ mod tests {
             let e = epoch.load(Ordering::Relaxed);
             for (conn, id, q) in engine.take_parked() {
                 let reply = build_reply(&q, &mirror, e);
-                engine.send(conn, &Reply { id, epoch: e, result: ReplyResult::Ok(reply) });
+                engine.send(
+                    conn,
+                    &Reply {
+                        id,
+                        epoch: e,
+                        result: ReplyResult::Ok(reply),
+                    },
+                );
                 answered = true;
             }
             std::thread::sleep(Duration::from_millis(2));
@@ -820,7 +902,10 @@ mod tests {
         let reply = Reply::from_json_line(line.trim()).unwrap();
         assert_eq!(reply.id, 42);
         assert_eq!(reply.epoch, 7);
-        assert!(matches!(reply.result, ReplyResult::Ok(WireReply::Status(_))), "{reply:?}");
+        assert!(
+            matches!(reply.result, ReplyResult::Ok(WireReply::Status(_))),
+            "{reply:?}"
+        );
     }
 
     /// Every `WireCommand` translates to *some* `Command` without panicking,
@@ -833,10 +918,24 @@ mod tests {
             WireCommand::SetBpm(120.0),
             WireCommand::TapTempo,
             WireCommand::SetPhraseCadence(WireCadence::Bars(u32::MAX)),
-            WireCommand::SetCueChain(1, vec![WireChainSlot { shader: WireSlotRef::Live, params: vec![] }]),
-            WireCommand::SetChainParam { cue: 1, slot: 3, name: "x".into(), value: WireIsfValue::Float(0.5) },
+            WireCommand::SetCueChain(
+                1,
+                vec![WireChainSlot {
+                    shader: WireSlotRef::Live,
+                    params: vec![],
+                }],
+            ),
+            WireCommand::SetChainParam {
+                cue: 1,
+                slot: 3,
+                name: "x".into(),
+                value: WireIsfValue::Float(0.5),
+            },
             WireCommand::SetCueParam(1, WireCueParam::Bpm(Some(f64::INFINITY))),
-            WireCommand::RelinkCamera { from: "a".into(), to: "b".into() },
+            WireCommand::RelinkCamera {
+                from: "a".into(),
+                to: "b".into(),
+            },
             WireCommand::Quit,
         ];
         for s in samples {
@@ -854,7 +953,10 @@ mod tests {
 
     #[test]
     fn cue_bpm_infinite_is_cleared() {
-        match to_command(WireCommand::SetCueParam(1, WireCueParam::Bpm(Some(f64::INFINITY)))) {
+        match to_command(WireCommand::SetCueParam(
+            1,
+            WireCueParam::Bpm(Some(f64::INFINITY)),
+        )) {
             Command::SetCueParam(_, CueParam::Bpm(b)) => assert_eq!(b, None),
             other => panic!("{other:?}"),
         }

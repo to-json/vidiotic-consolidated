@@ -220,7 +220,8 @@ fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
         vidiotic_bake::hap::HapTextureFormat::Bc1 => {
             texpresso::Format::Bc1.decompress(&main_buf, src_w, src_h, &mut rgba);
         }
-        vidiotic_bake::hap::HapTextureFormat::Bc3 | vidiotic_bake::hap::HapTextureFormat::Bc3YCoCg => {
+        vidiotic_bake::hap::HapTextureFormat::Bc3
+        | vidiotic_bake::hap::HapTextureFormat::Bc3YCoCg => {
             texpresso::Format::Bc3.decompress(&main_buf, src_w, src_h, &mut rgba);
         }
         _ => return None,
@@ -249,22 +250,30 @@ fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
 }
 
 #[wasm_bindgen]
-pub fn deliver_thumbnail(clip_name: &str, width: u32, height: u32, rgba: &[u8]) -> Result<(), JsValue> {
+pub fn deliver_thumbnail(
+    clip_name: &str,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> Result<(), JsValue> {
     if width == 0 || height == 0 || rgba.len() != (width * height * 4) as usize {
-        return Err(JsValue::from_str("invalid thumbnail dimensions or buffer length"));
+        return Err(JsValue::from_str(
+            "invalid thumbnail dimensions or buffer length",
+        ));
     }
     with_shell(|s| {
-        let clip_id = s.mirror.clips.iter().find(|c| c.name.as_ref() == clip_name).map(|c| c.id);
+        let clip_id = s
+            .mirror
+            .clips
+            .iter()
+            .find(|c| c.name.as_ref() == clip_name)
+            .map(|c| c.id);
         if let Some(id) = clip_id {
-            let img = egui::ColorImage::from_rgba_unmultiplied(
-                [width as usize, height as usize],
-                rgba,
-            );
-            let handle = s.egui_ctx.load_texture(
-                format!("thumb:{id}"),
-                img,
-                egui::TextureOptions::LINEAR,
-            );
+            let img =
+                egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], rgba);
+            let handle =
+                s.egui_ctx
+                    .load_texture(format!("thumb:{id}"), img, egui::TextureOptions::LINEAR);
             s.thumbs.insert(id, handle);
         }
         Ok(())
@@ -289,19 +298,28 @@ impl Shell {
 
         if tick.blank {
             let black = DecodedFrame {
-                pixels: PixelData::Rgba { data: vec![0; 16], stride: 8 },
+                pixels: PixelData::Rgba {
+                    data: vec![0; 16],
+                    stride: 8,
+                },
                 w: 2,
                 h: 2,
                 pts_sec: 0.0,
             };
-            self.renderer.upload_frame(&self.gfx.device, &self.gfx.queue, &black);
+            self.renderer
+                .upload_frame(&self.gfx.device, &self.gfx.queue, &black);
         }
         if let Some(f) = &tick.frame {
-            self.renderer.upload_frame(&self.gfx.device, &self.gfx.queue, f);
+            self.renderer
+                .upload_frame(&self.gfx.device, &self.gfx.queue, f);
         }
         // A cue's own chain wins; the panel's choice stands in when nothing is
         // cued, so the effect list is live on an empty pool too.
-        let chain = if tick.chain.is_empty() { self.effect_chain() } else { tick.chain };
+        let chain = if tick.chain.is_empty() {
+            self.effect_chain()
+        } else {
+            tick.chain
+        };
         self.renderer.set_active_chain(chain);
 
         self.paint(&tick.snap);
@@ -360,7 +378,10 @@ impl Shell {
     fn handle_key(&mut self, k: &input::KeyPress) {
         if k.plain() && !k.repeat {
             if let Some(input) = grammar::token_of_key(&k.canon) {
-                match self.engine.grammar.step(grammar::pane_table(self.engine.focused_pane), input)
+                match self
+                    .engine
+                    .grammar
+                    .step(grammar::pane_table(self.engine.focused_pane), input)
                 {
                     Step::Verb(v) => {
                         self.engine.apply_verb(v);
@@ -477,7 +498,8 @@ impl Shell {
         };
         globals.set_bands(&audio.bands);
         self.renderer.update_globals(&self.gfx.queue, &globals);
-        self.renderer.upload_audio(&self.gfx.queue, &audio.audio_tex);
+        self.renderer
+            .upload_audio(&self.gfx.queue, &audio.audio_tex);
 
         let ui = self.build_ui(snap);
 
@@ -491,7 +513,9 @@ impl Shell {
         // --- output head: video through the composite pass ---
         let out_frame = self.gfx.output.acquire(&self.gfx.device);
         if let Some(f) = &out_frame {
-            let view = f.texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let view = f
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
             self.renderer.render(
                 &self.gfx.device,
                 &self.gfx.queue,
@@ -506,9 +530,14 @@ impl Shell {
         let ctl_frame = self.gfx.control.acquire(&self.gfx.device);
         let mut ui_bufs = Vec::new();
         if let Some(f) = &ctl_frame {
-            let view = f.texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let view = f
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
             let sd = egui_wgpu::ScreenDescriptor {
-                size_in_pixels: [self.gfx.control.config.width, self.gfx.control.config.height],
+                size_in_pixels: [
+                    self.gfx.control.config.width,
+                    self.gfx.control.config.height,
+                ],
                 pixels_per_point: ui.pixels_per_point,
             };
             for (id, delta) in &ui.textures_delta.set {
@@ -882,10 +911,12 @@ impl Shell {
     fn build_camera_rows(&mut self) {
         let devices = camera_device_pairs(&self.camera_devices);
         let taps = self.taps.borrow();
-        self.mirror.cameras = self.engine.camera_rows(&devices, |uid| match taps.get(uid) {
-            Some(t) => (true, t.status.clone()),
-            None => (false, "off air".into()),
-        });
+        self.mirror.cameras = self
+            .engine
+            .camera_rows(&devices, |uid| match taps.get(uid) {
+                Some(t) => (true, t.status.clone()),
+                None => (false, "off air".into()),
+            });
     }
 
     /// Save the session: build the bundle and hand it to the page.
@@ -915,8 +946,10 @@ impl Shell {
                 return;
             }
         };
-        self.status =
-            format!("saved {name}.zip — {clips} clip(s), {} KiB", archive.len() / 1024);
+        self.status = format!(
+            "saved {name}.zip — {clips} clip(s), {} KiB",
+            archive.len() / 1024
+        );
         log::info!("{}", self.status);
         deliver_file(&format!("{name}.zip"), &archive);
     }
@@ -974,8 +1007,7 @@ impl Shell {
         let fs = project::PoolFs::new(held.keys().cloned().collect());
         // An empty project dir: every stored path is compared by file name, so
         // there is no directory for a relative one to hang off.
-        let resolved =
-            vidiotic_core::project::resolve_with(parsed, std::path::Path::new(""), &fs);
+        let resolved = vidiotic_core::project::resolve_with(parsed, std::path::Path::new(""), &fs);
         if !resolved.missing.is_empty() {
             let names = project::missing_names(&resolved);
             return Err(format!(
@@ -1042,23 +1074,22 @@ impl Shell {
         if asm.shader.is_some() {
             log::info!("the project names a shader, which a browser cannot resolve by path");
         }
-        Ok(format!("loaded {clips} clip(s), {cues} cue(s) in {banks} bank(s)"))
+        Ok(format!(
+            "loaded {clips} clip(s), {cues} cue(s) in {banks} bank(s)"
+        ))
     }
 
     fn load_isf_source(&mut self, name: &str, src: &str) -> Result<(), String> {
         let name: std::sync::Arc<str> = name.into();
         self.renderer
-            .load_isf(
-                &self.gfx.device,
-                &self.gfx.queue,
-                name.clone(),
-                src,
-                &|p| anyhow::bail!("no IMPORTED images in the browser: {}", p.display()),
-            )
+            .load_isf(&self.gfx.device, &self.gfx.queue, name.clone(), src, &|p| {
+                anyhow::bail!("no IMPORTED images in the browser: {}", p.display())
+            })
             .map_err(|e| format!("{name}: {e}"))?;
         if let Some(cue) = self.engine.selected_cue {
-            self.engine
-                .edit_cue(cue, |c| c.chain.push(ChainSlot::new(SlotRef::Isf(name.clone()))));
+            self.engine.edit_cue(cue, |c| {
+                c.chain.push(ChainSlot::new(SlotRef::Isf(name.clone())))
+            });
             self.status = format!("loaded {name}");
         } else {
             self.status = format!("loaded {name} into the pool — select a cue to use it");
@@ -1159,7 +1190,9 @@ pub async fn boot(
     // Keys go on the document, not the canvas: a canvas is not focusable by
     // default, so a canvas-scoped listener would only fire after a click and
     // would go silent again the moment focus moved to the file input.
-    let doc = window().document().ok_or_else(|| JsValue::from_str("no document"))?;
+    let doc = window()
+        .document()
+        .ok_or_else(|| JsValue::from_str("no document"))?;
     input::attach_keys(doc.as_ref(), &q)?;
 
     // No BC means the block texture cannot exist on this device, so the CPU
@@ -1253,10 +1286,9 @@ fn request_frame(cb: &Closure<dyn FnMut()>) {
         return;
     }
     log::warn!("requestAnimationFrame was refused; falling back to a timer for this frame");
-    if let Err(e) = window().set_timeout_with_callback_and_timeout_and_arguments_0(
-        cb.as_ref().unchecked_ref(),
-        16,
-    ) {
+    if let Err(e) = window()
+        .set_timeout_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 16)
+    {
         log::error!("could not schedule the next frame at all: {e:?}");
     }
 }
@@ -1350,7 +1382,9 @@ fn deliver_file(name: &str, bytes: &[u8]) {
 fn with_shell<T>(f: impl FnOnce(&mut Shell) -> Result<T, JsValue>) -> Result<T, JsValue> {
     SHELL.with(|e| {
         let mut slot = e.borrow_mut();
-        let shell = slot.as_mut().ok_or_else(|| JsValue::from_str("not booted"))?;
+        let shell = slot
+            .as_mut()
+            .ok_or_else(|| JsValue::from_str("not booted"))?;
         f(shell)
     })
 }
@@ -1393,18 +1427,16 @@ pub fn load_clip(name: &str, bytes: Vec<u8>) -> Result<(), JsValue> {
 /// and "project failed to load" is not.
 #[wasm_bindgen]
 pub fn load_project(text: &str) -> Result<String, JsValue> {
-    with_shell(|s| {
-        match s.load_project(text) {
-            Ok(summary) => {
-                s.status.clone_from(&summary);
-                log::info!("{summary}");
-                Ok(summary)
-            }
-            Err(msg) => {
-                s.status.clone_from(&msg);
-                log::error!("{msg}");
-                Err(JsValue::from_str(&msg))
-            }
+    with_shell(|s| match s.load_project(text) {
+        Ok(summary) => {
+            s.status.clone_from(&summary);
+            log::info!("{summary}");
+            Ok(summary)
+        }
+        Err(msg) => {
+            s.status.clone_from(&msg);
+            log::error!("{msg}");
+            Err(JsValue::from_str(&msg))
         }
     })
 }
@@ -1456,7 +1488,9 @@ pub fn add_camera_cue(uid: &str) -> Result<(), JsValue> {
 #[wasm_bindgen]
 pub fn set_cameras(uids: Vec<String>, names: Vec<String>) -> Result<(), JsValue> {
     if uids.len() != names.len() {
-        return Err(JsValue::from_str("camera uid and name lists differ in length"));
+        return Err(JsValue::from_str(
+            "camera uid and name lists differ in length",
+        ));
     }
     with_shell(|s| {
         s.camera_devices = uids
@@ -1708,7 +1742,9 @@ pub fn engine_state() -> Result<String, JsValue> {
         let last_verb = g
             .last_verb
             .map_or_else(|| "null".to_owned(), |v| format!("\"{v}\""));
-        let effect = s.effect.map_or_else(|| "null".to_owned(), |i| i.to_string());
+        let effect = s
+            .effect
+            .map_or_else(|| "null".to_owned(), |i| i.to_string());
         // `clip` is what tells a restored session apart from a fresh one: the
         // page has no other way to ask whether the bytes it pulled out of OPFS
         // actually became a playing clip.

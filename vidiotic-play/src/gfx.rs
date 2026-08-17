@@ -154,9 +154,8 @@ impl WindowSurface {
     /// skip this frame (no drawable, or the surface was just rebuilt).
     pub fn acquire(&self, device: &wgpu::Device) -> Option<wgpu::SurfaceTexture> {
         match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => {
-                Some(t)
-            }
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Some(t),
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 self.surface.configure(device, &self.config);
                 None

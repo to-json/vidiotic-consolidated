@@ -50,9 +50,15 @@ const FIXED_ONE_2_30: u32 = 0x4000_0000;
 
 /// Identity transformation matrix, as `tkhd` and `mvhd` both want it.
 const IDENTITY_MATRIX: [u32; 9] = [
-    FIXED_ONE, 0, 0, //
-    0, FIXED_ONE, 0, //
-    0, 0, FIXED_ONE_2_30,
+    FIXED_ONE,
+    0,
+    0, //
+    0,
+    FIXED_ONE,
+    0, //
+    0,
+    0,
+    FIXED_ONE_2_30,
 ];
 
 /// One written sample: where it landed, how big it was, and when it shows.
@@ -329,7 +335,7 @@ impl<W: Write + Seek> MovWriter<W> {
         m.extend_from_slice(&0x0048_0000u32.to_be_bytes()); // vert resolution 72 dpi
         m.extend_from_slice(&0u32.to_be_bytes()); // data size
         m.extend_from_slice(&1u16.to_be_bytes()); // frame count per sample
-        // Compressor name: a 32-byte Pascal string (length byte + padding).
+                                                  // Compressor name: a 32-byte Pascal string (length byte + padding).
         let name = b"HAP";
         m.push(name.len() as u8);
         m.extend_from_slice(name);
@@ -467,7 +473,11 @@ impl std::fmt::Display for MovErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Truncated { kind } => {
-                write!(f, "box '{}' runs past its parent", String::from_utf8_lossy(kind))
+                write!(
+                    f,
+                    "box '{}' runs past its parent",
+                    String::from_utf8_lossy(kind)
+                )
             }
             Self::Missing(b) => write!(f, "required box '{b}' is missing"),
             Self::Short(b) => write!(f, "box '{b}' is too short"),
@@ -696,11 +706,16 @@ pub fn demux(data: &[u8]) -> Result<MovTrack, MovErr> {
     let height = u32::from(be16(entry, 26).ok_or(MovErr::Short("stsd"))?);
 
     let sizes = read_stsz(pick(&stbl, b"stsz").ok_or(MovErr::Missing("stsz"))?)?;
-    let times = read_stts(pick(&stbl, b"stts").ok_or(MovErr::Missing("stts"))?, sizes.len())?;
+    let times = read_stts(
+        pick(&stbl, b"stts").ok_or(MovErr::Missing("stts"))?,
+        sizes.len(),
+    )?;
     let offsets = read_offsets(&stbl, &sizes)?;
 
     if times.len() != sizes.len() || offsets.len() != sizes.len() {
-        return Err(MovErr::BadTables("stts/stsz/chunk maps cover different counts"));
+        return Err(MovErr::BadTables(
+            "stts/stsz/chunk maps cover different counts",
+        ));
     }
 
     let mut samples = Vec::with_capacity(sizes.len());
@@ -865,9 +880,9 @@ mod tests {
     // these same tests run unmodified under `wasm-bindgen-test` (web-port.md §7a).
     // Nothing else changes, which is the point — the wasm run must exercise the
     // same assertions, not a parallel copy of them.
+    use std::io::Cursor;
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
-    use std::io::Cursor;
 
     /// Walk the top-level boxes, yielding (type, payload range).
     fn top_level(buf: &[u8]) -> Vec<([u8; 4], usize, u64)> {
@@ -911,7 +926,10 @@ mod tests {
                 } else {
                     (size as usize, 8)
                 };
-                assert!(len >= hdr, "box {kind:?} claims {len} bytes — not a box tree");
+                assert!(
+                    len >= hdr,
+                    "box {kind:?} claims {len} bytes — not a box tree"
+                );
                 if &kind == *want {
                     region = &region[p + hdr..p + len];
                     break;
@@ -992,9 +1010,21 @@ mod tests {
         let f = [0u8; 8];
         let buf = write_clip(&[(&f, 0), (&f, 40), (&f, 80), (&f, 120)]);
         let stts = find(&buf, &stbl_path(b"stts"));
-        assert_eq!(u32::from_be_bytes(stts[4..8].try_into().unwrap()), 1, "entry count");
-        assert_eq!(u32::from_be_bytes(stts[8..12].try_into().unwrap()), 4, "sample count");
-        assert_eq!(u32::from_be_bytes(stts[12..16].try_into().unwrap()), 40, "duration");
+        assert_eq!(
+            u32::from_be_bytes(stts[4..8].try_into().unwrap()),
+            1,
+            "entry count"
+        );
+        assert_eq!(
+            u32::from_be_bytes(stts[8..12].try_into().unwrap()),
+            4,
+            "sample count"
+        );
+        assert_eq!(
+            u32::from_be_bytes(stts[12..16].try_into().unwrap()),
+            40,
+            "duration"
+        );
     }
 
     #[test]
@@ -1129,7 +1159,13 @@ mod tests {
     ///
     /// `chunks` is (chunk payload sizes) — each chunk holds `per_chunk` samples
     /// of `size` bytes, packed contiguously.
-    fn synth(per_chunk: usize, chunks: usize, size: u32, uniform_stsz: bool, use_co64: bool) -> Vec<u8> {
+    fn synth(
+        per_chunk: usize,
+        chunks: usize,
+        size: u32,
+        uniform_stsz: bool,
+        use_co64: bool,
+    ) -> Vec<u8> {
         let n = per_chunk * chunks;
         let mut f = Vec::new();
 
@@ -1146,7 +1182,10 @@ mod tests {
         for c in 0..chunks {
             chunk_offsets.push(f.len() as u64);
             for s in 0..per_chunk {
-                f.extend(std::iter::repeat_n((c * per_chunk + s) as u8, size as usize));
+                f.extend(std::iter::repeat_n(
+                    (c * per_chunk + s) as u8,
+                    size as usize,
+                ));
             }
         }
         close(&mut f, mdat);
@@ -1248,7 +1287,10 @@ mod tests {
         for i in 0..12 {
             let d = t.sample_data(&buf, i).unwrap();
             assert_eq!(d.len(), 32);
-            assert!(d.iter().all(|&b| b == i as u8), "sample {i} read wrong bytes");
+            assert!(
+                d.iter().all(|&b| b == i as u8),
+                "sample {i} read wrong bytes"
+            );
         }
     }
 
@@ -1259,7 +1301,11 @@ mod tests {
         assert_eq!(t.samples.len(), 6);
         assert!(t.samples.iter().all(|s| s.size == 48));
         for i in 0..6 {
-            assert!(t.sample_data(&buf, i).unwrap().iter().all(|&b| b == i as u8));
+            assert!(t
+                .sample_data(&buf, i)
+                .unwrap()
+                .iter()
+                .all(|&b| b == i as u8));
         }
     }
 
@@ -1269,7 +1315,11 @@ mod tests {
         let t = demux(&buf).unwrap();
         assert_eq!(t.samples.len(), 6);
         for i in 0..6 {
-            assert!(t.sample_data(&buf, i).unwrap().iter().all(|&b| b == i as u8));
+            assert!(t
+                .sample_data(&buf, i)
+                .unwrap()
+                .iter()
+                .all(|&b| b == i as u8));
         }
     }
 

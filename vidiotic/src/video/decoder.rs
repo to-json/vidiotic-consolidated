@@ -56,12 +56,24 @@ pub fn spawn(
     speed: f64,
 ) -> anyhow::Result<DecodeHandle> {
     ff::init()?;
-    let speed = if speed.is_finite() && speed > 0.0 { speed } else { 1.0 };
+    let speed = if speed.is_finite() && speed > 0.0 {
+        speed
+    } else {
+        1.0
+    };
     let (frame_tx, frames) = bounded::<DecodedFrame>(3);
     let (close_tx, close_rx) = bounded::<()>(1);
     let (restart_tx, restart_rx) = bounded::<()>(1);
     let join = std::thread::spawn(move || {
-        if let Err(e) = run(&path, &frame_tx, &close_rx, &restart_rx, in_sec, out_sec, speed) {
+        if let Err(e) = run(
+            &path,
+            &frame_tx,
+            &close_rx,
+            &restart_rx,
+            in_sec,
+            out_sec,
+            speed,
+        ) {
             log::error!("decode worker for {}: {e:#}", path.display());
         }
     });
@@ -74,7 +86,10 @@ pub fn spawn(
 }
 
 fn should_stop(close_rx: &Receiver<()>) -> bool {
-    !matches!(close_rx.try_recv(), Err(crossbeam_channel::TryRecvError::Empty))
+    !matches!(
+        close_rx.try_recv(),
+        Err(crossbeam_channel::TryRecvError::Empty)
+    )
 }
 
 /// Drain any pending restart requests; true if at least one was waiting.
@@ -165,8 +180,18 @@ fn run(
             std::str::from_utf8(&fourcc).unwrap_or("?")
         );
         run_hap(
-            &mut ictx, tx, close_rx, restart_rx, vid_idx, tb, width, height, texture_count,
-            in_sec, out_sec, speed,
+            &mut ictx,
+            tx,
+            close_rx,
+            restart_rx,
+            vid_idx,
+            tb,
+            width,
+            height,
+            texture_count,
+            in_sec,
+            out_sec,
+            speed,
         )
     } else {
         log::info!(
@@ -363,11 +388,11 @@ fn run_software(
     )?;
 
     let send_rgba = |decoded: &ff::frame::Video,
-                         scaler: &mut scaling::Context,
-                         base: Instant,
-                         first_pts: &mut Option<f64>,
-                         pts: f64,
-                         pace_it: bool|
+                     scaler: &mut scaling::Context,
+                     base: Instant,
+                     first_pts: &mut Option<f64>,
+                     pts: f64,
+                     pace_it: bool|
      -> anyhow::Result<bool> {
         if pace_it {
             pace(base, first_pts, pts, speed);

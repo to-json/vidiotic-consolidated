@@ -95,14 +95,15 @@ fn top_bar(ed: &mut Editor, ui: &mut egui::Ui) {
         });
         if let Some(status) = &ed.status {
             // Errors persist; plain status fades out after a few seconds.
-            let visible = ed.status_is_error
-                || ed.status_at.is_none_or(|t| t.elapsed().as_secs_f32() < 6.0);
+            let visible =
+                ed.status_is_error || ed.status_at.is_none_or(|t| t.elapsed().as_secs_f32() < 6.0);
             if visible {
                 let color = if ed.status_is_error {
                     p.error
                 } else {
                     // Keep repainting so the fade actually happens without input.
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(500));
                     p.fg_muted
                 };
                 ui.colored_label(color, status);
@@ -119,7 +120,9 @@ fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
     }
 
     let selected_idx = ed.spans.selected;
-    let span_crop = selected_idx.and_then(|idx| ed.spans.spans.get(idx)).and_then(|s| s.crop);
+    let span_crop = selected_idx
+        .and_then(|idx| ed.spans.spans.get(idx))
+        .and_then(|s| s.crop);
     let active_crop = span_crop.or(ed.pending_crop);
 
     let p = palette();
@@ -159,7 +162,9 @@ fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
         let Some(tex) = &m.preview else { return };
         let avail = ui.available_size();
         let tex_size = tex.size_vec2();
-        let scale = (avail.x / tex_size.x).min(avail.y / tex_size.y).clamp(0.05, 1.0);
+        let scale = (avail.x / tex_size.x)
+            .min(avail.y / tex_size.y)
+            .clamp(0.05, 1.0);
         let render_size = tex_size * scale;
 
         let image_widget = if let Some(crop) = active_crop {
@@ -167,7 +172,9 @@ fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
                 egui::pos2(crop.x as f32, crop.y as f32),
                 egui::pos2((crop.x + crop.w) as f32, (crop.y + crop.h) as f32),
             );
-            egui::Image::new((tex.id(), render_size)).uv(uv).sense(egui::Sense::drag())
+            egui::Image::new((tex.id(), render_size))
+                .uv(uv)
+                .sense(egui::Sense::drag())
         } else {
             egui::Image::new((tex.id(), render_size)).sense(egui::Sense::drag())
         };
@@ -181,7 +188,8 @@ fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
             let drag_rect = egui::Rect::from_two_pos(press_pos, pointer_pos).intersect(rect);
 
             if drag_rect.width() > 6.0 && drag_rect.height() > 6.0 {
-                ui.painter().rect_filled(drag_rect, 0.0, p.accent.linear_multiply(0.2));
+                ui.painter()
+                    .rect_filled(drag_rect, 0.0, p.accent.linear_multiply(0.2));
                 ui.painter().rect_stroke(
                     drag_rect,
                     0.0,
@@ -222,12 +230,14 @@ fn central(ed: &mut Editor, m: &PrepMirror, ui: &mut egui::Ui) {
                 let norm_w = rel_w * base_w;
                 let norm_h = rel_h * base_h;
 
-                let new_crop = vidiotic_core::project::CropRect::normalized(
-                    norm_x, norm_y, norm_w, norm_h,
-                );
+                let new_crop =
+                    vidiotic_core::project::CropRect::normalized(norm_x, norm_y, norm_w, norm_h);
 
                 if let Some(idx) = selected_idx {
-                    ed.post(Command::SetSpanCrop { idx, crop: Some(new_crop) });
+                    ed.post(Command::SetSpanCrop {
+                        idx,
+                        crop: Some(new_crop),
+                    });
                 } else {
                     ed.pending_crop = Some(new_crop);
                 }
@@ -262,7 +272,10 @@ fn transport_controls(ed: &mut Editor, ui: &mut egui::Ui) {
         ui.label(format!("t = {:.3}s", ed.cur_frame as f64 / fps));
         ui.label("frame");
         let mut frame_val = ed.cur_frame;
-        if ui.add(egui::DragValue::new(&mut frame_val).range(0..=max)).changed() {
+        if ui
+            .add(egui::DragValue::new(&mut frame_val).range(0..=max))
+            .changed()
+        {
             ed.post(Command::Pause);
             ed.post(Command::Seek(frame_val));
         }
@@ -273,7 +286,11 @@ fn transport_controls(ed: &mut Editor, ui: &mut egui::Ui) {
 
     ui.horizontal_wrapped(|ui| {
         let p = palette();
-        let play_label = if ed.playing() { icon::PAUSE } else { icon::PLAY };
+        let play_label = if ed.playing() {
+            icon::PAUSE
+        } else {
+            icon::PLAY
+        };
         if widgets::bracket_button(ui, play_label, Some(p.playing), 0.0)
             .on_hover_text("play/pause (space) · shift+space plays from in · J/K/L shuttle")
             .clicked()
@@ -298,10 +315,16 @@ fn transport_controls(ed: &mut Editor, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         widgets::wrap_unit(ui, "zoom_unit", |ui| {
             widgets::section_label(ui, "zoom");
-            if widgets::bracket_button(ui, icon::ZOOM_OUT, None, 0.0).on_hover_text("zoom out").clicked() {
+            if widgets::bracket_button(ui, icon::ZOOM_OUT, None, 0.0)
+                .on_hover_text("zoom out")
+                .clicked()
+            {
                 ed.post(Command::ZoomView(2.0));
             }
-            if widgets::bracket_button(ui, icon::ZOOM_IN, None, 0.0).on_hover_text("zoom in").clicked() {
+            if widgets::bracket_button(ui, icon::ZOOM_IN, None, 0.0)
+                .on_hover_text("zoom in")
+                .clicked()
+            {
                 ed.post(Command::ZoomView(0.5));
             }
             if widgets::bracket_button(ui, icon::FIT, None, 0.0)
@@ -372,12 +395,19 @@ fn transport_controls(ed: &mut Editor, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         // Tier 2: ephemeral UI state, mutated directly. Undo must not see it,
         // so routing it through a command would be ceremony for nothing.
-        ui.add(egui::DragValue::new(&mut ed.snap_beats).range(0.25..=256.0).speed(0.25));
+        ui.add(
+            egui::DragValue::new(&mut ed.snap_beats)
+                .range(0.25..=256.0)
+                .speed(0.25),
+        );
         let hover = format!(
             "set out = in + {} beats @ {:.1} bpm (session bpm)",
             ed.snap_beats, ed.defaults.bpm
         );
-        if widgets::bracket_button(ui, "snap out", None, 0.0).on_hover_text(hover).clicked() {
+        if widgets::bracket_button(ui, "snap out", None, 0.0)
+            .on_hover_text(hover)
+            .clicked()
+        {
             ed.post(Command::SnapOut);
         }
     });
@@ -417,7 +447,11 @@ fn statusline_bar(ed: &Editor, m: &PrepMirror, ui: &mut egui::Ui) {
             ed.defaults.bpm,
         )
     } else {
-        format!("{name}   {} span(s) · {:.1} bpm", ed.spans.spans.len(), ed.defaults.bpm)
+        format!(
+            "{name}   {} span(s) · {:.1} bpm",
+            ed.spans.spans.len(),
+            ed.defaults.bpm
+        )
     };
     widgets::statusline(ui, mode_word(ed, m), &summary);
 }
@@ -471,7 +505,10 @@ fn span_list(ed: &mut Editor, ui: &mut egui::Ui) {
             // painted, so read back last pass's response (egui replays widget
             // rects from the previous pass) via `ctx.read_response`.
             let hover_id = ui.make_persistent_id("row_hover");
-            let hovered = ui.ctx().read_response(hover_id).is_some_and(|r| r.hovered());
+            let hovered = ui
+                .ctx()
+                .read_response(hover_id)
+                .is_some_and(|r| r.hovered());
             let border = if is_sel {
                 p.accent
             } else if hovered {
@@ -602,15 +639,18 @@ fn span_list(ed: &mut Editor, ui: &mut egui::Ui) {
                         if let Some(current) = span.bpm {
                             let mut bpm = current;
                             if ui
-                                .add(egui::DragValue::new(&mut bpm).range(20.0..=300.0).speed(0.5))
+                                .add(
+                                    egui::DragValue::new(&mut bpm)
+                                        .range(20.0..=300.0)
+                                        .speed(0.5),
+                                )
                                 .changed()
                             {
                                 actions.push(Command::SetSpanBpm(i, Some(bpm)));
                             }
                         }
                         widgets::section_label(ui, "bank");
-                        let labels: Vec<&str> =
-                            bank_names.iter().map(String::as_str).collect();
+                        let labels: Vec<&str> = bank_names.iter().map(String::as_str).collect();
                         if let Some(bi) =
                             widgets::segmented(ui, ("bank", i), &labels, Some(span.clip_bank))
                         {
@@ -652,7 +692,10 @@ fn bank_editor(ed: &mut Editor, ui: &mut egui::Ui) {
     for (i, name) in ed.bank_names.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut edited = name.clone();
-            if ui.add(egui::TextEdit::singleline(&mut edited).desired_width(160.0)).changed() {
+            if ui
+                .add(egui::TextEdit::singleline(&mut edited).desired_width(160.0))
+                .changed()
+            {
                 actions.push(Command::SetBankName(i, edited));
             }
             if can_remove
@@ -682,50 +725,75 @@ fn defaults_editor(ed: &mut Editor, ui: &mut egui::Ui) {
     let mut changed = false;
     let mut pick_shader = false;
 
-    egui::Grid::new("defaults_grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
-        ui.label("bpm");
-        changed |= ui.add(egui::DragValue::new(&mut d.bpm).range(1.0..=999.0).speed(0.5)).changed();
-        ui.end_row();
+    egui::Grid::new("defaults_grid")
+        .num_columns(2)
+        .spacing([8.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("bpm");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut d.bpm)
+                        .range(1.0..=999.0)
+                        .speed(0.5),
+                )
+                .changed();
+            ui.end_row();
 
-        ui.label("quantum");
-        changed |=
-            ui.add(egui::DragValue::new(&mut d.quantum).range(1.0..=32.0).speed(0.25)).changed();
-        ui.end_row();
+            ui.label("quantum");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut d.quantum)
+                        .range(1.0..=32.0)
+                        .speed(0.25),
+                )
+                .changed();
+            ui.end_row();
 
-        ui.label("phrase len");
-        changed |= ui.add(egui::DragValue::new(&mut d.phrase_len).range(1..=256)).changed();
-        ui.end_row();
+            ui.label("phrase len");
+            changed |= ui
+                .add(egui::DragValue::new(&mut d.phrase_len).range(1..=256))
+                .changed();
+            ui.end_row();
 
-        ui.label("sync");
-        ui.horizontal(|ui| {
-            let selected = match d.sync {
-                SyncSpec::Internal => 0,
-                SyncSpec::Link => 1,
-            };
-            if let Some(i) = widgets::segmented(ui, "sync", &["internal", "link"], Some(selected)) {
-                d.sync = if i == 0 { SyncSpec::Internal } else { SyncSpec::Link };
-                changed = true;
-            }
+            ui.label("sync");
+            ui.horizontal(|ui| {
+                let selected = match d.sync {
+                    SyncSpec::Internal => 0,
+                    SyncSpec::Link => 1,
+                };
+                if let Some(i) =
+                    widgets::segmented(ui, "sync", &["internal", "link"], Some(selected))
+                {
+                    d.sync = if i == 0 {
+                        SyncSpec::Internal
+                    } else {
+                        SyncSpec::Link
+                    };
+                    changed = true;
+                }
+            });
+            ui.end_row();
+
+            ui.label("preserve playhead");
+            changed |= widgets::glyph_checkbox(ui, &mut d.preserve_playhead, "").changed();
+            ui.end_row();
+
+            ui.label("shader path");
+            ui.horizontal(|ui| {
+                let mut text = d.shader_path.clone().unwrap_or_default();
+                if ui
+                    .add(egui::TextEdit::singleline(&mut text).desired_width(140.0))
+                    .changed()
+                {
+                    d.shader_path = (!text.is_empty()).then_some(text);
+                    changed = true;
+                }
+                // The chooser is the shell's to raise; it applies the pick to the
+                // defaults itself, so this posts nothing but the request.
+                pick_shader = widgets::bracket_button(ui, "…", None, 0.0).clicked();
+            });
+            ui.end_row();
         });
-        ui.end_row();
-
-        ui.label("preserve playhead");
-        changed |= widgets::glyph_checkbox(ui, &mut d.preserve_playhead, "").changed();
-        ui.end_row();
-
-        ui.label("shader path");
-        ui.horizontal(|ui| {
-            let mut text = d.shader_path.clone().unwrap_or_default();
-            if ui.add(egui::TextEdit::singleline(&mut text).desired_width(140.0)).changed() {
-                d.shader_path = (!text.is_empty()).then_some(text);
-                changed = true;
-            }
-            // The chooser is the shell's to raise; it applies the pick to the
-            // defaults itself, so this posts nothing but the request.
-            pick_shader = widgets::bracket_button(ui, "…", None, 0.0).clicked();
-        });
-        ui.end_row();
-    });
 
     if changed {
         ed.post(Command::SetDefaults(Box::new(d)));
@@ -738,7 +806,9 @@ fn defaults_editor(ed: &mut Editor, ui: &mut egui::Ui) {
 /// Confirmation before opening a large video (decoding a multi-GB file can
 /// take a moment); small videos open immediately without this.
 fn confirm_open_dialog(ed: &mut Editor, ctx: &egui::Context) {
-    let Some(pending) = &ed.pending_open else { return };
+    let Some(pending) = &ed.pending_open else {
+        return;
+    };
     let gb = pending.size_bytes as f64 / 1e9;
     let name = pending
         .path
@@ -751,7 +821,9 @@ fn confirm_open_dialog(ed: &mut Editor, ctx: &egui::Context) {
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
-            ui.label(format!("{name} is {gb:.1} GB — opening it may take a moment."));
+            ui.label(format!(
+                "{name} is {gb:.1} GB — opening it may take a moment."
+            ));
             ui.horizontal(|ui| {
                 if widgets::bracket_button(ui, "open", None, 0.0).clicked() {
                     action = Some(Command::ConfirmPendingOpen);

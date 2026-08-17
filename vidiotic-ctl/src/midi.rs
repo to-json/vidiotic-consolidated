@@ -28,7 +28,10 @@ pub struct MidiHub {
 impl MidiHub {
     #[must_use]
     pub fn new(tx: Sender<ControlEvent>) -> Self {
-        Self { conns: HashMap::new(), tx }
+        Self {
+            conns: HashMap::new(),
+            tx,
+        }
     }
 
     /// Currently connected device names.
@@ -49,7 +52,9 @@ impl MidiHub {
 
         let mut seen = HashSet::new();
         for port in probe.ports() {
-            let Ok(name) = probe.port_name(&port) else { continue };
+            let Ok(name) = probe.port_name(&port) else {
+                continue;
+            };
             seen.insert(name.clone());
             if self.conns.contains_key(&name) {
                 continue;
@@ -60,7 +65,9 @@ impl MidiHub {
     }
 
     fn connect(&mut self, port: &midir::MidiInputPort, name: &str) {
-        let Ok(mut input) = MidiInput::new(CLIENT_NAME) else { return };
+        let Ok(mut input) = MidiInput::new(CLIENT_NAME) else {
+            return;
+        };
         input.ignore(Ignore::None);
         let tx = self.tx.clone();
         let device = name.to_string();
@@ -99,17 +106,39 @@ pub fn parse(bytes: &[u8], device: &str) -> Option<ControlEvent> {
 
     match status & 0xF0 {
         0x90 => {
-            let source = ControlSource::MidiNote { device: device.to_string(), channel, note: d1 };
-            let value = if d2 > 0 { EventValue::Pressed } else { EventValue::Released };
+            let source = ControlSource::MidiNote {
+                device: device.to_string(),
+                channel,
+                note: d1,
+            };
+            let value = if d2 > 0 {
+                EventValue::Pressed
+            } else {
+                EventValue::Released
+            };
             Some(ControlEvent { source, value })
         }
         0x80 => {
-            let source = ControlSource::MidiNote { device: device.to_string(), channel, note: d1 };
-            Some(ControlEvent { source, value: EventValue::Released })
+            let source = ControlSource::MidiNote {
+                device: device.to_string(),
+                channel,
+                note: d1,
+            };
+            Some(ControlEvent {
+                source,
+                value: EventValue::Released,
+            })
         }
         0xB0 => {
-            let source = ControlSource::MidiCc { device: device.to_string(), channel, cc: d1 };
-            Some(ControlEvent { source, value: EventValue::Continuous(f32::from(d2) / 127.0) })
+            let source = ControlSource::MidiCc {
+                device: device.to_string(),
+                channel,
+                cc: d1,
+            };
+            Some(ControlEvent {
+                source,
+                value: EventValue::Continuous(f32::from(d2) / 127.0),
+            })
         }
         _ => None,
     }
@@ -123,7 +152,14 @@ mod tests {
     fn note_on_with_velocity_is_pressed() {
         let ev = parse(&[0x90, 60, 100], "Foo").unwrap();
         assert_eq!(ev.value, EventValue::Pressed);
-        assert_eq!(ev.source, ControlSource::MidiNote { device: "Foo".into(), channel: 1, note: 60 });
+        assert_eq!(
+            ev.source,
+            ControlSource::MidiNote {
+                device: "Foo".into(),
+                channel: 1,
+                note: 60
+            }
+        );
     }
 
     #[test]
@@ -142,13 +178,27 @@ mod tests {
     fn control_change_is_continuous_normalized() {
         let ev = parse(&[0xB0, 21, 127], "Foo").unwrap();
         assert_eq!(ev.value, EventValue::Continuous(1.0));
-        assert_eq!(ev.source, ControlSource::MidiCc { device: "Foo".into(), channel: 1, cc: 21 });
+        assert_eq!(
+            ev.source,
+            ControlSource::MidiCc {
+                device: "Foo".into(),
+                channel: 1,
+                cc: 21
+            }
+        );
     }
 
     #[test]
     fn channel_is_one_indexed() {
         let ev = parse(&[0xB5, 21, 0], "Foo").unwrap();
-        assert_eq!(ev.source, ControlSource::MidiCc { device: "Foo".into(), channel: 6, cc: 21 });
+        assert_eq!(
+            ev.source,
+            ControlSource::MidiCc {
+                device: "Foo".into(),
+                channel: 6,
+                cc: 21
+            }
+        );
     }
 
     #[test]

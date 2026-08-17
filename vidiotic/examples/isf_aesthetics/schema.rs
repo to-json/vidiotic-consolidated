@@ -17,11 +17,19 @@ pub enum MockKind {
     /// Checkbox / toggle.
     Bool { default: bool },
     /// Pop-up menu over `VALUES` with display `LABELS`.
-    Long { values: Vec<i32>, labels: Vec<&'static str>, default: usize },
+    Long {
+        values: Vec<i32>,
+        labels: Vec<&'static str>,
+        default: usize,
+    },
     /// Slider between `MIN` and `MAX`.
     Float { min: f32, max: f32, default: f32 },
     /// 2D coordinate, both axes in `min..=max`.
-    Point2D { min: [f32; 2], max: [f32; 2], default: [f32; 2] },
+    Point2D {
+        min: [f32; 2],
+        max: [f32; 2],
+        default: [f32; 2],
+    },
     /// RGBA color (stored HSV so per-channel controls stay stable).
     Color { default: Hsva },
     /// Image stream input (source routing, not a knob).
@@ -60,11 +68,31 @@ pub enum Value {
 pub fn kaleido_bloom() -> Vec<MockInput> {
     use MockKind as K;
     vec![
-        MockInput { name: "inputImage", label: "Input", kind: K::Image },
-        MockInput { name: "audio", label: "Audio", kind: K::Audio },
-        MockInput { name: "audioFFT", label: "Spectrum", kind: K::AudioFft },
-        MockInput { name: "burst", label: "Burst", kind: K::Event },
-        MockInput { name: "mirror", label: "Mirror", kind: K::Bool { default: true } },
+        MockInput {
+            name: "inputImage",
+            label: "Input",
+            kind: K::Image,
+        },
+        MockInput {
+            name: "audio",
+            label: "Audio",
+            kind: K::Audio,
+        },
+        MockInput {
+            name: "audioFFT",
+            label: "Spectrum",
+            kind: K::AudioFft,
+        },
+        MockInput {
+            name: "burst",
+            label: "Burst",
+            kind: K::Event,
+        },
+        MockInput {
+            name: "mirror",
+            label: "Mirror",
+            kind: K::Bool { default: true },
+        },
         MockInput {
             name: "sides",
             label: "Sides",
@@ -77,27 +105,45 @@ pub fn kaleido_bloom() -> Vec<MockInput> {
         MockInput {
             name: "angle",
             label: "Angle",
-            kind: K::Float { min: 0.0, max: 360.0, default: 45.0 },
+            kind: K::Float {
+                min: 0.0,
+                max: 360.0,
+                default: 45.0,
+            },
         },
         MockInput {
             name: "zoom",
             label: "Zoom",
-            kind: K::Float { min: 0.25, max: 4.0, default: 1.0 },
+            kind: K::Float {
+                min: 0.25,
+                max: 4.0,
+                default: 1.0,
+            },
         },
         MockInput {
             name: "feedback",
             label: "Feedback",
-            kind: K::Float { min: -1.0, max: 1.0, default: 0.0 },
+            kind: K::Float {
+                min: -1.0,
+                max: 1.0,
+                default: 0.0,
+            },
         },
         MockInput {
             name: "center",
             label: "Center",
-            kind: K::Point2D { min: [0.0, 0.0], max: [1.0, 1.0], default: [0.5, 0.5] },
+            kind: K::Point2D {
+                min: [0.0, 0.0],
+                max: [1.0, 1.0],
+                default: [0.5, 0.5],
+            },
         },
         MockInput {
             name: "tint",
             label: "Tint",
-            kind: K::Color { default: Hsva::new(0.07, 0.8, 1.0, 1.0) },
+            kind: K::Color {
+                default: Hsva::new(0.07, 0.8, 1.0, 1.0),
+            },
         },
     ]
 }
@@ -139,10 +185,30 @@ pub struct MockClip {
 /// The widgets view's clip pool: one tile per interesting state.
 pub fn mock_clips() -> Vec<MockClip> {
     vec![
-        MockClip { name: "warehouse-loop.mp4", role: MockRole::Playing, selected: false, seed: 1 },
-        MockClip { name: "strobe-cuts.mov", role: MockRole::Armed, selected: false, seed: 2 },
-        MockClip { name: "ferns-macro.mp4", role: MockRole::None, selected: true, seed: 3 },
-        MockClip { name: "vhs-noise.mp4", role: MockRole::None, selected: false, seed: 4 },
+        MockClip {
+            name: "warehouse-loop.mp4",
+            role: MockRole::Playing,
+            selected: false,
+            seed: 1,
+        },
+        MockClip {
+            name: "strobe-cuts.mov",
+            role: MockRole::Armed,
+            selected: false,
+            seed: 2,
+        },
+        MockClip {
+            name: "ferns-macro.mp4",
+            role: MockRole::None,
+            selected: true,
+            seed: 3,
+        },
+        MockClip {
+            name: "vhs-noise.mp4",
+            role: MockRole::None,
+            selected: false,
+            seed: 4,
+        },
     ]
 }
 
@@ -195,15 +261,35 @@ impl MidiState {
         for (i, inp) in inputs.iter().enumerate() {
             match inp.name {
                 "angle" => {
-                    bindings.insert(i, Binding { ch: 1, num: 74, span: 1, mode: BindMode::Cc });
+                    bindings.insert(
+                        i,
+                        Binding {
+                            ch: 1,
+                            num: 74,
+                            span: 1,
+                            mode: BindMode::Cc,
+                        },
+                    );
                 }
                 "center" => {
-                    bindings.insert(i, Binding { ch: 1, num: 20, span: 2, mode: BindMode::Cc });
+                    bindings.insert(
+                        i,
+                        Binding {
+                            ch: 1,
+                            num: 20,
+                            span: 2,
+                            mode: BindMode::Cc,
+                        },
+                    );
                 }
                 _ => {}
             }
         }
-        Self { armed: false, next_cc: 40, bindings }
+        Self {
+            armed: false,
+            next_cc: 40,
+            bindings,
+        }
     }
 
     /// Stream inputs aren't bindable; everything with a value is.
@@ -234,13 +320,23 @@ impl MidiState {
             self.next_cc += span;
             n
         };
-        self.bindings.insert(idx, Binding { ch: 1, num, span, mode });
+        self.bindings.insert(
+            idx,
+            Binding {
+                ch: 1,
+                num,
+                span,
+                mode,
+            },
+        );
     }
 
     /// Fake "incoming CC" activity for a bound control: a short flash every
     /// few seconds, staggered by controller number. `0..=1`, decaying.
     pub fn activity(&self, idx: usize, time: f64) -> f32 {
-        let Some(b) = self.bindings.get(&idx) else { return 0.0 };
+        let Some(b) = self.bindings.get(&idx) else {
+            return 0.0;
+        };
         let phase = (time * 0.35 + f64::from(b.num) * 0.217).fract() as f32;
         (1.0 - phase * 5.0).max(0.0)
     }
@@ -276,6 +372,15 @@ impl DemoState {
         let inputs = kaleido_bloom();
         let values = default_values(&inputs);
         let midi = MidiState::prebound(&inputs);
-        Self { inputs, values, midi, time: 0.0, ink_film: false, nerd: false, dark: true, hue: 0.0 }
+        Self {
+            inputs,
+            values,
+            midi,
+            time: 0.0,
+            ink_film: false,
+            nerd: false,
+            dark: true,
+            hue: 0.0,
+        }
     }
 }

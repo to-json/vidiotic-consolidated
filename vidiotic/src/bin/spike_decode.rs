@@ -21,7 +21,10 @@ fn main() {
 
     let mut got = 0;
     for _ in 0..5 {
-        match handle.frames.recv_timeout(std::time::Duration::from_secs(5)) {
+        match handle
+            .frames
+            .recv_timeout(std::time::Duration::from_secs(5))
+        {
             Ok(f) => {
                 got += 1;
                 let kind = match &f.pixels {
@@ -37,10 +40,7 @@ fn main() {
                         format!("RGBA stride={stride} center={px:?}")
                     }
                 };
-                println!(
-                    "frame {got}: {}x{} pts={:.3}s  {kind}",
-                    f.w, f.h, f.pts_sec
-                );
+                println!("frame {got}: {}x{} pts={:.3}s  {kind}", f.w, f.h, f.pts_sec);
             }
             Err(e) => {
                 eprintln!("recv: {e}");

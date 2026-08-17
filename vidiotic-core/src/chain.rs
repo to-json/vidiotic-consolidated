@@ -61,12 +61,18 @@ pub struct ShaderPoolView {
 impl ChainSlot {
     /// A slot referencing `shader` with default (no) parameters.
     pub fn new(shader: SlotRef) -> Self {
-        Self { shader, params: Vec::new() }
+        Self {
+            shader,
+            params: Vec::new(),
+        }
     }
 
     /// The current value of an ISF input on this slot, if overridden.
     pub fn param(&self, name: &str) -> Option<&IsfValue> {
-        self.params.iter().find(|(n, _)| n.as_ref() == name).map(|(_, v)| v)
+        self.params
+            .iter()
+            .find(|(n, _)| n.as_ref() == name)
+            .map(|(_, v)| v)
     }
 
     /// Set (or replace) an ISF input override on this slot.

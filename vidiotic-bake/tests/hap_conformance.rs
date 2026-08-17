@@ -97,7 +97,11 @@ fn fixtures_are_present() {
     let g = goldens();
     assert!(!g.is_empty(), "no goldens — run the gen_fixtures generator");
     for row in &g {
-        assert!(!fixture_bytes(&row.name).is_empty(), "{} is empty", row.name);
+        assert!(
+            !fixture_bytes(&row.name).is_empty(),
+            "{} is empty",
+            row.name
+        );
     }
 }
 
@@ -114,7 +118,12 @@ fn decodes_to_recorded_goldens() {
         assert_eq!(main.len(), g.main_len, "{}: main length", g.name);
         assert_eq!(hash(&main), g.main_hash, "{}: main bytes changed", g.name);
         assert_eq!(alpha.len(), g.alpha_len, "{}: alpha length", g.name);
-        assert_eq!(hash(&alpha), g.alpha_hash, "{}: alpha bytes changed", g.name);
+        assert_eq!(
+            hash(&alpha),
+            g.alpha_hash,
+            "{}: alpha bytes changed",
+            g.name
+        );
     }
 }
 
@@ -130,7 +139,11 @@ fn decoded_size_matches_clip_dimensions() {
 
         let blocks = (CLIP_W / 4) * (CLIP_H / 4);
         assert_eq!(CLIP_W % 4, 0, "clip width must be a whole number of blocks");
-        assert_eq!(CLIP_H % 4, 0, "clip height must be a whole number of blocks");
+        assert_eq!(
+            CLIP_H % 4,
+            0,
+            "clip height must be a whole number of blocks"
+        );
 
         let expect = blocks * meta.format.block_bytes() as usize;
         assert_eq!(
@@ -167,8 +180,18 @@ fn reuses_dirty_output_buffers() {
     for row in &g {
         hap::decode_frame(fixture_bytes(&row.name), row.tex, &mut main, &mut alpha)
             .expect("decode into reused buffers");
-        assert_eq!(main.len(), row.main_len, "{}: stale bytes retained", row.name);
-        assert_eq!(hash(&main), row.main_hash, "{}: reuse changed output", row.name);
+        assert_eq!(
+            main.len(),
+            row.main_len,
+            "{}: stale bytes retained",
+            row.name
+        );
+        assert_eq!(
+            hash(&main),
+            row.main_hash,
+            "{}: reuse changed output",
+            row.name
+        );
     }
 }
 

@@ -401,9 +401,10 @@ pub fn apply(ctx: &Context) {
 fn install_fonts(ctx: &Context, face: Face) {
     let mut fonts = egui::FontDefinitions::default();
     let mut add = |key: &str, bytes: &'static [u8], first: bool| {
-        fonts
-            .font_data
-            .insert(key.to_owned(), std::sync::Arc::new(egui::FontData::from_static(bytes)));
+        fonts.font_data.insert(
+            key.to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(bytes)),
+        );
         for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
             let chain = fonts.families.entry(family).or_default();
             if first {
@@ -450,12 +451,20 @@ pub fn sync(ctx: &Context) {
 
 fn apply_style(ctx: &Context, st: ThemeState) {
     let p = palette_for(st);
-    *CURRENT.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(p);
+    *CURRENT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(p);
     let m = Metrics::for_face(st.face);
-    *METRICS.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = m;
+    *METRICS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = m;
 
     // The control window follows its own switch, never the OS preference.
-    ctx.set_theme(if st.dark { egui::Theme::Dark } else { egui::Theme::Light });
+    ctx.set_theme(if st.dark {
+        egui::Theme::Dark
+    } else {
+        egui::Theme::Light
+    });
 
     ctx.all_styles_mut(|style| {
         let v = &mut style.visuals;
@@ -510,11 +519,23 @@ fn apply_style(ctx: &Context, st: ThemeState) {
 
         // One face: everything is buffer text.
         style.text_styles = [
-            (TextStyle::Heading, FontId::new(m.heading, FontFamily::Monospace)),
+            (
+                TextStyle::Heading,
+                FontId::new(m.heading, FontFamily::Monospace),
+            ),
             (TextStyle::Body, FontId::new(m.font, FontFamily::Monospace)),
-            (TextStyle::Monospace, FontId::new(m.font, FontFamily::Monospace)),
-            (TextStyle::Button, FontId::new(m.font, FontFamily::Monospace)),
-            (TextStyle::Small, FontId::new(m.small, FontFamily::Monospace)),
+            (
+                TextStyle::Monospace,
+                FontId::new(m.font, FontFamily::Monospace),
+            ),
+            (
+                TextStyle::Button,
+                FontId::new(m.font, FontFamily::Monospace),
+            ),
+            (
+                TextStyle::Small,
+                FontId::new(m.small, FontFamily::Monospace),
+            ),
         ]
         .into();
 
@@ -550,7 +571,10 @@ mod tests {
     /// `ctx.fonts` available — before a pass there is no font set to ask.
     fn ctx_with(face: Face) -> Context {
         let ctx = Context::default();
-        let st = ThemeState { face, ..ThemeState::default() };
+        let st = ThemeState {
+            face,
+            ..ThemeState::default()
+        };
         install_fonts(&ctx, face);
         set_state(&ctx, st);
         apply_style(&ctx, st);
@@ -567,7 +591,9 @@ mod tests {
     /// 17.5-point rows and "the cell is 16 points" is quietly false.
     #[test]
     fn the_grid_is_literally_a_grid() {
-        let _guard = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let ctx = ctx_with(Face::Grid);
         let m = Metrics::GRID;
 
@@ -599,7 +625,9 @@ mod tests {
     /// survives as long as it did.
     #[test]
     fn both_faces_can_draw_every_icon() {
-        let _guard = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for face in [Face::Classic, Face::Grid] {
             let ctx = ctx_with(face);
             let missing: Vec<&str> = ctx.fonts_mut(|f| {
@@ -619,7 +647,9 @@ mod tests {
     /// would still be in the bundle with nothing pointing at it.
     #[test]
     fn the_private_use_icon_set_is_really_gone() {
-        let _guard = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Font Awesome 4's play/pause/floppy, as Nerd Fonts assigned them.
         for face in [Face::Classic, Face::Grid] {
             let ctx = ctx_with(face);
@@ -640,7 +670,9 @@ mod tests {
     /// Legacy Computing block §9a picked the face for in the first place.
     #[test]
     fn the_grid_face_carries_the_blocks_the_widgets_are_built_from() {
-        let _guard = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _guard = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let ctx = ctx_with(Face::Grid);
         let required = [
             ("eighth blocks", "▁▂▃▄▅▆▇█"),
@@ -691,7 +723,10 @@ mod tests {
                 "{name} = {v} is not a whole number of {eighth}-point eighth-cells"
             );
         }
-        assert_eq!(m.row, m.cell, "the row is the cell; leading is not a thing here");
+        assert_eq!(
+            m.row, m.cell,
+            "the row is the cell; leading is not a thing here"
+        );
         assert_eq!(
             m.item_spacing.y, 0.0,
             "vertical item spacing must be zero — the row already is the cell"
@@ -704,10 +739,17 @@ mod tests {
     #[test]
     fn the_classic_face_is_unchanged() {
         let m = Metrics::CLASSIC;
-        assert_eq!((m.font, m.row, m.heading, m.small), (12.0, 18.0, 14.0, 10.0));
+        assert_eq!(
+            (m.font, m.row, m.heading, m.small),
+            (12.0, 18.0, 14.0, 10.0)
+        );
         assert_eq!(m.item_spacing, egui::vec2(8.0, 6.0));
         assert_eq!(m.button_padding, egui::vec2(6.0, 3.0));
-        assert_eq!(ThemeState::default().face, Face::Classic, "the default face must not move");
+        assert_eq!(
+            ThemeState::default().face,
+            Face::Classic,
+            "the default face must not move"
+        );
     }
 
     /// The VIC-II set is a costume over the same roles, not a second design
@@ -722,7 +764,11 @@ mod tests {
             let lum = |c: Color32| {
                 let f = |v: u8| {
                     let s = f32::from(v) / 255.0;
-                    if s <= 0.03928 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
+                    if s <= 0.03928 {
+                        s / 12.92
+                    } else {
+                        ((s + 0.055) / 1.055).powf(2.4)
+                    }
                 };
                 0.0722f32.mul_add(f(c.b()), 0.2126f32.mul_add(f(c.r()), 0.7152 * f(c.g())))
             };
@@ -749,7 +795,12 @@ mod tests {
     #[test]
     fn hue_rotation_does_not_touch_the_hardware_palette() {
         let at = |hue: f32, colors: Colors| {
-            palette_for(ThemeState { hue, colors, ..ThemeState::default() }).accent
+            palette_for(ThemeState {
+                hue,
+                colors,
+                ..ThemeState::default()
+            })
+            .accent
         };
         assert_ne!(
             at(0.0, Colors::Everforest),

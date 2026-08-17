@@ -31,7 +31,10 @@ pub struct History<T> {
 // empty deques don't actually need.
 impl<T> Default for History<T> {
     fn default() -> Self {
-        Self { undo: VecDeque::new(), redo: Vec::new() }
+        Self {
+            undo: VecDeque::new(),
+            redo: Vec::new(),
+        }
     }
 }
 

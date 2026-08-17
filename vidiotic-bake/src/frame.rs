@@ -40,7 +40,10 @@ impl BakeQuality {
             Self::Draft => texpresso::Algorithm::RangeFit,
             Self::High => texpresso::Algorithm::ClusterFit,
         };
-        Params { algorithm, ..Params::default() }
+        Params {
+            algorithm,
+            ..Params::default()
+        }
     }
 }
 
@@ -312,11 +315,23 @@ mod tests {
         // The contract that matters: whatever a browser hands over, `fit` must
         // produce something `FrameBaker::new` accepts, or reject it outright.
         for tier in [Tier::Wide, Tier::Narrow] {
-            for (w, h) in [(1920, 1080), (1280, 720), (640, 360), (720, 1280), (101, 97)] {
+            for (w, h) in [
+                (1920, 1080),
+                (1280, 720),
+                (640, 360),
+                (720, 1280),
+                (101, 97),
+            ] {
                 let (fw, fh) = tier.fit(w, h);
-                assert!(fw.is_multiple_of(4) && fh.is_multiple_of(4), "{tier:?} {w}x{h}");
+                assert!(
+                    fw.is_multiple_of(4) && fh.is_multiple_of(4),
+                    "{tier:?} {w}x{h}"
+                );
                 let (bw, bh) = tier.box_size();
-                assert!(fw <= bw && fh <= bh, "{tier:?} {w}x{h} -> {fw}x{fh} escaped the box");
+                assert!(
+                    fw <= bw && fh <= bh,
+                    "{tier:?} {w}x{h} -> {fw}x{fh} escaped the box"
+                );
                 assert!(fw <= w && fh <= h, "{tier:?} {w}x{h} -> {fw}x{fh} upscaled");
             }
         }
@@ -348,7 +363,10 @@ mod tests {
         assert_eq!(b.frame_bytes(), 64 * 64 * 4);
         assert_eq!(
             b.compress(&solid(64, 63)).unwrap_err(),
-            BakeErr::FrameSize { expected: 16384, got: 16128 }
+            BakeErr::FrameSize {
+                expected: 16384,
+                got: 16128
+            }
         );
         assert!(b.compress(&solid(64, 64)).is_ok());
     }

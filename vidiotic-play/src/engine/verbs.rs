@@ -40,7 +40,11 @@ impl Engine {
                     options,
                 })
             }
-            GrammarState::Sticky { label, entries, trail_root } => {
+            GrammarState::Sticky {
+                label,
+                entries,
+                trail_root,
+            } => {
                 let options = entries
                     .iter()
                     .enumerate()
@@ -55,7 +59,11 @@ impl Engine {
                                     Verb::BpmDelta(_) => "step -",
                                     Verb::NudgeBpm(r) if *r > 0.0 => "step +",
                                     Verb::NudgeBpm(_) => "step -",
-                                    Verb::SelectCueDelta(d) | Verb::SelectClipDelta(d) if *d < 0 => "up",
+                                    Verb::SelectCueDelta(d) | Verb::SelectClipDelta(d)
+                                        if *d < 0 =>
+                                    {
+                                        "up"
+                                    }
                                     Verb::SelectCueDelta(_) | Verb::SelectClipDelta(_) => "down",
                                     Verb::TapTempo => "tap",
                                     _ => "again",
@@ -77,7 +85,10 @@ impl Engine {
     /// input was consumed — `false` only for cancel-while-idle, which falls
     /// through to the shell's own Escape handling.
     pub fn grammar_step(&mut self, input: grammar::Input) -> bool {
-        match self.grammar.step(grammar::pane_table(self.focused_pane), input) {
+        match self
+            .grammar
+            .step(grammar::pane_table(self.focused_pane), input)
+        {
             grammar::Step::Rejected => false,
             grammar::Step::Verb(v) => {
                 self.apply_verb(v);
@@ -139,8 +150,9 @@ impl Engine {
             Verb::CloneBank => self.raise(Command::CloneBank),
             Verb::AddCueAtClip => {
                 // Guard against a cursor left on a since-removed clip.
-                if let Some(clip) =
-                    self.selected_clip.filter(|id| self.clips.iter().any(|c| c.id == *id))
+                if let Some(clip) = self
+                    .selected_clip
+                    .filter(|id| self.clips.iter().any(|c| c.id == *id))
                 {
                     self.raise(Command::AddCue(clip));
                 }

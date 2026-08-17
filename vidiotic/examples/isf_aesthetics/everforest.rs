@@ -3,7 +3,7 @@
 //! dark/light + hue-rotation theme bar, and the character-grid text helpers
 //! those directions lay out with. One palette, several hardware dosages.
 
-use egui::{Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
+use egui::{vec2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Ui};
 
 use crate::schema::DemoState;
 use crate::util;
@@ -78,11 +78,23 @@ pub fn theme(dark: bool, hue: f32) -> Theme {
 }
 
 /// Paint text at a character column within a row.
-pub fn put(ui: &Ui, g: &Grid, row: Rect, col: f32, line: usize, text: &str, color: Color32) -> Rect {
-    let pos = Pos2::new(row.min.x + col * g.cw, row.min.y + (line as f32 + 0.5) * g.rh);
+pub fn put(
+    ui: &Ui,
+    g: &Grid,
+    row: Rect,
+    col: f32,
+    line: usize,
+    text: &str,
+    color: Color32,
+) -> Rect {
+    let pos = Pos2::new(
+        row.min.x + col * g.cw,
+        row.min.y + (line as f32 + 0.5) * g.rh,
+    );
     let galley = ui.painter().layout_no_wrap(text.to_string(), mono(), color);
     let size = galley.size();
-    ui.painter().galley(pos - vec2(0.0, size.y * 0.5), galley, color);
+    ui.painter()
+        .galley(pos - vec2(0.0, size.y * 0.5), galley, color);
     Rect::from_min_size(pos - vec2(0.0, g.rh * 0.5), vec2(size.x, g.rh))
 }
 
@@ -94,13 +106,22 @@ pub fn theme_bar(ui: &mut Ui, g: &Grid, width: f32, st: &mut DemoState, th: &The
     // The bar carries its own themed background so its text has the
     // palette's contrast regardless of the app chrome behind it.
     ui.painter().rect_filled(bar, CornerRadius::same(2), th.bg);
-    ui.painter().rect_stroke(bar, CornerRadius::same(2), Stroke::new(1.0, th.frame), StrokeKind::Inside);
+    ui.painter().rect_stroke(
+        bar,
+        CornerRadius::same(2),
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Inside,
+    );
     let row = bar.translate(vec2(0.0, 2.0));
     put(ui, g, row, 1.0, 0, "theme", th.dim);
     let mut col = 8.0;
     for (lab, dark) in [("dark", true), ("light", false)] {
         let selected = st.dark == dark;
-        let text = if selected { format!("[{lab}]") } else { format!(" {lab} ") };
+        let text = if selected {
+            format!("[{lab}]")
+        } else {
+            format!(" {lab} ")
+        };
         let color = if selected { th.yellow } else { th.dim };
         let r = put(ui, g, row, col, 0, &text, color);
         let resp = ui.interact(r, ui.id().with(("mode", lab)), Sense::click());
@@ -119,20 +140,47 @@ pub fn theme_bar(ui: &mut Ui, g: &Grid, width: f32, st: &mut DemoState, th: &The
     if resp.dragged() || resp.clicked() {
         if let Some(pos) = resp.interact_pointer_pos() {
             // Hue is circular: the strip's right edge wraps back to 0.
-            st.hue = (((pos.x - strip.min.x) / strip.width()).clamp(0.0, 1.0) * 360.0).rem_euclid(360.0);
+            st.hue =
+                (((pos.x - strip.min.x) / strip.width()).clamp(0.0, 1.0) * 360.0).rem_euclid(360.0);
         }
     }
     let painter = ui.painter();
     const N: usize = 40;
     for k in 0..N {
         let cell = Rect::from_min_size(
-            Pos2::new(strip.min.x + strip.width() * k as f32 / N as f32, strip.min.y),
+            Pos2::new(
+                strip.min.x + strip.width() * k as f32 / N as f32,
+                strip.min.y,
+            ),
             vec2(strip.width() / N as f32 + 0.5, strip.height()),
         );
-        painter.rect_filled(cell, CornerRadius::ZERO, util::hsl(k as f32 / N as f32 * 360.0, 0.5, 0.5));
+        painter.rect_filled(
+            cell,
+            CornerRadius::ZERO,
+            util::hsl(k as f32 / N as f32 * 360.0, 0.5, 0.5),
+        );
     }
-    painter.rect_stroke(strip, CornerRadius::ZERO, Stroke::new(1.0, th.frame), StrokeKind::Outside);
+    painter.rect_stroke(
+        strip,
+        CornerRadius::ZERO,
+        Stroke::new(1.0, th.frame),
+        StrokeKind::Outside,
+    );
     let x = strip.min.x + strip.width() * st.hue / 360.0;
-    painter.line_segment([Pos2::new(x, strip.min.y - 2.0), Pos2::new(x, strip.max.y + 2.0)], Stroke::new(2.0, th.fg));
-    put(ui, g, row, col + 6.0 + 21.0, 0, &format!("{:>4.0}°", st.hue), th.fg);
+    painter.line_segment(
+        [
+            Pos2::new(x, strip.min.y - 2.0),
+            Pos2::new(x, strip.max.y + 2.0),
+        ],
+        Stroke::new(2.0, th.fg),
+    );
+    put(
+        ui,
+        g,
+        row,
+        col + 6.0 + 21.0,
+        0,
+        &format!("{:>4.0}°", st.hue),
+        th.fg,
+    );
 }

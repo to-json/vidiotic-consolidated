@@ -68,7 +68,12 @@ impl WireClient {
         reader.read_line(&mut line)?;
         let greeting = Greeting::from_json_line(line.trim())
             .map_err(|e| ClientError::Protocol(format!("bad greeting: {e}")))?;
-        Ok(Self { stream, reader, next_id: 1, epoch: greeting.vidiotic.epoch })
+        Ok(Self {
+            stream,
+            reader,
+            next_id: 1,
+            epoch: greeting.vidiotic.epoch,
+        })
     }
 
     /// The session generation last seen (from the greeting or the most recent
@@ -90,9 +95,9 @@ impl WireClient {
         match self.exchange(ReqBody::Cmd(cmd))? {
             ReplyResult::Ack => Ok(()),
             ReplyResult::Err(m) => Err(ClientError::Rejected(m)),
-            ReplyResult::Ok(_) => {
-                Err(ClientError::Protocol("command answered with a query payload".into()))
-            }
+            ReplyResult::Ok(_) => Err(ClientError::Protocol(
+                "command answered with a query payload".into(),
+            )),
         }
     }
 
@@ -107,9 +112,9 @@ impl WireClient {
         match self.exchange(ReqBody::Get(query))? {
             ReplyResult::Ok(reply) => Ok(reply),
             ReplyResult::Err(m) => Err(ClientError::Rejected(m)),
-            ReplyResult::Ack => {
-                Err(ClientError::Protocol("query answered with a bare ack".into()))
-            }
+            ReplyResult::Ack => Err(ClientError::Protocol(
+                "query answered with a bare ack".into(),
+            )),
         }
     }
 
@@ -118,7 +123,11 @@ impl WireClient {
     fn exchange(&mut self, body: ReqBody) -> Result<ReplyResult, ClientError> {
         let id = self.next_id;
         self.next_id += 1;
-        let req = Request { id, epoch: None, req: body };
+        let req = Request {
+            id,
+            epoch: None,
+            req: body,
+        };
         writeln!(self.stream, "{}", req.to_json_line())?;
         loop {
             let mut line = String::new();

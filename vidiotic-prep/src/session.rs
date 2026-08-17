@@ -57,11 +57,15 @@ pub fn load_sidecar(path: &Path) -> anyhow::Result<SessionFile> {
 /// cut from more than one source video.
 pub fn reopen_project(path: &Path) -> anyhow::Result<ReopenedProject> {
     let proj = project::load(path)?;
-    let name = path
-        .file_stem()
-        .map_or_else(|| "project".to_string(), |s| s.to_string_lossy().into_owned());
+    let name = path.file_stem().map_or_else(
+        || "project".to_string(),
+        |s| s.to_string_lossy().into_owned(),
+    );
     let mut re = ReopenedProject::from_project(&proj, &name)?;
-    re.project_dir = path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+    re.project_dir = path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
     Ok(re)
 }
 
@@ -89,6 +93,9 @@ mod tests {
 
     #[test]
     fn a_sidecar_path_sits_beside_its_video() {
-        assert_eq!(sidecar_path(Path::new("/tmp/bun.mov")), PathBuf::from("/tmp/bun.mov.vprep"));
+        assert_eq!(
+            sidecar_path(Path::new("/tmp/bun.mov")),
+            PathBuf::from("/tmp/bun.mov.vprep")
+        );
     }
 }

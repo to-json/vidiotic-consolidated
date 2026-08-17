@@ -236,10 +236,15 @@ impl Analyzer {
 
     /// Window, transform, bin and smooth the current sliding window.
     fn analyze(&mut self) -> &AudioFrame {
-        for (b, (&s, &w)) in self.buf.iter_mut().zip(self.samples.iter().zip(&self.window)) {
+        for (b, (&s, &w)) in self
+            .buf
+            .iter_mut()
+            .zip(self.samples.iter().zip(&self.window))
+        {
             *b = Complex { re: s * w, im: 0.0 };
         }
-        self.fft.process_with_scratch(&mut self.buf, &mut self.scratch);
+        self.fft
+            .process_with_scratch(&mut self.buf, &mut self.scratch);
 
         for (i, &(lo, hi)) in self.bands.iter().enumerate() {
             let mut sum = 0.0f32;
@@ -280,7 +285,10 @@ impl Analyzer {
         }
         // Row 1: waveform = the most recent 512 raw (un-windowed) samples,
         // mapped to 0..1 centered on 0.5.
-        for (out, &s) in wave_row.iter_mut().zip(&self.samples[FFT_SIZE - AUDIO_TEX_W..]) {
+        for (out, &s) in wave_row
+            .iter_mut()
+            .zip(&self.samples[FFT_SIZE - AUDIO_TEX_W..])
+        {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             {
                 *out = ((s * 0.5 + 0.5).clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -307,7 +315,9 @@ mod tests {
 
     #[test]
     fn log_bands_valid_across_sample_rates() {
-        for sr in [8000.0, 16000.0, 22050.0, 24000.0, 32000.0, 44100.0, 48000.0, 96000.0] {
+        for sr in [
+            8000.0, 16000.0, 22050.0, 24000.0, 32000.0, 44100.0, 48000.0, 96000.0,
+        ] {
             for (lo, hi) in log_bands(sr) {
                 assert!(hi > lo, "sr {sr}: band {lo}..{hi} inverted");
                 assert!((1..=FFT_SIZE / 2).contains(&lo));
@@ -342,9 +352,18 @@ mod tests {
             .max_by(|a, b| a.1.total_cmp(b.1))
             .map(|(i, _)| i)
             .unwrap();
-        assert_eq!(loudest, want, "1 kHz lit band {loudest}, expected {want}: {bands:?}");
-        assert!(bands[0] < bands[want] * 0.1, "the bottom band picked up a 1 kHz tone");
-        assert!(bands[NUM_BANDS - 1] < bands[want] * 0.1, "the top band did too");
+        assert_eq!(
+            loudest, want,
+            "1 kHz lit band {loudest}, expected {want}: {bands:?}"
+        );
+        assert!(
+            bands[0] < bands[want] * 0.1,
+            "the bottom band picked up a 1 kHz tone"
+        );
+        assert!(
+            bands[NUM_BANDS - 1] < bands[want] * 0.1,
+            "the top band did too"
+        );
     }
 
     #[test]
@@ -353,7 +372,10 @@ mod tests {
         a.feed(&vec![0.0; 48000 / 60]);
         let f = a.poll().expect("one hop in, one frame out");
         assert_eq!(f.level, 0.0);
-        assert!(f.audio_tex[..AUDIO_TEX_W].iter().all(|&v| v == 0), "spectrum row not silent");
+        assert!(
+            f.audio_tex[..AUDIO_TEX_W].iter().all(|&v| v == 0),
+            "spectrum row not silent"
+        );
         assert!(
             f.audio_tex[AUDIO_TEX_W..].iter().all(|&v| v == 128),
             "waveform row is not centred on 0.5"
@@ -388,7 +410,10 @@ mod tests {
             a.poll();
         }
         let after = a.frame().level;
-        assert!(after < peak * 0.01, "level held at {after} from a peak of {peak}");
+        assert!(
+            after < peak * 0.01,
+            "level held at {after} from a peak of {peak}"
+        );
     }
 
     /// A producer that outruns the consumer must lose old samples, not new
@@ -403,6 +428,9 @@ mod tests {
         while a.poll().is_some() {
             frames += 1;
         }
-        assert_eq!(frames, MAX_PENDING_HOPS, "the backlog was not capped at {MAX_PENDING_HOPS}");
+        assert_eq!(
+            frames, MAX_PENDING_HOPS,
+            "the backlog was not capped at {MAX_PENDING_HOPS}"
+        );
     }
 }

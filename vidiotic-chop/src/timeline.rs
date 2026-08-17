@@ -76,7 +76,10 @@ fn main_strip(ed: &mut Editor, ui: &mut egui::Ui) {
                 let d_in = (pos.x - in_x).abs();
                 let d_out = (pos.x - out_x).abs();
                 if pan {
-                    Drag::Pan { grab_x: pos.x, grab_view: view_start as f64 }
+                    Drag::Pan {
+                        grab_x: pos.x,
+                        grab_view: view_start as f64,
+                    }
                 } else if d_in <= GRAB_PX && d_in <= d_out {
                     Drag::In
                 } else if d_out <= GRAB_PX {
@@ -204,9 +207,15 @@ fn main_strip(ed: &mut Editor, ui: &mut egui::Ui) {
         if x < rect.left() - GRAB_PX || x > rect.right() + GRAB_PX {
             continue;
         }
-        painter.line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], mark_stroke);
+        painter.line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+            mark_stroke,
+        );
         for y in [rect.top() + 1.0, rect.bottom() - 1.0] {
-            painter.line_segment([egui::pos2(x, y), egui::pos2(x + dir * 5.0, y)], mark_stroke);
+            painter.line_segment(
+                [egui::pos2(x, y), egui::pos2(x + dir * 5.0, y)],
+                mark_stroke,
+            );
         }
     }
 
@@ -214,7 +223,10 @@ fn main_strip(ed: &mut Editor, ui: &mut egui::Ui) {
     let ph_x = edge_x(&rect, ppf, view_start, ed.cur_frame) + ppf * 0.5;
     let ph_color = p.phosphor;
     painter.line_segment(
-        [egui::pos2(ph_x, rect.top()), egui::pos2(ph_x, rect.bottom())],
+        [
+            egui::pos2(ph_x, rect.top()),
+            egui::pos2(ph_x, rect.bottom()),
+        ],
         egui::Stroke::new(2.0, ph_color),
     );
     painter.add(egui::Shape::convex_polygon(
@@ -302,6 +314,10 @@ fn minimap(ed: &mut Editor, ui: &mut egui::Ui) {
 /// anchor, following the theme's global rotation; selected spans pop.
 fn bank_color(bank: usize, selected: bool, hue: f32) -> egui::Color32 {
     let h = 83.0 + hue + bank as f32 * 137.5;
-    let (s, l, a) = if selected { (0.55, 0.62, 230) } else { (0.40, 0.45, 140) };
+    let (s, l, a) = if selected {
+        (0.55, 0.62, 230)
+    } else {
+        (0.40, 0.45, 140)
+    };
     theme::with_alpha(theme::hsl(h, s, l), a)
 }

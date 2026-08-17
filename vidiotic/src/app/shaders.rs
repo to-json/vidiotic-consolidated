@@ -22,7 +22,9 @@ impl App {
     /// Pin the current live shader's last-good compile into the renderer's pool,
     /// named after the shader file plus a running count.
     pub(super) fn capture_shader(&mut self) {
-        let Some(g) = self.graphics.as_ref() else { return };
+        let Some(g) = self.graphics.as_ref() else {
+            return;
+        };
         let stem = self
             .shader_path
             .file_stem()
@@ -32,7 +34,9 @@ impl App {
         self.shader_pin_count += 1;
         let name = format!("{stem} #{}", self.shader_pin_count);
         if let Some(r) = self.renderer.as_mut() {
-            if let Some(id) = r.capture_current(&g.device, name) { log::info!("pinned shader {id}") } else {
+            if let Some(id) = r.capture_current(&g.device, name) {
+                log::info!("pinned shader {id}");
+            } else {
                 self.shader_pin_count -= 1;
                 log::warn!("no compiled shader to pin");
             }
@@ -42,8 +46,12 @@ impl App {
     /// Drop a pinned or ISF pool shader and clear any cue references to it
     /// (they fall back to the live shader). No-op for builtins.
     pub(super) fn remove_shader(&mut self, id: crate::commands::ShaderId) {
-        let Some(r) = self.renderer.as_mut() else { return };
-        let Some(name) = r.remove_pool_shader(id) else { return };
+        let Some(r) = self.renderer.as_mut() else {
+            return;
+        };
+        let Some(name) = r.remove_pool_shader(id) else {
+            return;
+        };
         for bank in &mut self.engine.banks {
             for cue in &mut bank.cues {
                 cue.chain.retain(|slot| {
@@ -84,7 +92,8 @@ impl App {
         match result {
             Some(Ok(_)) => {
                 log::info!("loaded ISF {}", path.display());
-                self.engine.edit_cue(cue, |c| c.chain.push(ChainSlot::new(SlotRef::Isf(name))));
+                self.engine
+                    .edit_cue(cue, |c| c.chain.push(ChainSlot::new(SlotRef::Isf(name))));
             }
             Some(Err(e)) => log::error!("Load ISF {}: {e}", path.display()),
             None => {}

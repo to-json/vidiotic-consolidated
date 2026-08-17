@@ -6,7 +6,9 @@
 //! exactly the derived forms. Only [`WireParam`] — a wire-only named pair — is
 //! defined locally.
 
-pub use vidiotic_core::isf::{IsfInput as WireIsfInput, IsfInputKind as WireIsfInputKind, IsfValue as WireIsfValue};
+pub use vidiotic_core::isf::{
+    IsfInput as WireIsfInput, IsfInputKind as WireIsfInputKind, IsfValue as WireIsfValue,
+};
 
 use nanoserde::{DeJson, SerJson};
 

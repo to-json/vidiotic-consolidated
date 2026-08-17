@@ -176,10 +176,11 @@ fn push_mono_u16(prod: &mut rtrb::Producer<f32>, data: &[u16], channels: usize) 
         return;
     }
     if let Ok(chunk) = prod.write_chunk_uninit(frames) {
-        chunk.fill_from_iter(
-            data.chunks_exact(channels)
-                .take(frames)
-                .map(|f| f.iter().map(|&s| (s as f32 - 32768.0) / 32768.0).sum::<f32>() / channels as f32),
-        );
+        chunk.fill_from_iter(data.chunks_exact(channels).take(frames).map(|f| {
+            f.iter()
+                .map(|&s| (s as f32 - 32768.0) / 32768.0)
+                .sum::<f32>()
+                / channels as f32
+        }));
     }
 }

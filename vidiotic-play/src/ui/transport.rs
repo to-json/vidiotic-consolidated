@@ -7,9 +7,9 @@
 use crossbeam_channel::Sender;
 use egui::Ui;
 
+use crate::commands::{Cadence, Command, SyncKind, TimeSig, UiMirror, TIME_SIG_DENS};
 use phosphor::theme::{self, palette, SP_MD, SP_SM};
 use phosphor::widgets;
-use crate::commands::{Cadence, Command, SyncKind, TimeSig, UiMirror, TIME_SIG_DENS};
 
 /// Below this available width the transport clusters stack as rows.
 const STACK_BELOW: f32 = 800.0;
@@ -77,8 +77,10 @@ fn beat_glyphs(ui: &mut Ui, m: &UiMirror) {
     let cells = num.min(16);
     let current = unit_idx * cells / num;
     let cw = widgets::cell_width(ui);
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(cw * cells as f32, theme::row()), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(cw * cells as f32, theme::row()),
+        egui::Sense::hover(),
+    );
     let painter = ui.painter();
     for i in 0..cells {
         let (ch, color) = if i == current {
@@ -109,7 +111,9 @@ fn phrase_strip(ui: &mut Ui, m: &UiMirror) {
 
     let cells = (phrase_beats.ceil() as usize).clamp(1, 32);
     let filled = (frac * cells as f32).floor() as usize;
-    let strip: String = (0..cells).map(|k| if k < filled { '▰' } else { '▱' }).collect();
+    let strip: String = (0..cells)
+        .map(|k| if k < filled { '▰' } else { '▱' })
+        .collect();
     ui.label(egui::RichText::new(strip).monospace().color(p.blue));
 }
 
@@ -125,7 +129,11 @@ fn bpm_cluster(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
                     .size(32.0)
                     .color(p.accent),
             );
-            ui.label(egui::RichText::new("enter to set").small().color(p.fg_muted));
+            ui.label(
+                egui::RichText::new("enter to set")
+                    .small()
+                    .color(p.fg_muted),
+            );
         });
         return;
     }
@@ -168,10 +176,16 @@ fn bpm_hero_drag(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
     let hero_font = egui::FontId::monospace(32.0);
     ui.scope(|ui| {
         let hero = egui::TextStyle::Name("bpm-hero".into());
-        ui.style_mut().text_styles.insert(hero.clone(), hero_font.clone());
+        ui.style_mut()
+            .text_styles
+            .insert(hero.clone(), hero_font.clone());
         ui.style_mut().drag_value_text_style = hero;
         let v = ui.visuals_mut();
-        for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active] {
+        for w in [
+            &mut v.widgets.inactive,
+            &mut v.widgets.hovered,
+            &mut v.widgets.active,
+        ] {
             w.weak_bg_fill = egui::Color32::TRANSPARENT;
             w.bg_stroke = egui::Stroke::NONE;
             w.expansion = 0.0;
@@ -297,16 +311,22 @@ fn sig_row(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         if let Some(v) =
             widgets::detent_scroll_uint(ui, "sig_num", m.time_sig.num as u32, 1..=255, 2)
         {
-            let _ = tx.send(Command::SetTimeSig(TimeSig { num: v as u8, den: m.time_sig.den }));
+            let _ = tx.send(Command::SetTimeSig(TimeSig {
+                num: v as u8,
+                den: m.time_sig.den,
+            }));
         }
         ui.label(egui::RichText::new("/").color(p.fg_muted));
-        let den_labels: Vec<&str> = TIME_SIG_DENS.iter().map(|d| match d {
-            1 => "1",
-            2 => "2",
-            4 => "4",
-            8 => "8",
-            _ => "16",
-        }).collect();
+        let den_labels: Vec<&str> = TIME_SIG_DENS
+            .iter()
+            .map(|d| match d {
+                1 => "1",
+                2 => "2",
+                4 => "4",
+                8 => "8",
+                _ => "16",
+            })
+            .collect();
         let den_selected = TIME_SIG_DENS.iter().position(|&d| d == m.time_sig.den);
         if let Some(i) = widgets::detent_scroll(ui, "sig_den", &den_labels, den_selected, 2) {
             let _ = tx.send(Command::SetTimeSig(TimeSig {
@@ -327,7 +347,11 @@ fn sync_cluster(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         SyncKind::Link => 1,
     };
     if let Some(i) = widgets::segmented(ui, "sync", &["internal", "link"], Some(sync_idx)) {
-        let kind = if i == 0 { SyncKind::Internal } else { SyncKind::Link };
+        let kind = if i == 0 {
+            SyncKind::Internal
+        } else {
+            SyncKind::Link
+        };
         let _ = tx.send(Command::SetSyncSource(kind));
     }
     if m.sync == Some(SyncKind::Link) && m.peers > 0 {
@@ -366,14 +390,16 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         // the next active clip; `Loop` = how often the current clip restarts.
         // Wrapped: the bracket lists break between items on a narrow window.
         ui.horizontal_wrapped(|ui| {
-            widgets::section_label(ui, "next every").on_hover_text(
-                "Musical length between auto-transitions to the next active clip",
-            );
+            widgets::section_label(ui, "next every")
+                .on_hover_text("Musical length between auto-transitions to the next active clip");
             let next_labels: Vec<&str> = NEXT_CADENCE.iter().map(|(l, _)| *l).collect();
             let phrase_ticks = m.phrase_cadence.ticks(m.time_sig);
-            let next_selected =
-                NEXT_CADENCE.iter().position(|(_, c)| c.ticks(m.time_sig) == phrase_ticks);
-            if let Some(i) = widgets::detent_scroll(ui, "next_cadence", &next_labels, next_selected, 3) {
+            let next_selected = NEXT_CADENCE
+                .iter()
+                .position(|(_, c)| c.ticks(m.time_sig) == phrase_ticks);
+            if let Some(i) =
+                widgets::detent_scroll(ui, "next_cadence", &next_labels, next_selected, 3)
+            {
                 let _ = tx.send(Command::SetPhraseCadence(NEXT_CADENCE[i].1));
             }
 
@@ -381,8 +407,9 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
             widgets::wrap_unit(ui, "loop_every_unit", |ui| {
                 widgets::section_label(ui, "loop every")
                     .on_hover_text("Force the current clip back to its start on this beat grid");
-                let loop_labels: Vec<&str> =
-                    std::iter::once("off").chain(LOOP_CADENCE_CHOICES.iter().map(|(l, _)| *l)).collect();
+                let loop_labels: Vec<&str> = std::iter::once("off")
+                    .chain(LOOP_CADENCE_CHOICES.iter().map(|(l, _)| *l))
+                    .collect();
                 let loop_selected = m.loop_cadence.map_or(0, |c| {
                     let ticks = c.ticks(m.time_sig);
                     LOOP_CADENCE_CHOICES
@@ -393,7 +420,11 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
                 if let Some(i) =
                     widgets::detent_scroll(ui, "loop_cadence", &loop_labels, Some(loop_selected), 3)
                 {
-                    let cadence = if i == 0 { None } else { Some(LOOP_CADENCE_CHOICES[i - 1].1) };
+                    let cadence = if i == 0 {
+                        None
+                    } else {
+                        Some(LOOP_CADENCE_CHOICES[i - 1].1)
+                    };
                     let _ = tx.send(Command::SetLoopCadence(cadence));
                 }
             });
@@ -441,4 +472,3 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         ui.add_space(SP_SM);
     });
 }
-

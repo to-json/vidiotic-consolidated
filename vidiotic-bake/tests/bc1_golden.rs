@@ -60,7 +60,16 @@ fn synthetic_frame() -> Vec<u8> {
 fn compress(algorithm: Algorithm) -> Vec<u8> {
     let rgba = synthetic_frame();
     let mut out = vec![0u8; Format::Bc1.compressed_size(W, H)];
-    Format::Bc1.compress(&rgba, W, H, Params { algorithm, ..Params::default() }, &mut out);
+    Format::Bc1.compress(
+        &rgba,
+        W,
+        H,
+        Params {
+            algorithm,
+            ..Params::default()
+        },
+        &mut out,
+    );
     out
 }
 
@@ -71,7 +80,11 @@ fn compress(algorithm: Algorithm) -> Vec<u8> {
 fn synthetic_input_is_stable() {
     let f = synthetic_frame();
     assert_eq!(f.len(), W * H * 4);
-    assert_eq!(hash(&f), 0x87cc_e6aa_9473_9450, "synthetic frame generator changed");
+    assert_eq!(
+        hash(&f),
+        0x87cc_e6aa_9473_9450,
+        "synthetic frame generator changed"
+    );
 }
 
 #[test]
@@ -91,7 +104,10 @@ fn rangefit_output_is_deterministic() {
 #[test]
 fn clusterfit_output_is_deterministic() {
     // BakeQuality::High — opt-in only on the web; still must be reproducible.
-    assert_eq!(hash(&compress(Algorithm::ClusterFit)), 0xaf41_fbe9_b595_b2c1);
+    assert_eq!(
+        hash(&compress(Algorithm::ClusterFit)),
+        0xaf41_fbe9_b595_b2c1
+    );
 }
 
 /// Compressing twice must give the same answer — rules out uninitialised
@@ -99,7 +115,14 @@ fn clusterfit_output_is_deterministic() {
 /// would break reproducibility under a different thread count.
 #[test]
 fn compression_is_idempotent() {
-    for (name, algorithm) in [("RangeFit", Algorithm::RangeFit), ("ClusterFit", Algorithm::ClusterFit)] {
-        assert_eq!(compress(algorithm), compress(algorithm), "{name} not reproducible");
+    for (name, algorithm) in [
+        ("RangeFit", Algorithm::RangeFit),
+        ("ClusterFit", Algorithm::ClusterFit),
+    ] {
+        assert_eq!(
+            compress(algorithm),
+            compress(algorithm),
+            "{name} not reproducible"
+        );
     }
 }

@@ -164,9 +164,7 @@ fn main() {
     let mut ok = true;
 
     // 1. RGBA solid red frame + built-in passthrough -> center pixel red.
-    let red: Vec<u8> = (0..(W * H))
-        .flat_map(|_| [220u8, 20, 20, 255])
-        .collect();
+    let red: Vec<u8> = (0..(W * H)).flat_map(|_| [220u8, 20, 20, 255]).collect();
     let frame = DecodedFrame {
         pixels: PixelData::Rgba {
             data: red,
@@ -179,29 +177,51 @@ fn main() {
     renderer.upload_frame(&gpu.device, &gpu.queue, &frame);
     let p = render_center_pixel(&gpu, &mut renderer);
     let pass1 = close(p[0], 220, 6) && close(p[1], 20, 6) && close(p[2], 20, 6);
-    println!("[{}] RGBA passthrough: center={p:?} (want ~[220,20,20,255])", if pass1 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] RGBA passthrough: center={p:?} (want ~[220,20,20,255])",
+        if pass1 { " OK " } else { "FAIL" }
+    );
     ok &= pass1;
 
     // 2. Live-reload style swap: install a shader that samples video but tints green.
-    let tint = "void main() { vec4 v = video(fragTexCoord); FragColor = vec4(0.0, v.r, 0.0, 1.0); }";
+    let tint =
+        "void main() { vec4 v = video(fragTexCoord); FragColor = vec4(0.0, v.r, 0.0, 1.0); }";
     renderer.set_shader(&gpu.device, tint, ShaderLang::Glsl);
-    assert!(renderer.shader_error().is_none(), "tint shader should compile");
+    assert!(
+        renderer.shader_error().is_none(),
+        "tint shader should compile"
+    );
     let p = render_center_pixel(&gpu, &mut renderer);
     // green channel should carry the red input (~220), red/blue ~0
     let pass2 = close(p[0], 0, 6) && p[1] > 180 && close(p[2], 0, 6);
-    println!("[{}] shader swap (tint): center={p:?} (want green~=input red)", if pass2 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] shader swap (tint): center={p:?} (want green~=input red)",
+        if pass2 { " OK " } else { "FAIL" }
+    );
     ok &= pass2;
 
     // 3. Broken shader -> keep last-good (green tint), error recorded.
-    renderer.set_shader(&gpu.device, "void main() { FragColor = nope(); }", ShaderLang::Glsl);
+    renderer.set_shader(
+        &gpu.device,
+        "void main() { FragColor = nope(); }",
+        ShaderLang::Glsl,
+    );
     let has_err = renderer.shader_error().is_some();
     let p = render_center_pixel(&gpu, &mut renderer);
     let pass3 = has_err && p[1] > 180;
-    println!("[{}] broken shader kept last-good: err={} center={p:?}", if pass3 { " OK " } else { "FAIL" }, has_err);
+    println!(
+        "[{}] broken shader kept last-good: err={} center={p:?}",
+        if pass3 { " OK " } else { "FAIL" },
+        has_err
+    );
     ok &= pass3;
 
     // 4. BC1 solid-red frame -> Metal decodes the block. Reset to passthrough first.
-    renderer.set_shader(&gpu.device, "void main(){ FragColor = video(fragTexCoord); }", ShaderLang::Glsl);
+    renderer.set_shader(
+        &gpu.device,
+        "void main(){ FragColor = video(fragTexCoord); }",
+        ShaderLang::Glsl,
+    );
     // BC1 block for solid red: color0 = RGB565 red (0xF800), color1 = 0, all indices 0.
     let mut bc1 = Vec::new();
     let blocks = (W / 4) * (H / 4);
@@ -225,7 +245,10 @@ fn main() {
     let p = render_center_pixel(&gpu, &mut renderer);
     // BC1 565 red decodes to ~ (255, 0, 0)
     let pass4 = p[0] > 230 && close(p[1], 0, 8) && close(p[2], 0, 8);
-    println!("[{}] BC1 upload + GPU decode: center={p:?} (want ~[255,0,0])", if pass4 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] BC1 upload + GPU decode: center={p:?} (want ~[255,0,0])",
+        if pass4 { " OK " } else { "FAIL" }
+    );
     ok &= pass4;
 
     // 5. Effect chain: a seed pass primes prev() with the decoded source, then
@@ -233,7 +256,10 @@ fn main() {
     // (test 4 left a BC1 frame), set a prev()-based live shader, run [Live].
     let red: Vec<u8> = (0..(W * H)).flat_map(|_| [220u8, 20, 20, 255]).collect();
     let frame = DecodedFrame {
-        pixels: PixelData::Rgba { data: red, stride: W * 4 },
+        pixels: PixelData::Rgba {
+            data: red,
+            stride: W * 4,
+        },
         w: W,
         h: H,
         pts_sec: 0.0,
@@ -241,12 +267,18 @@ fn main() {
     renderer.upload_frame(&gpu.device, &gpu.queue, &frame);
     let prev_tint = "void main() { FragColor = vec4(0.0, prev(fragTexCoord).r, 0.0, 1.0); }";
     renderer.set_shader(&gpu.device, prev_tint, ShaderLang::Glsl);
-    assert!(renderer.shader_error().is_none(), "prev() tint should compile");
+    assert!(
+        renderer.shader_error().is_none(),
+        "prev() tint should compile"
+    );
     renderer.set_active_chain(vec![ChainSlot::new(SlotRef::Live)]);
     let p = render_center_pixel(&gpu, &mut renderer);
     // seed prev()==source (red 220) -> green channel ~220, red/blue ~0
     let pass5 = close(p[0], 0, 6) && p[1] > 180 && close(p[2], 0, 6);
-    println!("[{}] chain seed+prev(): center={p:?} (want green~=source red)", if pass5 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] chain seed+prev(): center={p:?} (want green~=source red)",
+        if pass5 { " OK " } else { "FAIL" }
+    );
     ok &= pass5;
     renderer.set_active_chain(Vec::new());
 
@@ -274,7 +306,10 @@ void main() { gl_FragColor = IMG_THIS_NORM_PIXEL(inputImage) * gain; }
     renderer.set_active_chain(vec![slot]);
     let p = render_center_pixel(&gpu, &mut renderer);
     let pass6 = close(p[0], 110, 12) && close(p[1], 10, 8) && close(p[2], 10, 8);
-    println!("[{}] ISF gain=0.5: center={p:?} (want ~[110,10,10])", if pass6 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] ISF gain=0.5: center={p:?} (want ~[110,10,10])",
+        if pass6 { " OK " } else { "FAIL" }
+    );
     ok &= pass6;
     renderer.set_active_chain(Vec::new());
 
@@ -307,7 +342,10 @@ void main() {
     let _ = render_center_pixel(&gpu, &mut renderer);
     let f4 = render_center_pixel(&gpu, &mut renderer);
     let pass7 = f1[0] > 0 && f4[0] > f1[0] + 40;
-    println!("[{}] ISF feedback accumulation: f1={f1:?} -> f4={f4:?} (red must rise)", if pass7 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] ISF feedback accumulation: f1={f1:?} -> f4={f4:?} (red must rise)",
+        if pass7 { " OK " } else { "FAIL" }
+    );
     ok &= pass7;
     renderer.set_active_chain(Vec::new());
 
@@ -322,7 +360,10 @@ void main() {
     renderer.upload_audio(&gpu.queue, &audio);
     let red: Vec<u8> = (0..(W * H)).flat_map(|_| [220u8, 20, 20, 255]).collect();
     let frame = DecodedFrame {
-        pixels: PixelData::Rgba { data: red, stride: W * 4 },
+        pixels: PixelData::Rgba {
+            data: red,
+            stride: W * 4,
+        },
         w: W,
         h: H,
         pts_sec: 0.0,
@@ -353,7 +394,10 @@ void main() {
     renderer.upload_audio(&gpu.queue, &[0u8; vidiotic::analysis::AUDIO_TEX_LEN]);
     let dark = render_center_pixel(&gpu, &mut renderer);
     let pass8 = close(lit[0], 220, 12) && dark[0] + 40 < lit[0];
-    println!("[{}] ISF audioFFT input: lit={lit:?} dark={dark:?} (FFT gates brightness)", if pass8 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] ISF audioFFT input: lit={lit:?} dark={dark:?} (FFT gates brightness)",
+        if pass8 { " OK " } else { "FAIL" }
+    );
     ok &= pass8;
     renderer.set_active_chain(Vec::new());
 
@@ -385,7 +429,10 @@ void main() {{ gl_FragColor = IMG_THIS_NORM_PIXEL(tex); }}
     renderer.set_active_chain(vec![ChainSlot::new(SlotRef::Isf(iname))]);
     let p = render_center_pixel(&gpu, &mut renderer);
     let pass9 = p[2] > 200 && close(p[0], 0, 20) && close(p[1], 0, 20);
-    println!("[{}] ISF IMPORTED image: center={p:?} (want ~[0,0,255])", if pass9 { " OK " } else { "FAIL" });
+    println!(
+        "[{}] ISF IMPORTED image: center={p:?} (want ~[0,0,255])",
+        if pass9 { " OK " } else { "FAIL" }
+    );
     ok &= pass9;
     renderer.set_active_chain(Vec::new());
     let _ = std::fs::remove_file(&bmp);

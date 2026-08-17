@@ -69,7 +69,9 @@ impl Engine {
     /// Record the pre-edit state for `cmd`, unless it isn't an undoable edit or
     /// it coalesces into the current gesture. Runs before the command applies.
     pub fn record_undo(&mut self, cmd: &Command) {
-        let Some(tag) = crate::undo::classify(cmd) else { return };
+        let Some(tag) = crate::undo::classify(cmd) else {
+            return;
+        };
         let now = Instant::now();
         if self.undo.should_push(tag, now) {
             let snapshot = self.doc_snapshot();

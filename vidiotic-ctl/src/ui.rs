@@ -130,9 +130,7 @@ pub fn action_picker(ui: &mut egui::Ui, action: &mut Action, catalog: &[Action])
             if Some(picked) != action.namespace() {
                 // Land on that namespace's first verb rather than keeping an
                 // action the newly-selected list doesn't contain.
-                if let Some(first) =
-                    catalog.iter().find(|a| a.namespace() == Some(picked))
-                {
+                if let Some(first) = catalog.iter().find(|a| a.namespace() == Some(picked)) {
                     *action = *first;
                     changed = true;
                 }
@@ -183,7 +181,11 @@ fn action_params(ui: &mut egui::Ui, action: &mut Action) -> bool {
             drag(ui, "frames", egui::DragValue::new(frames));
         }
         Action::Prep(PrepVerb::ZoomView { factor }) => {
-            drag(ui, "factor", egui::DragValue::new(factor).speed(0.05).range(0.05..=8.0));
+            drag(
+                ui,
+                "factor",
+                egui::DragValue::new(factor).speed(0.05).range(0.05..=8.0),
+            );
         }
         Action::BpmDigit { digit } => {
             drag(ui, "digit", egui::DragValue::new(digit).range(0..=9));
@@ -220,7 +222,9 @@ pub fn readonly_map(
         ui.horizontal_wrapped(|ui| {
             let color = if shadowed { p.fg_muted } else { p.fg_secondary };
             ui.label(
-                egui::RichText::new(source_key(&binding.source)).monospace().color(color),
+                egui::RichText::new(source_key(&binding.source))
+                    .monospace()
+                    .color(color),
             );
             ui.label(egui::RichText::new(binding.action.label()).color(color));
             if shadowed {

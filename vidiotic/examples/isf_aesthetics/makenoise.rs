@@ -7,9 +7,11 @@
 //! empty patch point that fills when patched.
 
 use egui::ecolor::Hsva;
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, vec2};
+use egui::{
+    vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui,
+};
 
-use crate::schema::{DemoState, MidiState, MockKind, MockRole, Value, mock_clips};
+use crate::schema::{mock_clips, DemoState, MidiState, MockKind, MockRole, Value};
 use crate::util;
 
 /// Paper/ink pair, swappable by the FILM toggle.
@@ -46,7 +48,8 @@ const BLOCK_H: f32 = 96.0;
 pub fn show(ui: &mut Ui, st: &mut DemoState) {
     let pal = palette(st.ink_film);
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), pal.paper);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), pal.paper);
     ui.painter().rect_stroke(
         panel.expand(4.0),
         CornerRadius::same(4),
@@ -58,7 +61,12 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         ui.add_space(6.0);
-        ui.label(egui::RichText::new("KALEIDO BLOOM").monospace().size(12.0).color(pal.ink));
+        ui.label(
+            egui::RichText::new("KALEIDO BLOOM")
+                .monospace()
+                .size(12.0)
+                .color(pal.ink),
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(10.0);
             let (rect, resp) = ui.allocate_exact_size(vec2(72.0, 16.0), Sense::click());
@@ -67,14 +75,25 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
             }
             let painter = ui.painter();
             let label = if st.ink_film { "▣ FILM" } else { "▢ INK" };
-            painter.text(rect.center(), Align2::CENTER_CENTER, label, FontId::monospace(9.0), pal.dim);
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                label,
+                FontId::monospace(9.0),
+                pal.dim,
+            );
         });
     });
     ui.add_space(8.0);
 
     let time = st.time;
     let armed = st.midi.armed;
-    let DemoState { inputs, values, midi, .. } = st;
+    let DemoState {
+        inputs,
+        values,
+        midi,
+        ..
+    } = st;
 
     // Reserve a shape slot so the flow lines paint *under* everything drawn
     // after this point.
@@ -87,7 +106,11 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
         // Left rail: the stream inputs as patch points with printed scopes.
         ui.vertical(|ui| {
             ui.set_width(104.0);
-            for (inp, _) in inputs.iter().zip(values.iter()).filter(|(inp, _)| !MidiState::bindable(&inp.kind)) {
+            for (inp, _) in inputs
+                .iter()
+                .zip(values.iter())
+                .filter(|(inp, _)| !MidiState::bindable(&inp.kind))
+            {
                 let tap = match inp.kind {
                     MockKind::Image => jack(ui, pal, inp.label, None),
                     MockKind::Audio => jack(ui, pal, inp.label, Some(ScopeKind::Wave { time })),
@@ -115,7 +138,16 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
                     }
                     for (k, rect) in rects.iter().enumerate() {
                         cluster = Some(cluster.map_or(*rect, |c| c.union(*rect)));
-                        bind_point(ui, pal, midi, i, &inp.kind, *rect, time, k == rects.len() - 1);
+                        bind_point(
+                            ui,
+                            pal,
+                            midi,
+                            i,
+                            &inp.kind,
+                            *rect,
+                            time,
+                            k == rects.len() - 1,
+                        );
                     }
                 }
             });
@@ -134,10 +166,19 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
         for tap in &jack_taps {
             shapes.push(Shape::line_segment([*tap, Pos2::new(bus_x, tap.y)], stroke));
         }
-        shapes.push(Shape::line_segment([Pos2::new(bus_x, top), Pos2::new(bus_x, bottom)], stroke));
+        shapes.push(Shape::line_segment(
+            [Pos2::new(bus_x, top), Pos2::new(bus_x, bottom)],
+            stroke,
+        ));
         let entry = Pos2::new(cluster.min.x - 6.0, cluster.min.y + 18.0);
-        shapes.push(Shape::line_segment([Pos2::new(bus_x, top), Pos2::new(bus_x, entry.y)], stroke));
-        shapes.push(Shape::line_segment([Pos2::new(bus_x, entry.y), entry], stroke));
+        shapes.push(Shape::line_segment(
+            [Pos2::new(bus_x, top), Pos2::new(bus_x, entry.y)],
+            stroke,
+        ));
+        shapes.push(Shape::line_segment(
+            [Pos2::new(bus_x, entry.y), entry],
+            stroke,
+        ));
         for da in [-0.5, 0.5_f32] {
             let dir = egui::Vec2::angled(std::f32::consts::PI + da) * 6.0;
             shapes.push(Shape::line_segment([entry, entry + dir], stroke));
@@ -166,15 +207,26 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     let pal = palette(st.ink_film);
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), pal.paper);
-    ui.painter().rect_stroke(panel.expand(4.0), CornerRadius::same(4), Stroke::new(1.5, pal.ink), StrokeKind::Inside);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), pal.paper);
+    ui.painter().rect_stroke(
+        panel.expand(4.0),
+        CornerRadius::same(4),
+        Stroke::new(1.5, pal.ink),
+        StrokeKind::Inside,
+    );
     let time = st.time;
     let (beat, pulse) = util::beat(time);
 
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         ui.add_space(6.0);
-        ui.label(egui::RichText::new("VIDIOTIC · WIDGETS").monospace().size(12.0).color(pal.ink));
+        ui.label(
+            egui::RichText::new("VIDIOTIC · WIDGETS")
+                .monospace()
+                .size(12.0)
+                .color(pal.ink),
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(10.0);
             let (rect, resp) = ui.allocate_exact_size(vec2(72.0, 16.0), Sense::click());
@@ -182,7 +234,13 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 st.ink_film = !st.ink_film;
             }
             let label = if st.ink_film { "▣ FILM" } else { "▢ INK" };
-            ui.painter().text(rect.center(), Align2::CENTER_CENTER, label, FontId::monospace(9.0), pal.dim);
+            ui.painter().text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                label,
+                FontId::monospace(9.0),
+                pal.dim,
+            );
         });
     });
     ui.add_space(8.0);
@@ -206,16 +264,32 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
             }
         }
         let y = rect.min.y + 50.0;
-        painter.line_segment([Pos2::new(rect.min.x + 8.0, y), Pos2::new(rect.max.x - 8.0, y)], Stroke::new(1.5, pal.ink));
+        painter.line_segment(
+            [
+                Pos2::new(rect.min.x + 8.0, y),
+                Pos2::new(rect.max.x - 8.0, y),
+            ],
+            Stroke::new(1.5, pal.ink),
+        );
         let pos = util::phrase(time);
         for k in 0..16 {
             let x = rect.min.x + 8.0 + (rect.width() - 16.0) * k as f32 / 15.0;
             let major = k % 4 == 0;
-            painter.line_segment([Pos2::new(x, y), Pos2::new(x, y - if major { 7.0 } else { 4.0 })], Stroke::new(1.2, pal.ink));
+            painter.line_segment(
+                [
+                    Pos2::new(x, y),
+                    Pos2::new(x, y - if major { 7.0 } else { 4.0 }),
+                ],
+                Stroke::new(1.2, pal.ink),
+            );
             if k == pos {
                 // Printed arrow head under the current step.
                 painter.add(Shape::convex_polygon(
-                    vec![Pos2::new(x - 4.0, y + 10.0), Pos2::new(x + 4.0, y + 10.0), Pos2::new(x, y + 3.0)],
+                    vec![
+                        Pos2::new(x - 4.0, y + 10.0),
+                        Pos2::new(x + 4.0, y + 10.0),
+                        Pos2::new(x, y + 3.0),
+                    ],
                     pal.ink,
                     Stroke::NONE,
                 ));
@@ -241,8 +315,19 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 Pos2::new(rect.center().x, rect.min.y + 22.0 + k as f32 * 26.0),
                 vec2(84.0, 18.0),
             );
-            painter.rect_stroke(plate, CornerRadius::same(9), Stroke::new(1.2, pal.ink), StrokeKind::Inside);
-            painter.text(plate.center(), Align2::CENTER_CENTER, *text, FontId::monospace(9.0), pal.ink);
+            painter.rect_stroke(
+                plate,
+                CornerRadius::same(9),
+                Stroke::new(1.2, pal.ink),
+                StrokeKind::Inside,
+            );
+            painter.text(
+                plate.center(),
+                Align2::CENTER_CENTER,
+                *text,
+                FontId::monospace(9.0),
+                pal.ink,
+            );
         }
         label_under(ui, pal, rect, "status", "");
 
@@ -250,10 +335,23 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         for clip in mock_clips() {
             let (rect, resp) = ui.allocate_exact_size(vec2(104.0, BLOCK_H), Sense::click());
             let painter = ui.painter();
-            let frame = Rect::from_min_size(Pos2::new(rect.min.x + 4.0, rect.min.y + 4.0), vec2(96.0, 56.0));
-            painter.rect_stroke(frame, CornerRadius::ZERO, Stroke::new(1.5, pal.ink), StrokeKind::Inside);
+            let frame = Rect::from_min_size(
+                Pos2::new(rect.min.x + 4.0, rect.min.y + 4.0),
+                vec2(96.0, 56.0),
+            );
+            painter.rect_stroke(
+                frame,
+                CornerRadius::ZERO,
+                Stroke::new(1.5, pal.ink),
+                StrokeKind::Inside,
+            );
             if clip.selected {
-                painter.rect_stroke(frame.expand(3.0), CornerRadius::ZERO, Stroke::new(1.0, pal.ink), StrokeKind::Inside);
+                painter.rect_stroke(
+                    frame.expand(3.0),
+                    CornerRadius::ZERO,
+                    Stroke::new(1.0, pal.ink),
+                    StrokeKind::Inside,
+                );
             }
             // Crosshatch density seeded per clip: ink's grayscale.
             let inner = frame.shrink(3.0);
@@ -262,23 +360,42 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 let t = k as f32 / n as f32;
                 let x0 = inner.min.x + inner.width() * t;
                 painter.line_segment(
-                    [Pos2::new(x0, inner.max.y), Pos2::new((x0 + inner.height() * 0.6).min(inner.max.x), inner.min.y)],
-                    Stroke::new(1.0, alpha(pal.ink, 90 + (util::hash01(clip.seed, k + 3) * 100.0) as u8)),
+                    [
+                        Pos2::new(x0, inner.max.y),
+                        Pos2::new((x0 + inner.height() * 0.6).min(inner.max.x), inner.min.y),
+                    ],
+                    Stroke::new(
+                        1.0,
+                        alpha(pal.ink, 90 + (util::hash01(clip.seed, k + 3) * 100.0) as u8),
+                    ),
                 );
             }
             match clip.role {
                 MockRole::Playing => {
                     let c = Pos2::new(frame.min.x + 10.0, frame.min.y + 10.0);
                     painter.circle_filled(c, 4.0, pal.ink);
-                    painter.circle_stroke(c, 6.0 + pulse * 2.0, Stroke::new(1.0, alpha(pal.ink, (pulse * 200.0) as u8)));
+                    painter.circle_stroke(
+                        c,
+                        6.0 + pulse * 2.0,
+                        Stroke::new(1.0, alpha(pal.ink, (pulse * 200.0) as u8)),
+                    );
                 }
                 MockRole::Armed => {
-                    painter.circle_stroke(Pos2::new(frame.min.x + 10.0, frame.min.y + 10.0), 4.0, Stroke::new(1.5, pal.ink));
+                    painter.circle_stroke(
+                        Pos2::new(frame.min.x + 10.0, frame.min.y + 10.0),
+                        4.0,
+                        Stroke::new(1.5, pal.ink),
+                    );
                 }
                 MockRole::None => {}
             }
             if resp.hovered() {
-                painter.rect_stroke(frame.expand(1.0), CornerRadius::ZERO, Stroke::new(1.0, pal.dim), StrokeKind::Inside);
+                painter.rect_stroke(
+                    frame.expand(1.0),
+                    CornerRadius::ZERO,
+                    Stroke::new(1.0, pal.dim),
+                    StrokeKind::Inside,
+                );
             }
             let short = clip.name.split('.').next().unwrap_or(clip.name);
             label_under(ui, pal, rect, short, "");
@@ -288,8 +405,16 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         for (name, is_fft) in [("level", false), ("spectrum", true)] {
             let (rect, _) = ui.allocate_exact_size(vec2(150.0, BLOCK_H), Sense::hover());
             let painter = ui.painter();
-            let well = Rect::from_min_size(Pos2::new(rect.min.x + 6.0, rect.min.y + 8.0), vec2(138.0, 52.0));
-            painter.rect_stroke(well, CornerRadius::ZERO, Stroke::new(1.5, pal.ink), StrokeKind::Inside);
+            let well = Rect::from_min_size(
+                Pos2::new(rect.min.x + 6.0, rect.min.y + 8.0),
+                vec2(138.0, 52.0),
+            );
+            painter.rect_stroke(
+                well,
+                CornerRadius::ZERO,
+                Stroke::new(1.5, pal.ink),
+                StrokeKind::Inside,
+            );
             let inner = well.shrink(4.0);
             if is_fft {
                 let n = 20;
@@ -297,15 +422,27 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                     let mag = util::fft(time, k, n);
                     let h = inner.height() * mag;
                     let x = inner.min.x + inner.width() * k as f32 / n as f32;
-                    let bar = Rect::from_min_max(Pos2::new(x, inner.max.y - h), Pos2::new(x + inner.width() / n as f32 * 0.65, inner.max.y));
+                    let bar = Rect::from_min_max(
+                        Pos2::new(x, inner.max.y - h),
+                        Pos2::new(x + inner.width() / n as f32 * 0.65, inner.max.y),
+                    );
                     painter.rect_filled(bar, CornerRadius::ZERO, pal.ink);
                 }
             } else {
                 for ch in 0..2 {
                     let lvl = util::level(time, ch as f32);
                     let y = inner.min.y + 12.0 + ch as f32 * 20.0;
-                    painter.line_segment([Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y)], Stroke::new(1.0, pal.dim));
-                    painter.line_segment([Pos2::new(inner.min.x, y), Pos2::new(inner.min.x + inner.width() * lvl, y)], Stroke::new(5.0, pal.ink));
+                    painter.line_segment(
+                        [Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y)],
+                        Stroke::new(1.0, pal.dim),
+                    );
+                    painter.line_segment(
+                        [
+                            Pos2::new(inner.min.x, y),
+                            Pos2::new(inner.min.x + inner.width() * lvl, y),
+                        ],
+                        Stroke::new(5.0, pal.ink),
+                    );
                 }
             }
             label_under(ui, pal, rect, name, "");
@@ -342,14 +479,23 @@ fn jack(ui: &mut Ui, pal: Pal, label: &str, scope: Option<ScopeKind>) -> Pos2 {
         pal.ink,
     );
     if let Some(kind) = scope {
-        let frame = Rect::from_min_size(Pos2::new(rect.min.x + 6.0, rect.min.y + 34.0), vec2(88.0, 32.0));
-        painter.rect_stroke(frame, CornerRadius::ZERO, Stroke::new(1.2, pal.ink), StrokeKind::Inside);
+        let frame = Rect::from_min_size(
+            Pos2::new(rect.min.x + 6.0, rect.min.y + 34.0),
+            vec2(88.0, 32.0),
+        );
+        painter.rect_stroke(
+            frame,
+            CornerRadius::ZERO,
+            Stroke::new(1.2, pal.ink),
+            StrokeKind::Inside,
+        );
         match kind {
             ScopeKind::Wave { time } => {
                 let n = 44;
                 let pts: Vec<Pos2> = (0..n)
                     .map(|k| {
-                        let x = frame.min.x + 2.0 + (frame.width() - 4.0) * k as f32 / (n - 1) as f32;
+                        let x =
+                            frame.min.x + 2.0 + (frame.width() - 4.0) * k as f32 / (n - 1) as f32;
                         let y = frame.center().y - util::wave(time, k, n) * (frame.height() * 0.4);
                         Pos2::new(x, y)
                     })
@@ -364,7 +510,10 @@ fn jack(ui: &mut Ui, pal: Pal, label: &str, scope: Option<ScopeKind>) -> Pos2 {
                     let h = (frame.height() - 4.0) * mag;
                     let bar = Rect::from_min_max(
                         Pos2::new(frame.min.x + 2.0 + k as f32 * bw, frame.max.y - 2.0 - h),
-                        Pos2::new(frame.min.x + 2.0 + (k as f32 + 0.65) * bw, frame.max.y - 2.0),
+                        Pos2::new(
+                            frame.min.x + 2.0 + (k as f32 + 0.65) * bw,
+                            frame.max.y - 2.0,
+                        ),
                     );
                     painter.rect_filled(bar, CornerRadius::ZERO, pal.ink);
                 }
@@ -397,7 +546,9 @@ fn control(
             vec![detent(ui, pal, i, label, labels, sel)]
         }
         (MockKind::Event, Value::EventAt(at)) => vec![burst(ui, pal, label, at, time)],
-        (MockKind::Point2D { min, max, .. }, Value::Point(p)) => vec![pad(ui, pal, label, min, max, p)],
+        (MockKind::Point2D { min, max, .. }, Value::Point(p)) => {
+            vec![pad(ui, pal, label, min, max, p)]
+        }
         (MockKind::Color { .. }, Value::Color(c)) => color_blocks(ui, pal, i, label, c),
         _ => vec![],
     }
@@ -426,7 +577,16 @@ fn label_under(ui: &Ui, pal: Pal, rect: Rect, label: &str, value: &str) {
 /// Ink knob with a printed arc scale; bipolar knobs get a center notch and
 /// half-shaded arc (the attenuverter idiom).
 #[allow(clippy::too_many_arguments)]
-fn knob(ui: &mut Ui, pal: Pal, i: usize, sub: usize, label: &str, value: &str, t: &mut f32, bipolar: bool) -> Rect {
+fn knob(
+    ui: &mut Ui,
+    pal: Pal,
+    i: usize,
+    sub: usize,
+    label: &str,
+    value: &str,
+    t: &mut f32,
+    bipolar: bool,
+) -> Rect {
     let (rect, resp) = ui.allocate_exact_size(vec2(72.0, BLOCK_H), Sense::click_and_drag());
     util::vdrag(&resp, t, 0.0, 1.0, 150.0);
     if resp.hovered() {
@@ -435,20 +595,44 @@ fn knob(ui: &mut Ui, pal: Pal, i: usize, sub: usize, label: &str, value: &str, t
     let center = Pos2::new(rect.center().x, rect.min.y + 30.0);
     let r = 15.0;
     let painter = ui.painter();
-    painter.add(Shape::line(util::knob_arc(center, r + 6.0, 0.0, 1.0), Stroke::new(1.2, pal.ink)));
+    painter.add(Shape::line(
+        util::knob_arc(center, r + 6.0, 0.0, 1.0),
+        Stroke::new(1.2, pal.ink),
+    ));
     for tt in [0.0, 0.5, 1.0] {
         let dir = util::knob_dir(tt);
-        painter.line_segment([center + dir * (r + 4.0), center + dir * (r + 9.0)], Stroke::new(1.2, pal.ink));
+        painter.line_segment(
+            [center + dir * (r + 4.0), center + dir * (r + 9.0)],
+            Stroke::new(1.2, pal.ink),
+        );
     }
     if bipolar {
         // Shade the negative half of the printed arc.
-        painter.add(Shape::line(util::knob_arc(center, r + 6.0, 0.0, 0.5), Stroke::new(3.0, alpha(pal.ink, 70))));
-        painter.text(center + util::knob_dir(0.0) * (r + 15.0), Align2::CENTER_CENTER, "−", FontId::monospace(9.0), pal.ink);
-        painter.text(center + util::knob_dir(1.0) * (r + 15.0), Align2::CENTER_CENTER, "+", FontId::monospace(9.0), pal.ink);
+        painter.add(Shape::line(
+            util::knob_arc(center, r + 6.0, 0.0, 0.5),
+            Stroke::new(3.0, alpha(pal.ink, 70)),
+        ));
+        painter.text(
+            center + util::knob_dir(0.0) * (r + 15.0),
+            Align2::CENTER_CENTER,
+            "−",
+            FontId::monospace(9.0),
+            pal.ink,
+        );
+        painter.text(
+            center + util::knob_dir(1.0) * (r + 15.0),
+            Align2::CENTER_CENTER,
+            "+",
+            FontId::monospace(9.0),
+            pal.ink,
+        );
     }
     painter.circle_filled(center, r, pal.ink);
     let dir = util::knob_dir(*t);
-    painter.line_segment([center + dir * 3.0, center + dir * (r - 1.5)], Stroke::new(2.0, pal.paper));
+    painter.line_segment(
+        [center + dir * 3.0, center + dir * (r - 1.5)],
+        Stroke::new(2.0, pal.paper),
+    );
     label_under(ui, pal, rect, label, value);
     let _ = (i, sub);
     rect
@@ -465,8 +649,16 @@ fn toggle(ui: &mut Ui, pal: Pal, label: &str, b: &mut bool) -> Rect {
     let on_pos = center + vec2(0.0, -16.0);
     let off_pos = center + vec2(0.0, 16.0);
     painter.circle_filled(on_pos, 4.0, if *b { pal.ink } else { alpha(pal.ink, 60) });
-    painter.circle_stroke(off_pos, 4.0, Stroke::new(1.4, if *b { alpha(pal.ink, 60) } else { pal.ink }));
-    let tip = if *b { on_pos + vec2(0.0, 6.0) } else { off_pos - vec2(0.0, 6.0) };
+    painter.circle_stroke(
+        off_pos,
+        4.0,
+        Stroke::new(1.4, if *b { alpha(pal.ink, 60) } else { pal.ink }),
+    );
+    let tip = if *b {
+        on_pos + vec2(0.0, 6.0)
+    } else {
+        off_pos - vec2(0.0, 6.0)
+    };
     painter.line_segment([center, tip], Stroke::new(3.0, pal.ink));
     painter.circle_filled(center, 4.5, pal.ink);
     label_under(ui, pal, rect, label, if *b { "on" } else { "off" });
@@ -488,14 +680,26 @@ fn detent(ui: &mut Ui, pal: Pal, i: usize, label: &str, labels: &[&str], sel: &m
     for (k, name) in labels.iter().enumerate() {
         let tt = k as f32 / (n - 1) as f32;
         let dir = util::knob_dir(tt);
-        painter.line_segment([center + dir * (r + 3.0), center + dir * (r + 7.0)], Stroke::new(1.2, pal.ink));
+        painter.line_segment(
+            [center + dir * (r + 3.0), center + dir * (r + 7.0)],
+            Stroke::new(1.2, pal.ink),
+        );
         let color = if k == *sel { pal.ink } else { pal.dim };
-        painter.text(center + dir * (r + 14.0), Align2::CENTER_CENTER, *name, FontId::monospace(8.0), color);
+        painter.text(
+            center + dir * (r + 14.0),
+            Align2::CENTER_CENTER,
+            *name,
+            FontId::monospace(8.0),
+            color,
+        );
     }
     painter.circle_filled(center, r, pal.ink);
     let t = *sel as f32 / (n - 1) as f32;
     let dir = util::knob_dir(t);
-    painter.line_segment([center, center + dir * (r - 1.5)], Stroke::new(2.0, pal.paper));
+    painter.line_segment(
+        [center, center + dir * (r - 1.5)],
+        Stroke::new(2.0, pal.paper),
+    );
     label_under(ui, pal, rect, label, "");
     rect
 }
@@ -512,22 +716,43 @@ fn burst(ui: &mut Ui, pal: Pal, label: &str, at: &mut f64, time: f64) -> Rect {
     for k in 0..8 {
         let a = k as f32 / 8.0 * std::f32::consts::TAU;
         let dir = egui::Vec2::angled(a);
-        painter.line_segment([center + dir * 12.0, center + dir * 17.0], Stroke::new(1.6, pal.ink));
+        painter.line_segment(
+            [center + dir * 12.0, center + dir * 17.0],
+            Stroke::new(1.6, pal.ink),
+        );
     }
-    let fill = if resp.is_pointer_button_down_on() { alpha(pal.ink, 200) } else { pal.ink };
+    let fill = if resp.is_pointer_button_down_on() {
+        alpha(pal.ink, 200)
+    } else {
+        pal.ink
+    };
     painter.circle_filled(center, 8.0, fill);
     if flash > 0.0 {
         // Ink-splash: an expanding, fading ring.
         let rr = 10.0 + (1.0 - flash) * 16.0;
-        painter.circle_stroke(center, rr, Stroke::new(2.0, alpha(pal.ink, (flash * 220.0) as u8)));
+        painter.circle_stroke(
+            center,
+            rr,
+            Stroke::new(2.0, alpha(pal.ink, (flash * 220.0) as u8)),
+        );
     }
     label_under(ui, pal, rect, label, "");
     rect
 }
 
-fn pad(ui: &mut Ui, pal: Pal, label: &str, min: &[f32; 2], max: &[f32; 2], p: &mut [f32; 2]) -> Rect {
+fn pad(
+    ui: &mut Ui,
+    pal: Pal,
+    label: &str,
+    min: &[f32; 2],
+    max: &[f32; 2],
+    p: &mut [f32; 2],
+) -> Rect {
     let (rect, resp) = ui.allocate_exact_size(vec2(86.0, BLOCK_H), Sense::click_and_drag());
-    let square = Rect::from_center_size(Pos2::new(rect.center().x, rect.min.y + 32.0), vec2(58.0, 58.0));
+    let square = Rect::from_center_size(
+        Pos2::new(rect.center().x, rect.min.y + 32.0),
+        vec2(58.0, 58.0),
+    );
     if resp.dragged() || resp.clicked() {
         if let Some(pos) = resp.interact_pointer_pos() {
             let tx = ((pos.x - square.min.x) / square.width()).clamp(0.0, 1.0);
@@ -537,19 +762,39 @@ fn pad(ui: &mut Ui, pal: Pal, label: &str, min: &[f32; 2], max: &[f32; 2], p: &m
         }
     }
     let painter = ui.painter();
-    painter.rect_stroke(square, CornerRadius::ZERO, Stroke::new(1.4, pal.ink), StrokeKind::Inside);
+    painter.rect_stroke(
+        square,
+        CornerRadius::ZERO,
+        Stroke::new(1.4, pal.ink),
+        StrokeKind::Inside,
+    );
     // Printed corner ticks, plotter style.
     for k in 1..4 {
         let x = square.min.x + square.width() * k as f32 / 4.0;
         let y = square.min.y + square.height() * k as f32 / 4.0;
-        painter.line_segment([Pos2::new(x, square.max.y - 3.0), Pos2::new(x, square.max.y)], Stroke::new(1.0, pal.ink));
-        painter.line_segment([Pos2::new(square.min.x, y), Pos2::new(square.min.x + 3.0, y)], Stroke::new(1.0, pal.ink));
+        painter.line_segment(
+            [Pos2::new(x, square.max.y - 3.0), Pos2::new(x, square.max.y)],
+            Stroke::new(1.0, pal.ink),
+        );
+        painter.line_segment(
+            [Pos2::new(square.min.x, y), Pos2::new(square.min.x + 3.0, y)],
+            Stroke::new(1.0, pal.ink),
+        );
     }
     let tx = (p[0] - min[0]) / (max[0] - min[0]);
     let ty = 1.0 - (p[1] - min[1]) / (max[1] - min[1]);
-    let dot = Pos2::new(square.min.x + square.width() * tx, square.min.y + square.height() * ty);
-    painter.line_segment([Pos2::new(dot.x - 6.0, dot.y), Pos2::new(dot.x + 6.0, dot.y)], Stroke::new(1.0, pal.dim));
-    painter.line_segment([Pos2::new(dot.x, dot.y - 6.0), Pos2::new(dot.x, dot.y + 6.0)], Stroke::new(1.0, pal.dim));
+    let dot = Pos2::new(
+        square.min.x + square.width() * tx,
+        square.min.y + square.height() * ty,
+    );
+    painter.line_segment(
+        [Pos2::new(dot.x - 6.0, dot.y), Pos2::new(dot.x + 6.0, dot.y)],
+        Stroke::new(1.0, pal.dim),
+    );
+    painter.line_segment(
+        [Pos2::new(dot.x, dot.y - 6.0), Pos2::new(dot.x, dot.y + 6.0)],
+        Stroke::new(1.0, pal.dim),
+    );
     painter.circle_filled(dot, 3.5, pal.ink);
     label_under(ui, pal, rect, label, "");
     rect
@@ -564,7 +809,16 @@ fn color_blocks(ui: &mut Ui, pal: Pal, i: usize, label: &str, c: &mut Hsva) -> V
             _ => &mut c.v,
         };
         let shown = *ch;
-        out.push(knob(ui, pal, i, k + 1, ch_label, &format!("{shown:.2}"), ch, false));
+        out.push(knob(
+            ui,
+            pal,
+            i,
+            k + 1,
+            ch_label,
+            &format!("{shown:.2}"),
+            ch,
+            false,
+        ));
     }
     // The swatch: the only pigment on the panel.
     let (rect, _) = ui.allocate_exact_size(vec2(64.0, BLOCK_H), Sense::hover());
@@ -617,7 +871,11 @@ fn bind_point(
         }
     }
     if midi.armed {
-        let resp = ui.interact(rect, ui.id().with(("learn", idx, rect.min.x as i32)), Sense::click());
+        let resp = ui.interact(
+            rect,
+            ui.id().with(("learn", idx, rect.min.x as i32)),
+            Sense::click(),
+        );
         if resp.clicked() {
             midi.learn_click(idx, kind);
         }

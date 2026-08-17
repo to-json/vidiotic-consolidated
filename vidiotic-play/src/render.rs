@@ -10,9 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::chain::{ChainSlot, ShaderId, ShaderPoolView, SlotRef};
-use crate::isf::{
-    self, IsfBuiltins, IsfInput, IsfPass, IsfTarget, IsfTexSource, IsfUbo, IsfValue,
-};
+use crate::isf::{self, IsfBuiltins, IsfInput, IsfPass, IsfTarget, IsfTexSource, IsfUbo, IsfValue};
 use crate::shader::{self, ShaderError, ShaderLang};
 
 /// Format of ISF intermediate pass targets. Always float so `FLOAT`/feedback
@@ -202,7 +200,10 @@ pub(crate) const BUILTIN_EFFECTS: &[(&str, &str)] = &[
     ("kaleido", include_str!("../shaders/kaleido.frag")),
     ("glitch-vhs", include_str!("../shaders/glitch-vhs.frag")),
     ("chroma-punch", include_str!("../shaders/chroma-punch.frag")),
-    ("spectrum-warp", include_str!("../shaders/spectrum-warp.frag")),
+    (
+        "spectrum-warp",
+        include_str!("../shaders/spectrum-warp.frag"),
+    ),
     ("pixellate", include_str!("../shaders/pixellate.frag")),
     ("strobe", include_str!("../shaders/strobe.frag")),
     ("tile", include_str!("../shaders/tile.frag")),
@@ -371,8 +372,9 @@ impl Renderer {
             ))),
         });
         let vs_glsl = {
-            let module = shader::compile_glsl_vertex_module(include_str!("../shaders/fullscreen.vert"))
-                .expect("built-in GLSL vertex shader must compile");
+            let module =
+                shader::compile_glsl_vertex_module(include_str!("../shaders/fullscreen.vert"))
+                    .expect("built-in GLSL vertex shader must compile");
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("fullscreen-vs-glsl"),
                 source: wgpu::ShaderSource::Naga(Cow::Owned(module)),
@@ -479,10 +481,9 @@ impl Renderer {
 
         // Built-in passthrough so the app always renders (startup / compile failure).
         let passthrough = {
-            let module = shader::compile_glsl_to_module(
-                "void main() { FragColor = video(fragTexCoord); }",
-            )
-            .expect("built-in passthrough must compile");
+            let module =
+                shader::compile_glsl_to_module("void main() { FragColor = video(fragTexCoord); }")
+                    .expect("built-in passthrough must compile");
             let fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("passthrough-fs"),
                 source: wgpu::ShaderSource::Naga(Cow::Owned(module)),
@@ -608,7 +609,12 @@ impl Renderer {
     /// Returns the removed entry's name/path so callers can scrub other
     /// chains (e.g. cues not currently active) that reference it too.
     pub fn remove_pool_shader(&mut self, id: ShaderId) -> Option<Arc<str>> {
-        let name = self.pool.iter().find(|p| p.id == id && !p.builtin)?.name.clone();
+        let name = self
+            .pool
+            .iter()
+            .find(|p| p.id == id && !p.builtin)?
+            .name
+            .clone();
         self.pool.retain(|p| p.id != id || p.builtin);
         self.active_chain.retain(|slot| {
             slot.shader != SlotRef::Pinned(id)
@@ -718,8 +724,7 @@ impl Renderer {
         });
         // The final (untargeted) pass writes color_format; targeted passes write
         // the float intermediate format.
-        let pipeline_out =
-            build_pipeline(device, &layout, &self.vs_glsl, &fs, self.color_format);
+        let pipeline_out = build_pipeline(device, &layout, &self.vs_glsl, &fs, self.color_format);
         let pipeline_mid = (!prog.targets.is_empty())
             .then(|| build_pipeline(device, &layout, &self.vs_glsl, &fs, ISF_MID_FORMAT));
 
@@ -749,7 +754,11 @@ impl Renderer {
                     // `has_root`, not `is_absolute`: the latter is false for
                     // every path on wasm32-unknown-unknown, which is neither
                     // unix nor Windows. See `vidiotic_core::project::absolutize`.
-                    let path = if rel.has_root() { rel.clone() } else { base_dir.join(rel) };
+                    let path = if rel.has_root() {
+                        rel.clone()
+                    } else {
+                        base_dir.join(rel)
+                    };
                     match load_still(&path) {
                         Ok(frame) => {
                             let (tex, view) = upload_still(device, queue, &frame);
@@ -795,7 +804,9 @@ impl Renderer {
     /// more than once in one chain, the last instance's values win for all.
     fn pack_isf_params(&self, queue: &wgpu::Queue, width: u32, height: u32) {
         for slot in &self.active_chain {
-            let SlotRef::Isf(name) = &slot.shader else { continue };
+            let SlotRef::Isf(name) = &slot.shader else {
+                continue;
+            };
             let Some(entry) = self
                 .pool
                 .iter()
@@ -869,20 +880,31 @@ impl Renderer {
     /// # Panics
     /// Panics if the video texture is absent after the create-if-changed step
     /// above — an internal invariant that always holds.
-    pub fn upload_frame(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, frame: &DecodedFrame) {
+    pub fn upload_frame(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        frame: &DecodedFrame,
+    ) {
         let (format, has_alpha) = match &frame.pixels {
             PixelData::Bc { format, alpha, .. } => (wgpu_format(*format), alpha.is_some()),
             PixelData::Rgba { .. } => (wgpu::TextureFormat::Rgba8Unorm, false),
         };
 
         let needs_new = match &self.video {
-            Some(v) => v.format != format || v.w != frame.w || v.h != frame.h || v.has_alpha != has_alpha,
+            Some(v) => {
+                v.format != format || v.w != frame.w || v.h != frame.h || v.has_alpha != has_alpha
+            }
             None => true,
         };
         if needs_new {
-            self.video = Some(self.create_video_texture(device, format, frame.w, frame.h, has_alpha));
+            self.video =
+                Some(self.create_video_texture(device, format, frame.w, frame.h, has_alpha));
         }
-        let v = self.video.as_ref().expect("video texture created above when missing or mismatched");
+        let v = self
+            .video
+            .as_ref()
+            .expect("video texture created above when missing or mismatched");
 
         match &frame.pixels {
             PixelData::Bc {
@@ -1146,7 +1168,10 @@ impl Renderer {
             return;
         }
 
-        let ping = self.ping.as_ref().expect("ping allocated for non-empty chain");
+        let ping = self
+            .ping
+            .as_ref()
+            .expect("ping allocated for non-empty chain");
         // Pre-build the set=2 input bind groups: the seed reads the dummy (it
         // uses `video()`), each effect reads the buffer the prior stage wrote.
         let seed_input = self.make_input_bg(device, &self.dummy_input_view);
@@ -1155,7 +1180,13 @@ impl Renderer {
             .collect();
 
         // Seed: decoded source → buffer 0.
-        self.draw_pass(encoder, &self.passthrough, &v.bind_group, &seed_input, &ping.views[0]);
+        self.draw_pass(
+            encoder,
+            &self.passthrough,
+            &v.bind_group,
+            &seed_input,
+            &ping.views[0],
+        );
         for (i, stage) in stages.iter().enumerate() {
             let target = if i + 1 == stages.len() {
                 view
@@ -1244,7 +1275,9 @@ impl Renderer {
         input_bg: &wgpu::BindGroup,
         stage_out: &wgpu::TextureView,
     ) {
-        let Some(p) = self.pool.iter().find(|p| p.id == id) else { return };
+        let Some(p) = self.pool.iter().find(|p| p.id == id) else {
+            return;
+        };
         let Some(entry) = p.isf.as_ref() else { return };
         let targets = self.isf_targets.get(&id);
         let parity = targets.map_or(0, |t| t.parity);
@@ -1317,7 +1350,11 @@ impl Renderer {
                 resource: wgpu::BindingResource::Sampler(&self.sampler),
             });
             for (j, t) in entry.targets.iter().enumerate() {
-                let read_parity = if pass_i > t.writer_pass { parity } else { 1 - parity };
+                let read_parity = if pass_i > t.writer_pass {
+                    parity
+                } else {
+                    1 - parity
+                };
                 let view = targets
                     .map(|tg| &tg.bufs[j].view[read_parity])
                     .unwrap_or(&self.dummy_input_view);
@@ -1351,7 +1388,11 @@ impl Renderer {
     /// changes, and toggle its feedback parity for this frame.
     fn ensure_isf_targets(&mut self, device: &wgpu::Device, id: ShaderId, w: u32, h: u32) {
         let sizes: Vec<(u32, u32)> = {
-            let Some(entry) = self.pool.iter().find(|p| p.id == id).and_then(|p| p.isf.as_ref())
+            let Some(entry) = self
+                .pool
+                .iter()
+                .find(|p| p.id == id)
+                .and_then(|p| p.isf.as_ref())
             else {
                 return;
             };
@@ -1375,7 +1416,14 @@ impl Renderer {
                 .iter()
                 .map(|(tw, th)| make_target_tex(device, *tw, *th))
                 .collect();
-            self.isf_targets.insert(id, IsfTargets { base: (w, h), parity: 0, bufs });
+            self.isf_targets.insert(
+                id,
+                IsfTargets {
+                    base: (w, h),
+                    parity: 0,
+                    bufs,
+                },
+            );
         }
         if let Some(t) = self.isf_targets.get_mut(&id) {
             t.parity ^= 1;
@@ -1418,7 +1466,8 @@ impl Renderer {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: self.color_format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             });
             tex.create_view(&wgpu::TextureViewDescriptor::default())
@@ -1447,7 +1496,11 @@ fn upload_still(
         log::error!("ISF IMPORTED: decoded still was not RGBA");
         let tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("isf-imported-fallback"),
-            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,

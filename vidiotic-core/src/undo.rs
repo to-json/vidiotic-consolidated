@@ -60,7 +60,11 @@ pub struct SnapshotHistory<T, Tag, Clock = f64> {
 // empty deques don't actually need.
 impl<T, Tag, Clock> Default for SnapshotHistory<T, Tag, Clock> {
     fn default() -> Self {
-        Self { undo: VecDeque::new(), redo: Vec::new(), last: None }
+        Self {
+            undo: VecDeque::new(),
+            redo: Vec::new(),
+            last: None,
+        }
     }
 }
 

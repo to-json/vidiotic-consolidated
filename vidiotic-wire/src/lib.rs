@@ -16,9 +16,9 @@
 //! [`WireToggleI32`]/[`WireToggleF64`]/[`WireToggleU32`] where it has the
 //! generic `Toggle<T>`.
 
-pub mod command;
 #[cfg(feature = "client")]
 pub mod client;
+pub mod command;
 pub mod envelope;
 pub mod isf;
 pub mod query;
@@ -43,7 +43,7 @@ pub use command::{
     WireCadence, WireCamDelay, WireChainSlot, WireCommand, WireCueParam, WireCueParamKind,
     WireSlotRef, WireSyncKind, WireTimeSig, WireToggleF64, WireToggleI32, WireToggleU32,
 };
-pub use envelope::{Greeting, GreetingInfo, ReplyResult, Reply, ReqBody, Request};
+pub use envelope::{Greeting, GreetingInfo, Reply, ReplyResult, ReqBody, Request};
 pub use isf::{WireIsfInput, WireIsfInputKind, WireIsfValue, WireParam};
 pub use query::WireQuery;
 pub use reply::{

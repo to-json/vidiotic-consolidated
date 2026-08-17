@@ -7,7 +7,9 @@
 
 use crossbeam_channel::Sender;
 use vidiotic_ctl::model::Binding;
-use vidiotic_ctl::{Action, ControlEvent, ControlMap, ControlSource, EventValue, MidiHub, Mapper, PadPoller};
+use vidiotic_ctl::{
+    Action, ControlEvent, ControlMap, ControlSource, EventValue, Mapper, MidiHub, PadPoller,
+};
 use winit::keyboard::Key;
 
 use crate::commands::Command;
@@ -194,11 +196,20 @@ impl ControlInput {
         repeat: bool,
         cmd_tx: &Sender<Command>,
     ) -> bool {
-        let source = ControlSource::Key { key: key.to_string(), ctrl, alt, shift, cmd };
+        let source = ControlSource::Key {
+            key: key.to_string(),
+            ctrl,
+            alt,
+            shift,
+            cmd,
+        };
         if !self.mapper.has_binding(&source) {
             return false;
         }
-        let ev = ControlEvent { source, value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source,
+            value: EventValue::Pressed,
+        };
         if let Some((action, value)) = self.mapper.resolve(&ev) {
             if let Some(c) = to_command(&action, value) {
                 if !repeat || c.repeats_on_hold() {
@@ -287,7 +298,10 @@ mod tests {
                 bound, pressed,
                 "{egui_key:?} bound in the editor must match {character:?} pressed in the player"
             );
-            assert_eq!(bound, character, "the canonical form is the literal character");
+            assert_eq!(
+                bound, character,
+                "the canonical form is the literal character"
+            );
         }
     }
 
@@ -320,8 +334,7 @@ mod tests {
     #[test]
     fn character_keys_canonicalize_idempotently() {
         for character in ["+", "=", "-", "[", "]", ",", ".", "0", "1", "9"] {
-            let pressed =
-                canon_key(&Key::Character(character.into())).expect("character key");
+            let pressed = canon_key(&Key::Character(character.into())).expect("character key");
             assert_eq!(
                 vidiotic_ctl::keys::canon(&pressed),
                 pressed,
@@ -339,12 +352,21 @@ mod tests {
     /// layers one, with `over` standing in for a project/global map.
     fn press(over: ControlMap, source: ControlSource) -> Option<Command> {
         let mut mapper = Mapper::new(default_map(), over);
-        let ev = ControlEvent { source, value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source,
+            value: EventValue::Pressed,
+        };
         mapper.resolve(&ev).and_then(|(a, v)| to_command(&a, v))
     }
 
     fn plain(k: &str) -> ControlSource {
-        ControlSource::Key { key: k.into(), ctrl: false, alt: false, shift: false, cmd: false }
+        ControlSource::Key {
+            key: k.into(),
+            ctrl: false,
+            alt: false,
+            shift: false,
+            cmd: false,
+        }
     }
 
     /// A default whose key name isn't canonical can never match a live event,
@@ -370,28 +392,61 @@ mod tests {
     #[test]
     fn defaults_still_fire_what_the_hardcoded_match_fired() {
         let none = ControlMap::default;
-        assert!(matches!(press(none(), plain("t")), Some(Command::TapDownbeat)));
+        assert!(matches!(
+            press(none(), plain("t")),
+            Some(Command::TapDownbeat)
+        ));
         assert!(matches!(press(none(), plain("b")), Some(Command::TapTempo)));
-        assert!(matches!(press(none(), plain("f")), Some(Command::ToggleFullscreen)));
-        assert!(matches!(press(none(), plain("c")), Some(Command::CaptureShader)));
-        assert!(matches!(press(none(), plain("r")), Some(Command::SoftReset)));
+        assert!(matches!(
+            press(none(), plain("f")),
+            Some(Command::ToggleFullscreen)
+        ));
+        assert!(matches!(
+            press(none(), plain("c")),
+            Some(Command::CaptureShader)
+        ));
+        assert!(matches!(
+            press(none(), plain("r")),
+            Some(Command::SoftReset)
+        ));
         assert!(matches!(press(none(), plain("=")), Some(Command::BpmDelta(a)) if a == 1.0));
         assert!(matches!(press(none(), plain("-")), Some(Command::BpmDelta(a)) if a == -1.0));
         assert!(matches!(press(none(), plain("[")), Some(Command::NudgeBpm(r)) if r < 0.0));
-        assert!(matches!(press(none(), plain(",")), Some(Command::CycleLiveBank(-1))));
-        assert!(matches!(press(none(), plain(".")), Some(Command::CycleLiveBank(1))));
+        assert!(matches!(
+            press(none(), plain(",")),
+            Some(Command::CycleLiveBank(-1))
+        ));
+        assert!(matches!(
+            press(none(), plain(".")),
+            Some(Command::CycleLiveBank(1))
+        ));
 
-        let shift_r =
-            ControlSource::Key { key: "r".into(), ctrl: false, alt: false, shift: true, cmd: false };
+        let shift_r = ControlSource::Key {
+            key: "r".into(),
+            ctrl: false,
+            alt: false,
+            shift: true,
+            cmd: false,
+        };
         assert!(
             matches!(press(none(), shift_r), Some(Command::HardReset)),
             "shift+R is the hard reset, and stays distinct from a bare r"
         );
-        let cmd_q =
-            ControlSource::Key { key: "q".into(), ctrl: false, alt: false, shift: false, cmd: true };
+        let cmd_q = ControlSource::Key {
+            key: "q".into(),
+            ctrl: false,
+            alt: false,
+            shift: false,
+            cmd: true,
+        };
         assert!(matches!(press(none(), cmd_q), Some(Command::Quit)));
-        let ctrl_s =
-            ControlSource::Key { key: "s".into(), ctrl: true, alt: false, shift: false, cmd: false };
+        let ctrl_s = ControlSource::Key {
+            key: "s".into(),
+            ctrl: true,
+            alt: false,
+            shift: false,
+            cmd: false,
+        };
         assert!(matches!(press(none(), ctrl_s), Some(Command::SaveProject)));
     }
 
@@ -407,8 +462,14 @@ mod tests {
                 "digit {d} must reach the entry, got {cmd:?}"
             );
         }
-        assert!(matches!(press(ControlMap::default(), plain("Enter")), Some(Command::BpmCommit)));
-        assert!(matches!(press(ControlMap::default(), plain("Escape")), Some(Command::BpmClear)));
+        assert!(matches!(
+            press(ControlMap::default(), plain("Enter")),
+            Some(Command::BpmCommit)
+        ));
+        assert!(matches!(
+            press(ControlMap::default(), plain("Escape")),
+            Some(Command::BpmClear)
+        ));
     }
 
     /// The bug this whole arrangement exists to kill: binding a digit used to
@@ -418,18 +479,30 @@ mod tests {
     #[test]
     fn a_user_binding_on_a_digit_overrides_rather_than_swallows() {
         let over = ControlMap {
-            bindings: vec![Binding { source: plain("1"), action: Action::TapTempo }],
+            bindings: vec![Binding {
+                source: plain("1"),
+                action: Action::TapTempo,
+            }],
         };
         assert!(
             matches!(press(over, plain("1")), Some(Command::TapTempo)),
             "the user's binding wins outright"
         );
         let masked = ControlMap {
-            bindings: vec![Binding { source: plain("1"), action: Action::Nothing }],
+            bindings: vec![Binding {
+                source: plain("1"),
+                action: Action::Nothing,
+            }],
         };
-        assert!(press(masked, plain("1")).is_none(), "a Nothing binding masks the default");
         assert!(
-            matches!(press(ControlMap::default(), plain("1")), Some(Command::BpmDigit(1))),
+            press(masked, plain("1")).is_none(),
+            "a Nothing binding masks the default"
+        );
+        assert!(
+            matches!(
+                press(ControlMap::default(), plain("1")),
+                Some(Command::BpmDigit(1))
+            ),
             "and with nothing bound the built-in still fires"
         );
     }
@@ -459,16 +532,34 @@ mod tests {
 
     #[test]
     fn trigger_actions_map_to_same_name_commands() {
-        assert!(matches!(to_command(&Action::TapDownbeat, 1.0), Some(Command::TapDownbeat)));
-        assert!(matches!(to_command(&Action::TapTempo, 1.0), Some(Command::TapTempo)));
-        assert!(matches!(to_command(&Action::SoftReset, 1.0), Some(Command::SoftReset)));
-        assert!(matches!(to_command(&Action::HardReset, 1.0), Some(Command::HardReset)));
-        assert!(matches!(to_command(&Action::CaptureShader, 1.0), Some(Command::CaptureShader)));
+        assert!(matches!(
+            to_command(&Action::TapDownbeat, 1.0),
+            Some(Command::TapDownbeat)
+        ));
+        assert!(matches!(
+            to_command(&Action::TapTempo, 1.0),
+            Some(Command::TapTempo)
+        ));
+        assert!(matches!(
+            to_command(&Action::SoftReset, 1.0),
+            Some(Command::SoftReset)
+        ));
+        assert!(matches!(
+            to_command(&Action::HardReset, 1.0),
+            Some(Command::HardReset)
+        ));
+        assert!(matches!(
+            to_command(&Action::CaptureShader, 1.0),
+            Some(Command::CaptureShader)
+        ));
         assert!(matches!(
             to_command(&Action::ToggleFullscreen, 1.0),
             Some(Command::ToggleFullscreen)
         ));
-        assert!(matches!(to_command(&Action::SaveProject, 1.0), Some(Command::SaveProject)));
+        assert!(matches!(
+            to_command(&Action::SaveProject, 1.0),
+            Some(Command::SaveProject)
+        ));
     }
 
     #[test]
@@ -497,13 +588,25 @@ mod tests {
 
     #[test]
     fn set_bpm_lerps_value_between_min_and_max() {
-        let cmd = to_command(&Action::SetBpm { min: 60.0, max: 180.0 }, 0.5);
+        let cmd = to_command(
+            &Action::SetBpm {
+                min: 60.0,
+                max: 180.0,
+            },
+            0.5,
+        );
         assert!(matches!(cmd, Some(Command::SetBpm(b)) if (b - 120.0).abs() < 1e-9));
     }
 
     #[test]
     fn set_bpm_clamps_out_of_range_lerp() {
-        let cmd = to_command(&Action::SetBpm { min: 60.0, max: 180.0 }, -10.0);
+        let cmd = to_command(
+            &Action::SetBpm {
+                min: 60.0,
+                max: 180.0,
+            },
+            -10.0,
+        );
         assert!(matches!(cmd, Some(Command::SetBpm(b)) if (b - 20.0).abs() < 1e-9));
     }
 }

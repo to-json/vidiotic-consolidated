@@ -10,13 +10,17 @@ use vidiotic::assets;
 use vidiotic::audio;
 use vidiotic::bank::Bank;
 use vidiotic::clippool::{self, Clip, ClipBank};
-use vidiotic::ipc;
 use vidiotic::commands::{Cadence, ClipId, Command, SyncKind, TimeSig, LOOP_TICKS_PER_BEAT};
+use vidiotic::ipc;
 use vidiotic::project;
 use vidiotic::transcode;
 
 #[derive(Parser)]
-#[command(name = "vidiotic", version, about = "VJ controller: audio-reactive shader over video clips")]
+#[command(
+    name = "vidiotic",
+    version,
+    about = "VJ controller: audio-reactive shader over video clips"
+)]
 struct Cli {
     /// Omitted ⇒ `run`. A double-clicked `.app` is launched with no arguments
     /// at all, so the player has to be what you get by default.
@@ -309,7 +313,10 @@ fn absorb_path_argument(cli: &mut RunArgs) {
     if slot.is_none() {
         *slot = Some(path);
     } else {
-        log::warn!("ignoring {} — the matching flag was also given", path.display());
+        log::warn!(
+            "ignoring {} — the matching flag was also given",
+            path.display()
+        );
     }
 }
 

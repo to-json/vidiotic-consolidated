@@ -31,15 +31,30 @@ impl Engine {
         if self.decoders.contains_key(&id) {
             return;
         }
-        let Some(cue) = self.live_cue(id).cloned() else { return };
-        let Some(clip) = self.clips.iter().find(|c| c.id == cue.clip) else { return };
+        let Some(cue) = self.live_cue(id).cloned() else {
+            return;
+        };
+        let Some(clip) = self.clips.iter().find(|c| c.id == cue.clip) else {
+            return;
+        };
         // Advanced mode: the sample-start nudge shifts the in-point, and playback
         // speed (BPM-sync × user multiplier) is baked in at open time.
-        let nudge = if self.advanced && cue.start_nudge.on { cue.start_nudge.val } else { 0.0 };
+        let nudge = if self.advanced && cue.start_nudge.on {
+            cue.start_nudge.val
+        } else {
+            0.0
+        };
         let in_sec = (cue.in_sec + nudge).max(0.0);
         let out_sec = cue.out_sec.filter(|&o| o > in_sec);
         let speed = resolve_speed(self.advanced, self.last_bpm, &cue, clip.bpm);
-        let req = OpenRequest { cue: &cue, clip, in_sec, out_sec, speed, bpm: self.last_bpm };
+        let req = OpenRequest {
+            cue: &cue,
+            clip,
+            in_sec,
+            out_sec,
+            speed,
+            bpm: self.last_bpm,
+        };
         if let Some(src) = self.opener.open(&req) {
             self.decoders.insert(id, src);
         }
@@ -68,10 +83,18 @@ impl Engine {
             CueStep {
                 id: cue.id,
                 dwell: cue.dwell.map_or(default, |t| f64::from(t) / tpb),
-                trig_delay: if cue.trig_delay.on { f64::from(cue.trig_delay.val) / tpb } else { 0.0 },
+                trig_delay: if cue.trig_delay.on {
+                    f64::from(cue.trig_delay.val) / tpb
+                } else {
+                    0.0
+                },
             }
         } else {
-            CueStep { id: cue.id, dwell: default, trig_delay: 0.0 }
+            CueStep {
+                id: cue.id,
+                dwell: default,
+                trig_delay: 0.0,
+            }
         }
     }
 
@@ -112,7 +135,10 @@ impl Engine {
     /// else remove it. Keeps the sequencer's active set in step. (The quick pool
     /// path; finer control comes from the bank editor.)
     pub fn toggle_clip_active(&mut self, clip: ClipId, beat: f64) {
-        let existing = self.banks[self.live_bank].cues.iter().position(|c| c.clip == clip);
+        let existing = self.banks[self.live_bank]
+            .cues
+            .iter()
+            .position(|c| c.clip == clip);
         if let Some(pos) = existing {
             let cue = self.banks[self.live_bank].cues[pos].clone();
             let step = self.step_for(&cue);
@@ -135,7 +161,10 @@ impl Engine {
 
     /// Drop sources that are neither playing nor armed.
     pub fn retain_decoders(&mut self) {
-        let keep: Vec<CueId> = [self.current, self.sequencer.armed()].into_iter().flatten().collect();
+        let keep: Vec<CueId> = [self.current, self.sequencer.armed()]
+            .into_iter()
+            .flatten()
+            .collect();
         self.decoders.retain(|k, _| keep.contains(k));
     }
 
@@ -181,13 +210,19 @@ impl Engine {
     pub fn add_cue(&mut self, clip: ClipId) {
         let cue_id = self.alloc_cue_id();
         let name = self.clip_name(clip);
-        self.banks[self.edit_bank].cues.push(Cue::new(cue_id, clip, name));
+        self.banks[self.edit_bank]
+            .cues
+            .push(Cue::new(cue_id, clip, name));
         self.selected_cue = Some(cue_id);
         self.resync_live_if_editing();
     }
 
     pub fn remove_cue(&mut self, id: CueId) {
-        let Some(pos) = self.banks[self.edit_bank].cues.iter().position(|c| c.id == id) else {
+        let Some(pos) = self.banks[self.edit_bank]
+            .cues
+            .iter()
+            .position(|c| c.id == id)
+        else {
             return;
         };
         self.banks[self.edit_bank].cues.remove(pos);
@@ -303,7 +338,9 @@ impl Engine {
     /// Move cue selection through the edit bank's order, clamping at the ends.
     pub fn select_cue_delta(&mut self, delta: i32) {
         let cues = &self.banks[self.edit_bank].cues;
-        let pos = self.selected_cue.and_then(|id| cues.iter().position(|c| c.id == id));
+        let pos = self
+            .selected_cue
+            .and_then(|id| cues.iter().position(|c| c.id == id));
         if let Some(target) = step_index(cues.len(), pos, delta) {
             self.selected_cue = Some(cues[target].id);
         }
@@ -322,7 +359,9 @@ impl Engine {
     /// ends. A cursor left in another bank counts as no selection.
     pub fn select_clip_delta(&mut self, delta: i32) {
         let ids = self.active_clip_ids();
-        let pos = self.selected_clip.and_then(|id| ids.iter().position(|&c| c == id));
+        let pos = self
+            .selected_clip
+            .and_then(|id| ids.iter().position(|&c| c == id));
         if let Some(target) = step_index(ids.len(), pos, delta) {
             self.selected_clip = Some(ids[target]);
         }
@@ -349,20 +388,38 @@ impl Engine {
             crate::clippool::ClipSource::File(_) => None,
         };
         if let Some(uid) = &key {
-            if let Some(c) = self.clips.iter().find(|c| c.camera_uid() == Some(uid.as_ref())) {
+            if let Some(c) = self
+                .clips
+                .iter()
+                .find(|c| c.camera_uid() == Some(uid.as_ref()))
+            {
                 return c.id;
             }
         }
         let id = self.next_clip_id;
         self.next_clip_id += 1;
-        self.clips.push(Clip { id, source, name, bpm: None });
+        self.clips.push(Clip {
+            id,
+            source,
+            name,
+            bpm: None,
+        });
         id
     }
 
     /// Append `ids` to a clip bank, creating it when `bank` is past the end.
     /// The new bank becomes the active one.
-    pub fn push_clip_bank(&mut self, name: std::sync::Arc<str>, dir: Option<std::path::PathBuf>, ids: Vec<ClipId>) {
-        self.clip_banks.push(crate::clippool::ClipBank { name, dir, clip_ids: ids });
+    pub fn push_clip_bank(
+        &mut self,
+        name: std::sync::Arc<str>,
+        dir: Option<std::path::PathBuf>,
+        ids: Vec<ClipId>,
+    ) {
+        self.clip_banks.push(crate::clippool::ClipBank {
+            name,
+            dir,
+            clip_ids: ids,
+        });
         self.active_clip_bank = self.clip_banks.len() - 1;
     }
 
@@ -372,7 +429,9 @@ impl Engine {
     /// (dwell from the global phrase, bpm from the source clip).
     pub fn nudge_cue_param(&mut self, kind: CueParamKind, dir: i32) {
         let Some(id) = self.selected_cue else { return };
-        let Some(cue) = self.banks[self.edit_bank].cue(id) else { return };
+        let Some(cue) = self.banks[self.edit_bank].cue(id) else {
+            return;
+        };
         let d = dir.signum();
         let p = match kind {
             CueParamKind::Dwell => {
@@ -415,7 +474,12 @@ impl Engine {
             CueParamKind::Bpm => {
                 let base = cue
                     .bpm
-                    .or_else(|| self.clips.iter().find(|c| c.id == cue.clip).and_then(|c| c.bpm))
+                    .or_else(|| {
+                        self.clips
+                            .iter()
+                            .find(|c| c.id == cue.clip)
+                            .and_then(|c| c.bpm)
+                    })
                     .unwrap_or(120.0);
                 CueParam::Bpm(Some((base + f64::from(d)).clamp(20.0, 400.0)))
             }
@@ -433,7 +497,12 @@ impl Engine {
     /// Cues referenced the old pool's ids, so they go too. This is the one
     /// operation that invalidates the whole id space, which is why the native
     /// shell bumps its IPC epoch right after calling it.
-    pub fn replace_pool(&mut self, clips: Vec<Clip>, clip_banks: Vec<ClipBank>, cue_banks: Vec<Bank>) {
+    pub fn replace_pool(
+        &mut self,
+        clips: Vec<Clip>,
+        clip_banks: Vec<ClipBank>,
+        cue_banks: Vec<Bank>,
+    ) {
         self.next_clip_id = clips.iter().map(|c| c.id).max().map_or(0, |m| m + 1);
         self.clips = clips;
         self.clip_banks = clip_banks;
@@ -441,8 +510,17 @@ impl Engine {
         self.decoders.clear();
         self.current = None;
         self.blanked_for = None;
-        self.banks = if cue_banks.is_empty() { vec![Bank::new("A")] } else { cue_banks };
-        self.next_cue_id = self.banks.iter().flat_map(Bank::ids).max().map_or(1, |m| m + 1);
+        self.banks = if cue_banks.is_empty() {
+            vec![Bank::new("A")]
+        } else {
+            cue_banks
+        };
+        self.next_cue_id = self
+            .banks
+            .iter()
+            .flat_map(Bank::ids)
+            .max()
+            .map_or(1, |m| m + 1);
         self.live_bank = 0;
         self.edit_bank = 0;
         self.selected_cue = None;

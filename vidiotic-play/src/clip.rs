@@ -44,7 +44,11 @@ impl std::fmt::Display for ClipErr {
         match self {
             Self::Container(e) => write!(f, "not a readable QuickTime file: {e}"),
             Self::NotHap(cc) => {
-                write!(f, "video track is '{}', not HAP", String::from_utf8_lossy(cc))
+                write!(
+                    f,
+                    "video track is '{}', not HAP",
+                    String::from_utf8_lossy(cc)
+                )
             }
             Self::Empty => write!(f, "video track contains no samples"),
             Self::Hap(e) => write!(f, "HAP decode failed: {e}"),
@@ -223,14 +227,9 @@ mod tests {
     /// `MovWriter` rather than hand-rolling a header means these tests exercise
     /// the container the baker actually emits.
     fn synth(frames: usize, timescale: u32, frame_dur: u32) -> Vec<u8> {
-        let mut w = mov::MovWriter::new(
-            std::io::Cursor::new(Vec::new()),
-            W,
-            H,
-            timescale,
-            frame_dur,
-        )
-        .expect("writer");
+        let mut w =
+            mov::MovWriter::new(std::io::Cursor::new(Vec::new()), W, H, timescale, frame_dur)
+                .expect("writer");
         for i in 0..frames {
             // Distinct payload per frame so a mis-addressed sample is visible
             // as wrong bytes rather than passing by coincidence.
@@ -288,7 +287,11 @@ mod tests {
         // A player's clock keeps running; the cue loops.
         assert_eq!(c.sample_index_at(dur), 0, "exactly one loop on");
         assert_eq!(c.sample_index_at(dur + 1.0 / 30.0), 1);
-        assert_eq!(c.sample_index_at(dur * 7.0 + 3.5 / 30.0), 3, "many loops on");
+        assert_eq!(
+            c.sample_index_at(dur * 7.0 + 3.5 / 30.0),
+            3,
+            "many loops on"
+        );
     }
 
     #[test]
@@ -388,7 +391,9 @@ mod tests {
             // preserve lengths.
             let expect = (c.width() as usize / 4) * (c.height() as usize / 4) * 8;
             for i in 0..c.frame_count() {
-                let f = c.frame(i).unwrap_or_else(|e| panic!("{path} frame {i}: {e}"));
+                let f = c
+                    .frame(i)
+                    .unwrap_or_else(|e| panic!("{path} frame {i}: {e}"));
                 let PixelData::Bc { data, .. } = &f.pixels else {
                     panic!("{path} frame {i} is not block-compressed");
                 };

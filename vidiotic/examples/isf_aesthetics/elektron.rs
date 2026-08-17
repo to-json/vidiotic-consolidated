@@ -6,9 +6,11 @@
 //! a plain corner tag with no pickup problem.
 
 use egui::ecolor::Hsva;
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
+use egui::{
+    vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Ui,
+};
 
-use crate::schema::{DemoState, MidiState, MockKind, MockRole, Value, mock_clips};
+use crate::schema::{mock_clips, DemoState, MidiState, MockKind, MockRole, Value};
 use crate::util;
 
 const BG: Color32 = Color32::from_rgb(13, 13, 13);
@@ -32,19 +34,40 @@ fn alpha(c: Color32, a: u8) -> Color32 {
 /// Render the whole direction panel.
 pub fn show(ui: &mut Ui, st: &mut DemoState) {
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), BG);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), BG);
 
     // Page strip, like the machine's screen header.
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("SYN·1").monospace().size(10.0).color(AMBER));
-        ui.label(egui::RichText::new("KALEIDO BLOOM").monospace().size(10.0).color(TEXT));
-        ui.label(egui::RichText::new("11 PARAMS · NO PAGES").monospace().size(9.0).color(DIM));
+        ui.label(
+            egui::RichText::new("SYN·1")
+                .monospace()
+                .size(10.0)
+                .color(AMBER),
+        );
+        ui.label(
+            egui::RichText::new("KALEIDO BLOOM")
+                .monospace()
+                .size(10.0)
+                .color(TEXT),
+        );
+        ui.label(
+            egui::RichText::new("11 PARAMS · NO PAGES")
+                .monospace()
+                .size(9.0)
+                .color(DIM),
+        );
     });
     ui.add_space(6.0);
 
     let time = st.time;
     let armed = st.midi.armed;
-    let DemoState { inputs, values, midi, .. } = st;
+    let DemoState {
+        inputs,
+        values,
+        midi,
+        ..
+    } = st;
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(GAP, GAP);
         for (i, (inp, val)) in inputs.iter().zip(values.iter_mut()).enumerate() {
@@ -77,13 +100,24 @@ pub fn show(ui: &mut Ui, st: &mut DemoState) {
 /// cells for segmented controls, corner tags for chips.
 pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
     let panel = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(panel.expand(8.0), CornerRadius::same(6), BG);
+    ui.painter()
+        .rect_filled(panel.expand(8.0), CornerRadius::same(6), BG);
     let time = st.time;
     let (beat, pulse) = util::beat(time);
 
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("TRK·1").monospace().size(10.0).color(AMBER));
-        ui.label(egui::RichText::new("VIDIOTIC WIDGETS").monospace().size(10.0).color(TEXT));
+        ui.label(
+            egui::RichText::new("TRK·1")
+                .monospace()
+                .size(10.0)
+                .color(AMBER),
+        );
+        ui.label(
+            egui::RichText::new("VIDIOTIC WIDGETS")
+                .monospace()
+                .size(10.0)
+                .color(TEXT),
+        );
     });
     ui.add_space(6.0);
 
@@ -96,13 +130,27 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
             let flash = util::tap_flash(ui, ui.id().with(("wtap", k)), resp.clicked(), time);
             let painter = ui.painter();
             let key = Rect::from_min_max(rect.min + vec2(8.0, 26.0), rect.max - vec2(8.0, 8.0));
-            let fill = if resp.is_pointer_button_down_on() { KEY.gamma_multiply(0.7) } else { KEY };
+            let fill = if resp.is_pointer_button_down_on() {
+                KEY.gamma_multiply(0.7)
+            } else {
+                KEY
+            };
             painter.rect_filled(key, CornerRadius::same(2), fill);
             if flash > 0.0 {
                 let tint = if k == 1 { RED } else { AMBER };
-                painter.rect_filled(key, CornerRadius::same(2), alpha(tint, (flash * 150.0) as u8));
+                painter.rect_filled(
+                    key,
+                    CornerRadius::same(2),
+                    alpha(tint, (flash * 150.0) as u8),
+                );
             }
-            painter.text(key.center(), Align2::CENTER_CENTER, *label, FontId::monospace(9.0), BG);
+            painter.text(
+                key.center(),
+                Align2::CENTER_CENTER,
+                *label,
+                FontId::monospace(9.0),
+                BG,
+            );
         }
         // Beat LEDs + 16-step page dots in one cell.
         let (rect, _) = chassis(ui, CELL_W * 2.0 + GAP, Sense::hover());
@@ -128,7 +176,10 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
             }
         }
         // Segmented controls as position-dot cells.
-        for (name, labels, sel) in [("SYNC", &["INT", "LINK"][..], 0usize), ("NEXT", &["1", "2", "4", "8"][..], 2)] {
+        for (name, labels, sel) in [
+            ("SYNC", &["INT", "LINK"][..], 0usize),
+            ("NEXT", &["1", "2", "4", "8"][..], 2),
+        ] {
             let (rect, _) = chassis(ui, CELL_W, Sense::click_and_drag());
             cell_name(ui, rect, name);
             let painter = ui.painter();
@@ -140,7 +191,9 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 AMBER,
             );
             for k in 0..labels.len() {
-                let x = rect.min.x + 10.0 + (rect.width() - 20.0) * k as f32 / (labels.len() - 1) as f32;
+                let x = rect.min.x
+                    + 10.0
+                    + (rect.width() - 20.0) * k as f32 / (labels.len() - 1) as f32;
                 let dot = Pos2::new(x, rect.max.y - 6.0);
                 if k == sel {
                     painter.circle_filled(dot, 2.0, AMBER);
@@ -153,13 +206,30 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
         let (rect, _) = chassis(ui, CELL_W, Sense::hover());
         cell_name(ui, rect, "STATUS");
         let painter = ui.painter();
-        painter.text(rect.min + vec2(8.0, 26.0), Align2::LEFT_TOP, "2 PEERS", FontId::monospace(10.0), GREEN);
-        painter.text(rect.min + vec2(8.0, 42.0), Align2::LEFT_TOP, "AUDIO!", FontId::monospace(10.0), RED);
+        painter.text(
+            rect.min + vec2(8.0, 26.0),
+            Align2::LEFT_TOP,
+            "2 PEERS",
+            FontId::monospace(10.0),
+            GREEN,
+        );
+        painter.text(
+            rect.min + vec2(8.0, 42.0),
+            Align2::LEFT_TOP,
+            "AUDIO!",
+            FontId::monospace(10.0),
+            RED,
+        );
         // Clip pool: sample slots with a mini art strip.
         for (k, clip) in mock_clips().iter().enumerate() {
             let (rect, resp) = chassis(ui, CELL_W * 2.0 + GAP, Sense::click());
             let painter = ui.painter();
-            let short = clip.name.split('.').next().unwrap_or(clip.name).to_uppercase();
+            let short = clip
+                .name
+                .split('.')
+                .next()
+                .unwrap_or(clip.name)
+                .to_uppercase();
             painter.text(
                 Pos2::new(rect.min.x + 8.0, rect.min.y + 14.0),
                 Align2::LEFT_CENTER,
@@ -181,22 +251,53 @@ pub fn show_widgets(ui: &mut Ui, st: &mut DemoState) {
                 let h = util::hash01(clip.seed, b) * (well.height() - 6.0);
                 let x = well.min.x + 3.0 + b as f32 / 24.0 * (well.width() - 6.0);
                 let bar = Rect::from_min_size(Pos2::new(x, well.max.y - 3.0 - h), vec2(4.0, h));
-                painter.rect_filled(bar, CornerRadius::ZERO, alpha(AMBER, 60 + (util::hash01(clip.seed, b + 40) * 120.0) as u8));
+                painter.rect_filled(
+                    bar,
+                    CornerRadius::ZERO,
+                    alpha(AMBER, 60 + (util::hash01(clip.seed, b + 40) * 120.0) as u8),
+                );
             }
             match clip.role {
                 MockRole::Playing => {
-                    painter.text(Pos2::new(rect.max.x - 8.0, rect.min.y + 14.0), Align2::RIGHT_CENTER, "PLAY", FontId::monospace(9.0), GREEN);
-                    painter.rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.0, alpha(GREEN, (pulse * 200.0) as u8)), StrokeKind::Inside);
+                    painter.text(
+                        Pos2::new(rect.max.x - 8.0, rect.min.y + 14.0),
+                        Align2::RIGHT_CENTER,
+                        "PLAY",
+                        FontId::monospace(9.0),
+                        GREEN,
+                    );
+                    painter.rect_stroke(
+                        rect,
+                        CornerRadius::same(3),
+                        Stroke::new(1.0, alpha(GREEN, (pulse * 200.0) as u8)),
+                        StrokeKind::Inside,
+                    );
                 }
                 MockRole::Armed => {
-                    painter.text(Pos2::new(rect.max.x - 8.0, rect.min.y + 14.0), Align2::RIGHT_CENTER, "ARM", FontId::monospace(9.0), AMBER);
+                    painter.text(
+                        Pos2::new(rect.max.x - 8.0, rect.min.y + 14.0),
+                        Align2::RIGHT_CENTER,
+                        "ARM",
+                        FontId::monospace(9.0),
+                        AMBER,
+                    );
                 }
                 MockRole::None => {}
             }
             if clip.selected {
-                painter.rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.5, AMBER), StrokeKind::Inside);
+                painter.rect_stroke(
+                    rect,
+                    CornerRadius::same(3),
+                    Stroke::new(1.5, AMBER),
+                    StrokeKind::Inside,
+                );
             } else if resp.hovered() {
-                painter.rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.0, KEY), StrokeKind::Inside);
+                painter.rect_stroke(
+                    rect,
+                    CornerRadius::same(3),
+                    Stroke::new(1.0, KEY),
+                    StrokeKind::Inside,
+                );
             }
         }
         meter_cell(ui, "LEVELS", time);
@@ -287,7 +388,12 @@ fn chassis(ui: &mut Ui, w: f32, sense: Sense) -> (Rect, egui::Response) {
     let (rect, resp) = ui.allocate_exact_size(vec2(w, CELL_H), sense);
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(3), CELL);
-    painter.rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.0, EDGE), StrokeKind::Inside);
+    painter.rect_stroke(
+        rect,
+        CornerRadius::same(3),
+        Stroke::new(1.0, EDGE),
+        StrokeKind::Inside,
+    );
     (rect, resp)
 }
 
@@ -320,12 +426,21 @@ fn enc_cell(
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::ResizeVertical);
         }
         let painter = ui.painter();
-        painter.add(egui::Shape::line(util::knob_arc(center, 13.0, 0.0, 1.0), Stroke::new(2.0, EDGE)));
+        painter.add(egui::Shape::line(
+            util::knob_arc(center, 13.0, 0.0, 1.0),
+            Stroke::new(2.0, EDGE),
+        ));
         let (a0, a1) = if bipolar { (0.5, *t) } else { (0.0, *t) };
-        painter.add(egui::Shape::line(util::knob_arc(center, 13.0, a0, a1), Stroke::new(2.5, AMBER)));
+        painter.add(egui::Shape::line(
+            util::knob_arc(center, 13.0, a0, a1),
+            Stroke::new(2.5, AMBER),
+        ));
         if bipolar {
             let top = center + util::knob_dir(0.5) * 16.0;
-            painter.line_segment([center + util::knob_dir(0.5) * 11.0, top], Stroke::new(1.0, DIM));
+            painter.line_segment(
+                [center + util::knob_dir(0.5) * 11.0, top],
+                Stroke::new(1.0, DIM),
+            );
         }
         painter.circle_filled(center, 6.5, Color32::from_rgb(32, 32, 32));
         painter.circle_stroke(center, 6.5, Stroke::new(1.0, EDGE));
@@ -417,12 +532,26 @@ fn trig_cell(ui: &mut Ui, name: &str, at: &mut f64, time: f64) -> Rect {
     let painter = ui.painter();
     // A gray trig key with a red LED above it.
     let key = Rect::from_min_max(rect.min + vec2(8.0, 26.0), rect.max - vec2(8.0, 8.0));
-    let fill = if resp.is_pointer_button_down_on() { KEY.gamma_multiply(0.7) } else { KEY };
+    let fill = if resp.is_pointer_button_down_on() {
+        KEY.gamma_multiply(0.7)
+    } else {
+        KEY
+    };
     painter.rect_filled(key, CornerRadius::same(2), fill);
     if flash > 0.0 {
-        painter.rect_filled(key, CornerRadius::same(2), alpha(RED, (flash * 150.0) as u8));
+        painter.rect_filled(
+            key,
+            CornerRadius::same(2),
+            alpha(RED, (flash * 150.0) as u8),
+        );
     }
-    painter.text(key.center(), Align2::CENTER_CENTER, "TRIG", FontId::monospace(9.0), BG);
+    painter.text(
+        key.center(),
+        Align2::CENTER_CENTER,
+        "TRIG",
+        FontId::monospace(9.0),
+        BG,
+    );
     let led = Pos2::new(rect.max.x - 12.0, rect.min.y + 10.0);
     if flash > 0.0 {
         painter.circle_filled(led, 4.0, alpha(RED, 70));
@@ -447,7 +576,12 @@ fn xy_cell(ui: &mut Ui, min: &[f32; 2], max: &[f32; 2], p: &mut [f32; 2]) -> Rec
     }
     let painter = ui.painter();
     painter.rect_filled(inset, CornerRadius::same(2), BG);
-    painter.rect_stroke(inset, CornerRadius::same(2), Stroke::new(1.0, EDGE), StrokeKind::Inside);
+    painter.rect_stroke(
+        inset,
+        CornerRadius::same(2),
+        Stroke::new(1.0, EDGE),
+        StrokeKind::Inside,
+    );
     let tx = (p[0] - min[0]) / (max[0] - min[0]);
     let ty = 1.0 - (p[1] - min[1]) / (max[1] - min[1]);
     let dot = Pos2::new(
@@ -464,7 +598,12 @@ fn swatch_cell(ui: &mut Ui, name: &str, c: Hsva) -> Rect {
     let window = Rect::from_min_max(rect.min + vec2(8.0, 18.0), rect.max - vec2(8.0, 8.0));
     let painter = ui.painter();
     painter.rect_filled(window, CornerRadius::same(2), Color32::from(c));
-    painter.rect_stroke(window, CornerRadius::same(2), Stroke::new(1.0, EDGE), StrokeKind::Inside);
+    painter.rect_stroke(
+        window,
+        CornerRadius::same(2),
+        Stroke::new(1.0, EDGE),
+        StrokeKind::Inside,
+    );
     rect
 }
 
@@ -514,7 +653,11 @@ fn meter_cell(ui: &mut Ui, name: &str, time: f64) -> Rect {
             let color = if t > 0.85 { RED } else { GREEN };
             let x = well.min.x + 4.0 + t * (well.width() - 8.0);
             let seg = Rect::from_min_size(Pos2::new(x, y), vec2(4.0, 8.0));
-            painter.rect_filled(seg, CornerRadius::ZERO, if on { color } else { alpha(color, 26) });
+            painter.rect_filled(
+                seg,
+                CornerRadius::ZERO,
+                if on { color } else { alpha(color, 26) },
+            );
         }
     }
     rect
@@ -535,7 +678,11 @@ fn fft_cell(ui: &mut Ui, name: &str, time: f64) -> Rect {
             Pos2::new(well.min.x + 2.0 + k as f32 * bw, well.max.y - 2.0 - h),
             Pos2::new(well.min.x + 2.0 + (k as f32 + 0.75) * bw, well.max.y - 2.0),
         );
-        painter.rect_filled(bar, CornerRadius::ZERO, alpha(AMBER, 70 + (mag * 185.0) as u8));
+        painter.rect_filled(
+            bar,
+            CornerRadius::ZERO,
+            alpha(AMBER, 70 + (mag * 185.0) as u8),
+        );
     }
     rect
 }
@@ -548,7 +695,11 @@ fn bind_tag(ui: &mut Ui, midi: &mut MidiState, idx: usize, kind: &MockKind, rect
     }
     if let Some(b) = midi.binding(idx) {
         let act = midi.activity(idx, time);
-        let color = if act > 0.0 { Color32::from_rgb(255, 220, 170) } else { AMBER };
+        let color = if act > 0.0 {
+            Color32::from_rgb(255, 220, 170)
+        } else {
+            AMBER
+        };
         ui.painter().text(
             Pos2::new(rect.max.x - 5.0, rect.min.y + 5.0),
             Align2::RIGHT_TOP,
@@ -566,7 +717,11 @@ fn bind_tag(ui: &mut Ui, midi: &mut MidiState, idx: usize, kind: &MockKind, rect
         }
     }
     if midi.armed {
-        let resp = ui.interact(rect, ui.id().with(("learn", idx, rect.min.x as i32)), Sense::click());
+        let resp = ui.interact(
+            rect,
+            ui.id().with(("learn", idx, rect.min.x as i32)),
+            Sense::click(),
+        );
         let pulse = 0.5 + 0.5 * ((time * 6.0).sin() as f32);
         ui.painter().rect_stroke(
             rect,

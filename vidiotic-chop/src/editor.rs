@@ -297,7 +297,9 @@ impl Editor {
     /// Record the pre-edit state for `cmd`, unless it isn't a document edit or
     /// it coalesces into the current step. Runs before the command applies.
     fn record_undo(&mut self, cmd: &Command, now: f64) {
-        let Some(tag) = crate::undo::classify(cmd) else { return };
+        let Some(tag) = crate::undo::classify(cmd) else {
+            return;
+        };
         if self.undo.should_push(tag, now) {
             let snapshot = self.snapshot();
             self.undo.push(snapshot, tag, now);
@@ -404,7 +406,11 @@ impl Editor {
                     span.name = name;
                 }
             }
-            Command::SetSpanRange { idx, in_frame, out_frame } => {
+            Command::SetSpanRange {
+                idx,
+                in_frame,
+                out_frame,
+            } => {
                 if let Some(span) = self.spans.spans.get_mut(idx) {
                     span.in_frame = in_frame;
                     span.out_frame = out_frame.max(in_frame + 1);
@@ -519,7 +525,12 @@ impl Editor {
     /// Select span `i`, load its range into the pending marks, seek to its in
     /// point, and frame it in the view. Assumes its source video is open.
     fn load_marks_from_span(&mut self, i: usize) {
-        let Some((inf, outf, crop)) = self.spans.spans.get(i).map(|s| (s.in_frame, s.out_frame, s.crop)) else {
+        let Some((inf, outf, crop)) = self
+            .spans
+            .spans
+            .get(i)
+            .map(|s| (s.in_frame, s.out_frame, s.crop))
+        else {
             return;
         };
         self.spans.select(i);
@@ -542,7 +553,9 @@ impl Editor {
 
     /// Highest frame index of the source (0 if nothing loaded).
     pub fn max_frame(&self) -> u64 {
-        self.media.as_ref().map_or(0, |m| m.frames.saturating_sub(1))
+        self.media
+            .as_ref()
+            .map_or(0, |m| m.frames.saturating_sub(1))
     }
 
     /// Total frame count of the source (1 if nothing loaded).
@@ -571,8 +584,11 @@ impl Editor {
     /// Append a span from the pending marks (on the currently open video)
     /// and select it. No-op if no video is open.
     pub fn add_span_from_marks(&mut self) {
-        let Some(source) = self.source_path.clone() else { return };
-        self.spans.add(source, self.pending_in, self.pending_out, self.pending_crop);
+        let Some(source) = self.source_path.clone() else {
+            return;
+        };
+        self.spans
+            .add(source, self.pending_in, self.pending_out, self.pending_crop);
     }
 
     /// Last frame of the visible jog window (inclusive).
@@ -598,7 +614,11 @@ impl Editor {
     /// a press the other way (or from pause) starts 1× that way.
     pub fn shuttle(&mut self, dir: f64) {
         let same = self.playing() && self.play_speed.signum() == dir.signum();
-        let mag = if same { (self.play_speed.abs() * 2.0).min(4.0) } else { 1.0 };
+        let mag = if same {
+            (self.play_speed.abs() * 2.0).min(4.0)
+        } else {
+            1.0
+        };
         self.play_speed = dir.signum() * mag;
     }
 
@@ -634,7 +654,11 @@ impl Editor {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let f = if f < start || f > end {
                 // Playhead outside the loop: enter it from the near side.
-                if dir > 0 { start } else { end }
+                if dir > 0 {
+                    start
+                } else {
+                    end
+                }
             } else {
                 start + (f - start + dir * steps as i64).rem_euclid(span)
             };
@@ -654,7 +678,11 @@ impl Editor {
 
     /// Zoom the jog window by `factor` (<1 zooms in), keeping `anchor`'s
     /// on-screen position fixed.
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     pub fn zoom_view_at(&mut self, factor: f64, anchor: u64) {
         let total = self.total_frames();
         let old_len = self.view_len.max(1);
@@ -714,8 +742,9 @@ impl Editor {
     /// session bpm.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn snap_out_to_beats(&mut self) {
-        let frames_len =
-            (self.snap_beats * 60.0 / self.defaults.bpm.max(1.0) * self.fps()).round().max(1.0);
+        let frames_len = (self.snap_beats * 60.0 / self.defaults.bpm.max(1.0) * self.fps())
+            .round()
+            .max(1.0);
         self.pending_out = (self.pending_in + frames_len as u64).min(self.total_frames());
     }
 
@@ -827,7 +856,9 @@ mod tests {
     fn commands_needing_an_os_come_back_out() {
         let mut ed = loaded(100);
         assert!(ed.step(Command::StartExport, 0.0).is_some());
-        assert!(ed.step(Command::Open(PathBuf::from("/x.mov")), 0.0).is_some());
+        assert!(ed
+            .step(Command::Open(PathBuf::from("/x.mov")), 0.0)
+            .is_some());
         assert!(ed.step(Command::ConfirmQuit, 0.0).is_some());
         assert!(ed.step(Command::Seek(4), 0.0).is_none());
         assert!(ed.step(Command::AddBank, 0.0).is_none());
@@ -839,7 +870,11 @@ mod tests {
     #[test]
     fn every_file_chooser_is_a_request_to_the_shell() {
         let mut ed = loaded(100);
-        for cmd in [Command::PickVideo, Command::PickProject, Command::PickShaderPath] {
+        for cmd in [
+            Command::PickVideo,
+            Command::PickProject,
+            Command::PickShaderPath,
+        ] {
             assert!(ed.step(cmd, 0.0).is_some());
         }
     }
@@ -851,9 +886,15 @@ mod tests {
     fn showing_the_export_dialog_lowers_the_quit_prompt() {
         let mut ed = loaded(100);
         ed.show_quit_dialog = true;
-        assert!(ed.step(Command::ShowExportDialog, 0.0).is_none(), "no shell needed to open it");
+        assert!(
+            ed.step(Command::ShowExportDialog, 0.0).is_none(),
+            "no shell needed to open it"
+        );
         assert!(ed.show_export_dialog);
-        assert!(!ed.show_quit_dialog, "the prompt it replaced must come down");
+        assert!(
+            !ed.show_quit_dialog,
+            "the prompt it replaced must come down"
+        );
     }
 
     /// The timeline drains mid-layout so its drags don't paint a frame behind.
@@ -876,7 +917,10 @@ mod tests {
             "the open was parked for the shell, not run: {parked:?}"
         );
         assert_eq!(parked.len(), 1);
-        assert!(ed.take_deferred().is_empty(), "taking it twice must not repeat it");
+        assert!(
+            ed.take_deferred().is_empty(),
+            "taking it twice must not repeat it"
+        );
     }
 
     // Selecting a span whose video is not open cannot open it here, so it has
@@ -907,7 +951,14 @@ mod tests {
     fn setting_a_span_range_keeps_out_above_in() {
         let mut ed = loaded(100);
         ed.spans.spans.push(span("a"));
-        ed.step(Command::SetSpanRange { idx: 0, in_frame: 20, out_frame: 5 }, 0.0);
+        ed.step(
+            Command::SetSpanRange {
+                idx: 0,
+                in_frame: 20,
+                out_frame: 5,
+            },
+            0.0,
+        );
         let s = &ed.spans.spans[0];
         assert_eq!((s.in_frame, s.out_frame), (20, 21));
     }
@@ -983,7 +1034,10 @@ mod tests {
         ed.step(Command::SetSpanName(1, "b1".to_string()), 1.05);
 
         ed.step(Command::Undo, 2.0);
-        assert_eq!(ed.spans.spans[1].name, "b0", "first undo reverts span 1 only");
+        assert_eq!(
+            ed.spans.spans[1].name, "b0",
+            "first undo reverts span 1 only"
+        );
         assert_eq!(ed.spans.spans[0].name, "a1");
 
         ed.step(Command::Undo, 3.0);
@@ -1024,7 +1078,13 @@ mod tests {
         let mut ed = loaded(100);
         ed.spans.spans.push(span("a"));
         let crop = vidiotic_core::project::CropRect::normalized(0.1, 0.1, 0.5, 0.5);
-        ed.step(Command::SetSpanCrop { idx: 0, crop: Some(crop) }, 1.0);
+        ed.step(
+            Command::SetSpanCrop {
+                idx: 0,
+                crop: Some(crop),
+            },
+            1.0,
+        );
         assert_eq!(ed.spans.spans[0].crop, Some(crop));
 
         ed.step(Command::ClearSpanCrop(0), 2.0);

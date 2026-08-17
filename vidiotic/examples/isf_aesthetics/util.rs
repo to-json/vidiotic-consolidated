@@ -147,10 +147,20 @@ pub fn hsl(h: f32, s: f32, l: f32) -> egui::Color32 {
 
 /// The in-demo annotation footer every direction ends with: KEY — text rows
 /// in the direction's own muted colors.
-pub fn footer(ui: &mut Ui, key_color: egui::Color32, text_color: egui::Color32, lines: &[(&str, &str)]) {
+pub fn footer(
+    ui: &mut Ui,
+    key_color: egui::Color32,
+    text_color: egui::Color32,
+    lines: &[(&str, &str)],
+) {
     for (key, text) in lines {
         ui.horizontal_wrapped(|ui| {
-            ui.label(egui::RichText::new(*key).monospace().size(9.0).color(key_color));
+            ui.label(
+                egui::RichText::new(*key)
+                    .monospace()
+                    .size(9.0)
+                    .color(key_color),
+            );
             ui.label(egui::RichText::new(*text).size(11.0).color(text_color));
         });
     }

@@ -73,7 +73,11 @@ impl CamDelay {
 
 impl Default for CamDelay {
     fn default() -> Self {
-        Self { value: 0.0, beats: false, quantize: false }
+        Self {
+            value: 0.0,
+            beats: false,
+            quantize: false,
+        }
     }
 }
 
@@ -191,7 +195,11 @@ mod tests {
 
     #[test]
     fn seconds_reads_beats_against_the_live_tempo() {
-        let d = CamDelay { value: 2.0, beats: true, quantize: false };
+        let d = CamDelay {
+            value: 2.0,
+            beats: true,
+            quantize: false,
+        };
         assert_eq!(d.seconds(120.0), 1.0);
         assert_eq!(d.seconds(60.0), 2.0);
         // A nonsense tempo must not divide by zero into infinity.
@@ -202,14 +210,26 @@ mod tests {
     fn seconds_capped_holds_the_ship_cap() {
         // Beats-mode delay runs away at slow tempos; the cap is what the engine
         // will actually honour, and three call sites used to open-code it.
-        let d = CamDelay { value: 8.0, beats: true, quantize: false };
+        let d = CamDelay {
+            value: 8.0,
+            beats: true,
+            quantize: false,
+        };
         assert!(d.seconds(60.0) > DELAY_CAP);
         assert_eq!(d.seconds_capped(60.0), DELAY_CAP);
         // Negative input clamps up, not through.
-        let back = CamDelay { value: -1.0, beats: false, quantize: false };
+        let back = CamDelay {
+            value: -1.0,
+            beats: false,
+            quantize: false,
+        };
         assert_eq!(back.seconds_capped(120.0), 0.0);
         // Under the cap it is the plain value.
-        let ok = CamDelay { value: 1.5, beats: false, quantize: false };
+        let ok = CamDelay {
+            value: 1.5,
+            beats: false,
+            quantize: false,
+        };
         assert_eq!(ok.seconds_capped(120.0), 1.5);
     }
 }

@@ -71,7 +71,10 @@ fn config_dir() -> Option<PathBuf> {
 }
 
 fn config_map_path(name: &str) -> PathBuf {
-    config_dir().unwrap_or_else(|| PathBuf::from(".")).join("vidiotic").join(name)
+    config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("vidiotic")
+        .join(name)
 }
 
 /// A missing file (first run) is the normal case and loads silently; a
@@ -156,7 +159,10 @@ pub fn save_map(path: &Path, map: &ControlMap) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let file = MapFile { version: MAP_VERSION, map: map.clone() };
+    let file = MapFile {
+        version: MAP_VERSION,
+        map: map.clone(),
+    };
     std::fs::write(path, file.serialize_ron())?;
     Ok(())
 }
@@ -182,7 +188,10 @@ mod tests {
     }
 
     fn temp_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("vidiotic_ctl_store_test_{name}_{}.vmap", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "vidiotic_ctl_store_test_{name}_{}.vmap",
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -244,8 +253,11 @@ mod tests {
     #[test]
     fn newer_map_version_refuses() {
         let path = temp_path("future");
-        std::fs::write(&path, format!("(version:{}, map:(bindings:[]))", MAP_VERSION + 1))
-            .expect("write");
+        std::fs::write(
+            &path,
+            format!("(version:{}, map:(bindings:[]))", MAP_VERSION + 1),
+        )
+        .expect("write");
         let err = load_map(&path).expect_err("future map version must refuse");
         assert!(err.to_string().contains("map v"), "unexpected error: {err}");
         let _ = std::fs::remove_file(&path);

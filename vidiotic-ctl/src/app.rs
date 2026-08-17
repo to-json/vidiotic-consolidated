@@ -75,7 +75,10 @@ impl CtlApp {
     }
 
     pub fn save(&mut self) {
-        let path = self.path.clone().unwrap_or_else(vidiotic_ctl::store::global_map_path);
+        let path = self
+            .path
+            .clone()
+            .unwrap_or_else(vidiotic_ctl::store::global_map_path);
         match vidiotic_ctl::store::save_map(&path, &self.map) {
             Ok(()) => {
                 self.dirty = false;
@@ -92,7 +95,9 @@ impl CtlApp {
     }
 
     pub fn revert(&mut self) {
-        let Some(path) = self.path.clone() else { return };
+        let Some(path) = self.path.clone() else {
+            return;
+        };
         match vidiotic_ctl::store::load_map(&path) {
             Ok(map) => {
                 self.map = map;
@@ -210,7 +215,11 @@ impl CtlApp {
         ctx.input(|input| {
             for event in &input.events {
                 let egui::Event::Key {
-                    key, pressed: true, repeat: false, modifiers, ..
+                    key,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                    ..
                 } = event
                 else {
                     continue;
@@ -236,7 +245,14 @@ impl CtlApp {
     fn offer_keys(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
             for event in &input.events {
-                let egui::Event::Key { key, pressed, repeat, modifiers, .. } = event else {
+                let egui::Event::Key {
+                    key,
+                    pressed,
+                    repeat,
+                    modifiers,
+                    ..
+                } = event
+                else {
                     continue;
                 };
                 if *repeat {
@@ -252,7 +268,11 @@ impl CtlApp {
                     shift: modifiers.shift,
                     cmd: modifiers.mac_cmd,
                 };
-                let value = if *pressed { EventValue::Pressed } else { EventValue::Released };
+                let value = if *pressed {
+                    EventValue::Pressed
+                } else {
+                    EventValue::Released
+                };
                 let _ = self.tx.send(ControlEvent { source, value });
             }
         });
@@ -350,7 +370,10 @@ mod tests {
         assert_eq!(app.map.bindings.len(), 1);
 
         app.undo();
-        assert!(app.map.bindings.is_empty(), "undo removes the added binding");
+        assert!(
+            app.map.bindings.is_empty(),
+            "undo removes the added binding"
+        );
 
         app.redo();
         assert_eq!(app.map.bindings.len(), 1, "redo restores it");
@@ -366,7 +389,10 @@ mod tests {
         app.commit_undo();
 
         app.undo();
-        assert!(app.map.bindings.is_empty(), "one undo reverts the whole frame");
+        assert!(
+            app.map.bindings.is_empty(),
+            "one undo reverts the whole frame"
+        );
     }
 
     /// Adding a binding starts a learn session; the edit isn't committed until
@@ -384,7 +410,10 @@ mod tests {
         app.commit_undo(); // now one step: empty → learned binding
 
         app.undo();
-        assert!(app.map.bindings.is_empty(), "add + learn are one undoable step");
+        assert!(
+            app.map.bindings.is_empty(),
+            "add + learn are one undoable step"
+        );
     }
 
     #[test]

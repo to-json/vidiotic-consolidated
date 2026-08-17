@@ -205,7 +205,6 @@ pub struct BakeUpdate {
     pub src_sec: f64,
 }
 
-
 /// Transcode the `[in_sec, out_sec)` span of `input` to a HAP1 `.mov`,
 /// invoking `progress` once per decoded frame.
 ///
@@ -280,7 +279,10 @@ pub fn run_span_cropped_with(
         None => (0, 0, sw, sh),
     };
     let (w, h) = align4(target_w, target_h);
-    anyhow::ensure!(w >= 4 && h >= 4, "video/crop too small to transcode: {target_w}x{target_h}");
+    anyhow::ensure!(
+        w >= 4 && h >= 4,
+        "video/crop too small to transcode: {target_w}x{target_h}"
+    );
     let mut baker = FrameBaker::new(w, h, quality)?;
     let mut scaler = ff::software::scaling::Context::get(
         decoder.format(),
@@ -331,7 +333,10 @@ pub fn run_span_cropped_with(
                 return Ok(false);
             }
             let src_sec = decoded.pts().unwrap_or(0) as f64 * in_tb;
-            progress(BakeUpdate { emitted: idx as u64, src_sec });
+            progress(BakeUpdate {
+                emitted: idx as u64,
+                src_sec,
+            });
             // Seek lands on a keyframe ≤ in_sec; skip anything before the in-point.
             if src_sec + 1e-6 < in_sec {
                 skipped += 1;
@@ -353,8 +358,7 @@ pub fn run_span_cropped_with(
             for y in 0..h as usize {
                 let src_y = (px_y as usize) + y;
                 let src_offset = src_y * stride + (px_x as usize * 4);
-                packed[y * row..(y + 1) * row]
-                    .copy_from_slice(&src[src_offset..src_offset + row]);
+                packed[y * row..(y + 1) * row].copy_from_slice(&src[src_offset..src_offset + row]);
             }
             stages.scale += t0.elapsed();
 
@@ -464,7 +468,10 @@ mod tests {
     #[test]
     fn a_clip_with_a_zero_duration_tail_is_baked_at_its_true_rate() {
         let (fps, note) = pick_fps(Some(30.0), Some(30000.0 / 989.0));
-        assert!((fps - 30.0).abs() < 1e-9, "took the inflated average: {fps}");
+        assert!(
+            (fps - 30.0).abs() < 1e-9,
+            "took the inflated average: {fps}"
+        );
         assert!(note.is_some(), "a 1.1% disagreement should be reported");
     }
 
@@ -475,7 +482,10 @@ mod tests {
     fn an_inflated_r_frame_rate_is_rejected_in_favour_of_the_average() {
         let (fps, note) = pick_fps(Some(1000.0), Some(30000.0 / 989.0));
         assert!((fps - 30000.0 / 989.0).abs() < 1e-9, "kept 1000 fps: {fps}");
-        assert!(note.is_some(), "silently ignoring a declared rate is worth saying");
+        assert!(
+            note.is_some(),
+            "silently ignoring a declared rate is worth saying"
+        );
     }
 
     #[test]

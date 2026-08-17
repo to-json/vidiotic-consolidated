@@ -18,9 +18,15 @@ fn bake_timing() {
         vidiotic_bake::transcode::BakeQuality::High,
     ] {
         let t = Instant::now();
-        let report =
-            vidiotic_bake::transcode::run_span_with(src.as_ref(), &out, 0.3, Some(2.3), quality, |_| {})
-                .expect("bake failed");
+        let report = vidiotic_bake::transcode::run_span_with(
+            src.as_ref(),
+            &out,
+            0.3,
+            Some(2.3),
+            quality,
+            |_| {},
+        )
+        .expect("bake failed");
         let dt = t.elapsed().as_secs_f64();
         println!(
             "{quality:?}: baked {} frames ({}x{}) in {dt:.2}s = {:.1} frames/s",

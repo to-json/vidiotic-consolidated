@@ -7,14 +7,14 @@ use crossbeam_channel::Receiver;
 use nanoserde::SerRon;
 use vidiotic_ctl::{ControlEvent, ControlSource, EventValue};
 
-use vidiotic_chop::commands::Command;
 use crate::control_input::Controls;
-use vidiotic_chop::editor::{Editor, MediaInfo, PendingOpen, DRAIN_BUDGET};
 use crate::engine::EngineLink;
 use crate::export::{ExportMsg, ExportProgress};
-use vidiotic_chop::mirror::PrepMirror;
 use crate::preview::SourceMedia;
 use crate::session;
+use vidiotic_chop::commands::Command;
+use vidiotic_chop::editor::{Editor, MediaInfo, PendingOpen, DRAIN_BUDGET};
+use vidiotic_chop::mirror::PrepMirror;
 
 const PREVIEW_WIDTH: u32 = 960;
 /// Above this size, opening a video asks for confirmation first instead of
@@ -30,7 +30,10 @@ fn canonical(path: &Path) -> PathBuf {
 /// A path's final component, for status lines that would otherwise be mostly
 /// directory.
 fn file_label(path: &Path) -> String {
-    path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().into_owned()
+    path.file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// The native shell: a marking session, plus every machine it sits on.
@@ -174,7 +177,8 @@ impl PrepApp {
                 });
             }
             Err(e) => {
-                self.editor.set_error(format!("failed to open {}: {e:#}", path.display()));
+                self.editor
+                    .set_error(format!("failed to open {}: {e:#}", path.display()));
             }
         }
     }
@@ -182,10 +186,16 @@ impl PrepApp {
     /// Open `path`: `.viproj` resumes a project for retrimming, anything
     /// else opens as a source video (size-gated).
     pub fn request_open(&mut self, path: PathBuf) {
-        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("viproj")) {
+        if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("viproj"))
+        {
             self.open_project(path);
         } else {
-            self.editor.post(Command::OpenVideo { path, then: Vec::new() });
+            self.editor.post(Command::OpenVideo {
+                path,
+                then: Vec::new(),
+            });
         }
     }
 
@@ -201,7 +211,11 @@ impl PrepApp {
         }
         let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         if size > LARGE_FILE_BYTES {
-            self.editor.pending_open = Some(PendingOpen { path, size_bytes: size, then });
+            self.editor.pending_open = Some(PendingOpen {
+                path,
+                size_bytes: size,
+                then,
+            });
         } else {
             self.open_video_then(path, then);
         }
@@ -223,7 +237,8 @@ impl PrepApp {
         let mut re = match session::reopen_project(&path) {
             Ok(re) => re,
             Err(e) => {
-                self.editor.set_error(format!("reopen {}: {e:#}", path.display()));
+                self.editor
+                    .set_error(format!("reopen {}: {e:#}", path.display()));
                 return;
             }
         };
@@ -234,7 +249,8 @@ impl PrepApp {
             match picked {
                 Some(p) => re.source = p,
                 None => {
-                    self.editor.set_error(format!("source video not found: {}", re.source.display()));
+                    self.editor
+                        .set_error(format!("source video not found: {}", re.source.display()));
                     return;
                 }
             }
@@ -279,8 +295,13 @@ impl PrepApp {
     /// deleted still needs its sidecar rewritten to empty, or the stale file
     /// would resurrect those spans on a later reopen.
     pub fn flush_session(&mut self) {
-        let mut sources: std::collections::BTreeSet<PathBuf> =
-            self.editor.spans.spans.iter().map(|s| s.source.clone()).collect();
+        let mut sources: std::collections::BTreeSet<PathBuf> = self
+            .editor
+            .spans
+            .spans
+            .iter()
+            .map(|s| s.source.clone())
+            .collect();
         sources.extend(self.last_saved_sessions.keys().cloned());
         for src in sources {
             let ron = session::capture(self, &src).serialize_ron();
@@ -378,8 +399,9 @@ impl PrepApp {
     }
 
     fn pick_project(&mut self) {
-        if let Some(path) =
-            rfd::FileDialog::new().add_filter("vidiotic project", &["viproj"]).pick_file()
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("vidiotic project", &["viproj"])
+            .pick_file()
         {
             self.editor.post(Command::Open(path));
         }
@@ -389,7 +411,9 @@ impl PrepApp {
     /// asked for a file, not for a `SetDefaults` it would have to assemble
     /// around a path it never sees.
     fn pick_shader_path(&mut self) {
-        let Some(path) = rfd::FileDialog::new().pick_file() else { return };
+        let Some(path) = rfd::FileDialog::new().pick_file() else {
+            return;
+        };
         let mut d = self.editor.defaults.clone();
         d.shader_path = Some(path.to_string_lossy().into_owned());
         self.editor.post(Command::SetDefaults(Box::new(d)));
@@ -397,12 +421,17 @@ impl PrepApp {
 
     /// This frame's read-only overlay for the panels: what a machine knows.
     fn build_mirror(&self) -> PrepMirror {
-        PrepMirror { preview: self.preview_tex.clone(), exporting: self.exporting() }
+        PrepMirror {
+            preview: self.preview_tex.clone(),
+            exporting: self.exporting(),
+        }
     }
 
     /// Decode the current frame (if it changed) and refresh the preview texture.
     pub fn update_preview_texture(&mut self, ctx: &egui::Context) {
-        let Some(media) = self.media.as_mut() else { return };
+        let Some(media) = self.media.as_mut() else {
+            return;
+        };
         if self.last_tex_frame == Some(self.editor.cur_frame) {
             return;
         }
@@ -422,7 +451,8 @@ impl PrepApp {
                 self.last_tex_frame = Some(self.editor.cur_frame);
             }
             Err(e) => {
-                self.editor.set_error(format!("decode frame {}: {e:#}", self.editor.cur_frame));
+                self.editor
+                    .set_error(format!("decode frame {}: {e:#}", self.editor.cur_frame));
             }
         }
     }
@@ -432,7 +462,8 @@ impl PrepApp {
     /// from its own `source` path by the export worker.
     pub fn start_export(&mut self) {
         let Some(dest) = self.export_dest.clone() else {
-            self.editor.set_error("pick a destination folder first".to_string());
+            self.editor
+                .set_error("pick a destination folder first".to_string());
             return;
         };
         if self.editor.spans.spans.is_empty() {
@@ -522,7 +553,11 @@ impl PrepApp {
     /// themselves, leaves nothing to hand back.
     pub fn note_launch_project(&mut self, path: PathBuf) {
         let launched = self.engine.as_ref().is_some_and(EngineLink::launched_us);
-        if launched && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("viproj")) {
+        if launched
+            && path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("viproj"))
+        {
             self.launch_project = Some(canonical(&path));
         }
     }
@@ -538,11 +573,13 @@ impl PrepApp {
     /// since a reload turns over the engine's whole clip/cue id space mid-set.
     pub fn send_to_engine(&mut self, project: PathBuf) {
         let Some(engine) = &self.engine else {
-            self.editor.set_error("no running vidiotic to send to".to_string());
+            self.editor
+                .set_error("no running vidiotic to send to".to_string());
             return;
         };
         self.engine_rx = Some(engine.reload(&project));
-        self.editor.set_status(format!("sending {} to vidiotic…", file_label(&project)));
+        self.editor
+            .set_status(format!("sending {} to vidiotic…", file_label(&project)));
     }
 
     /// Whether a send is still waiting on the engine's ack.
@@ -567,7 +604,9 @@ impl PrepApp {
         };
         self.engine_rx = None;
         match outcome {
-            Ok(()) => self.editor.set_status("vidiotic reloaded the project".to_string()),
+            Ok(()) => self
+                .editor
+                .set_status("vidiotic reloaded the project".to_string()),
             Err(e) => self.editor.set_error(format!("send to vidiotic: {e}")),
         }
     }
@@ -575,7 +614,8 @@ impl PrepApp {
     /// Whether the span list has changed since the last successful export
     /// (or nothing has ever been exported).
     fn spans_dirty_since_export(&self) -> bool {
-        self.last_export_fingerprint.as_deref() != Some(format!("{:?}", self.editor.spans.spans).as_str())
+        self.last_export_fingerprint.as_deref()
+            != Some(format!("{:?}", self.editor.spans.spans).as_str())
     }
 
     /// Veto the OS close request and show the quit-confirmation dialog if
@@ -588,7 +628,8 @@ impl PrepApp {
         }
         if self.exporting() {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.editor.set_error("export in progress — please wait".to_string());
+            self.editor
+                .set_error("export in progress — please wait".to_string());
         } else if !self.editor.spans.spans.is_empty() && self.spans_dirty_since_export() {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.editor.show_quit_dialog = true;
@@ -633,7 +674,14 @@ impl PrepApp {
                 .events
                 .iter()
                 .filter_map(|event| {
-                    let egui::Event::Key { key, pressed, repeat, modifiers, .. } = event else {
+                    let egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        modifiers,
+                        ..
+                    } = event
+                    else {
                         return None;
                     };
                     let source = ControlSource::Key {
@@ -645,8 +693,11 @@ impl PrepApp {
                         shift: modifiers.shift,
                         cmd: modifiers.mac_cmd,
                     };
-                    let value =
-                        if *pressed { EventValue::Pressed } else { EventValue::Released };
+                    let value = if *pressed {
+                        EventValue::Pressed
+                    } else {
+                        EventValue::Released
+                    };
                     Some((ControlEvent { source, value }, *repeat))
                 })
                 .collect()
@@ -658,7 +709,8 @@ impl PrepApp {
     /// [`Controls`] with the rest.
     pub fn flush_prep_map(&mut self) {
         if let Err(e) = self.ctl.flush_prep_map() {
-            self.editor.set_error(format!("saving prep key bindings: {e:#}"));
+            self.editor
+                .set_error(format!("saving prep key bindings: {e:#}"));
         }
     }
 }
@@ -680,7 +732,8 @@ impl eframe::App for PrepApp {
         {
             self.editor.post(Command::Open(path));
         }
-        self.editor.advance_playback(ctx.input(|i| i.stable_dt) as f64);
+        self.editor
+            .advance_playback(ctx.input(|i| i.stable_dt) as f64);
         self.update_preview_texture(&ctx);
         self.autosave_session(&ctx);
 
@@ -764,7 +817,11 @@ mod tests {
 
         app.editor.post(Command::Undo);
         app.drain_commands(&ctx());
-        assert_eq!(app.editor.spans.spans.len(), 1, "undo must not resurrect pre-load state");
+        assert_eq!(
+            app.editor.spans.spans.len(),
+            1,
+            "undo must not resurrect pre-load state"
+        );
         assert_eq!(app.editor.spans.spans[0].name, "loaded");
     }
 
@@ -779,7 +836,10 @@ mod tests {
             then: vec![Command::TogglePlay],
         });
         app.drain_commands(&ctx());
-        assert!(app.editor.source_path.is_none(), "the open must have failed");
+        assert!(
+            app.editor.source_path.is_none(),
+            "the open must have failed"
+        );
         assert!(!app.editor.playing(), "the continuation must not have run");
         assert!(app.editor.status_is_error);
     }
@@ -796,7 +856,10 @@ mod tests {
         app.editor.post(Command::CancelPendingOpen);
         app.drain_commands(&ctx());
         assert!(app.editor.pending_open.is_none());
-        assert!(!app.editor.playing(), "the dropped continuation must not have run");
+        assert!(
+            !app.editor.playing(),
+            "the dropped continuation must not have run"
+        );
     }
 
     /// Re-selecting a span on the already-open video runs its continuation
@@ -809,7 +872,10 @@ mod tests {
         let path = PathBuf::from("/tmp/already-open.mov");
         app.editor.source_path = Some(path.clone());
         app.editor.cur_frame = 42;
-        app.editor.post(Command::OpenVideo { path, then: vec![Command::TogglePlay] });
+        app.editor.post(Command::OpenVideo {
+            path,
+            then: vec![Command::TogglePlay],
+        });
         app.drain_commands(&ctx());
         assert!(app.editor.playing(), "the continuation must have run");
         assert_eq!(app.editor.cur_frame, 42, "playback state must be untouched");
@@ -825,6 +891,4 @@ mod tests {
         // Over budget: the rest is dropped rather than wedging the frame.
         assert!(app.editor.queued_len() == 0);
     }
-
-
 }

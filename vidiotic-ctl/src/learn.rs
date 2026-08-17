@@ -50,20 +50,30 @@ mod tests {
     use super::*;
 
     fn cc() -> ControlSource {
-        ControlSource::MidiCc { device: "Foo".into(), channel: 1, cc: 21 }
+        ControlSource::MidiCc {
+            device: "Foo".into(),
+            channel: 1,
+            cc: 21,
+        }
     }
 
     #[test]
     fn pressed_captures_immediately() {
         let mut learn = Learn::new();
-        let ev = ControlEvent { source: cc(), value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source: cc(),
+            value: EventValue::Pressed,
+        };
         assert_eq!(learn.observe(&ev), Some(cc()));
     }
 
     #[test]
     fn released_never_captures() {
         let mut learn = Learn::new();
-        let ev = ControlEvent { source: cc(), value: EventValue::Released };
+        let ev = ControlEvent {
+            source: cc(),
+            value: EventValue::Released,
+        };
         assert_eq!(learn.observe(&ev), None);
     }
 
@@ -73,7 +83,10 @@ mod tests {
         let source = cc();
         // Resting stick sits at 0.5, not 0 — first sample sets the baseline.
         for v in [0.5, 0.51, 0.49, 0.5, 0.52] {
-            let ev = ControlEvent { source: source.clone(), value: EventValue::Continuous(v) };
+            let ev = ControlEvent {
+                source: source.clone(),
+                value: EventValue::Continuous(v),
+            };
             assert_eq!(learn.observe(&ev), None, "jitter at {v} must not capture");
         }
     }
@@ -82,10 +95,15 @@ mod tests {
     fn deliberate_movement_captures() {
         let mut learn = Learn::new();
         let source = cc();
-        let baseline_ev =
-            ControlEvent { source: source.clone(), value: EventValue::Continuous(0.5) };
+        let baseline_ev = ControlEvent {
+            source: source.clone(),
+            value: EventValue::Continuous(0.5),
+        };
         assert_eq!(learn.observe(&baseline_ev), None);
-        let moved_ev = ControlEvent { source: source.clone(), value: EventValue::Continuous(0.7) };
+        let moved_ev = ControlEvent {
+            source: source.clone(),
+            value: EventValue::Continuous(0.7),
+        };
         assert_eq!(learn.observe(&moved_ev), Some(source));
     }
 }

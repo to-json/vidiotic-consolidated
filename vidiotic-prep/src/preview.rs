@@ -151,7 +151,8 @@ impl SourceMedia {
         let row = (self.preview_w * 4) as usize;
         let src = rgba.data(0);
         for y in 0..self.preview_h as usize {
-            self.cur.rgba[y * row..(y + 1) * row].copy_from_slice(&src[y * stride..y * stride + row]);
+            self.cur.rgba[y * row..(y + 1) * row]
+                .copy_from_slice(&src[y * stride..y * stride + row]);
         }
         self.cur.w = self.preview_w;
         self.cur.h = self.preview_h;
@@ -164,7 +165,11 @@ impl SourceMedia {
     /// `decoded` is left on the final decodable frame (so a slightly-optimistic
     /// `frames` count — common with fractional fps — clamps to the last frame
     /// instead of failing). Returns `false` only if nothing decoded at all.
-    fn decode_forward_to(&mut self, idx: u64, decoded: &mut ff::frame::Video) -> anyhow::Result<bool> {
+    fn decode_forward_to(
+        &mut self,
+        idx: u64,
+        decoded: &mut ff::frame::Video,
+    ) -> anyhow::Result<bool> {
         let fps = self.fps;
         let in_tb = self.in_tb;
         let vid_idx = self.vid_idx;

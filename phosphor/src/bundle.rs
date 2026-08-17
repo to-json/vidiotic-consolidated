@@ -291,7 +291,10 @@ mod tests {
         // args() reads the real argv, so exercise the predicate it applies.
         let raw = ["vidiotic", "-psn_0_1234567", "/tmp/a.viproj"];
         let kept: Vec<_> = raw.iter().filter(|a| !a.starts_with("-psn_")).collect();
-        assert_eq!(kept, ["vidiotic", "/tmp/a.viproj"].iter().collect::<Vec<_>>());
+        assert_eq!(
+            kept,
+            ["vidiotic", "/tmp/a.viproj"].iter().collect::<Vec<_>>()
+        );
     }
 
     #[test]

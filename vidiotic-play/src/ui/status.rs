@@ -26,7 +26,11 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
             {
                 let _ = tx.send(Command::PickShader);
             }
-            let name_color = if m.shader_error.is_some() { p.error } else { p.fg_primary };
+            let name_color = if m.shader_error.is_some() {
+                p.error
+            } else {
+                p.fg_primary
+            };
             ui.add(
                 egui::Label::new(
                     egui::RichText::new(m.shader_name.as_deref().unwrap_or("<none>"))
@@ -127,7 +131,11 @@ fn pinned_shaders(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
                 // horizontal flow and doesn't hold up inside the popup's
                 // justified vertical layout (the click landed in the popup,
                 // closing it, but not on the sub-rect chip expected).
-                ui.label(egui::RichText::new(s.name.as_ref()).monospace().color(p.fg_secondary));
+                ui.label(
+                    egui::RichText::new(s.name.as_ref())
+                        .monospace()
+                        .color(p.fg_secondary),
+                );
                 if !s.builtin
                     && widgets::bracket_button(ui, icon::DELETE, Some(p.error), 0.0)
                         .on_hover_text("unpin")
@@ -149,8 +157,12 @@ fn compress(v: f32) -> f32 {
 fn audio_error_tag(ui: &mut Ui, m: &UiMirror) {
     if let Some(err) = &m.audio_error {
         let resp = widgets::chip(ui, "audio!", Some(palette().error), false);
-        ui.interact(resp.rect, ui.id().with("audio_error_hover"), egui::Sense::hover())
-            .on_hover_text(err.as_str());
+        ui.interact(
+            resp.rect,
+            ui.id().with("audio_error_hover"),
+            egui::Sense::hover(),
+        )
+        .on_hover_text(err.as_str());
     }
 }
 
@@ -188,12 +200,21 @@ fn spectrum(ui: &mut Ui, m: &UiMirror) {
     let mut linear = ui.data_mut(|d| d.get_temp::<bool>(id).unwrap_or(false));
 
     ui.horizontal(|ui| {
-        let toggle = widgets::chip(ui, if linear { "512·lin" } else { "21·log" }, Some(palette().blue), false);
-        ui.interact(toggle.rect, ui.id().with("spectrum_toggle_hover"), egui::Sense::hover())
-            .on_hover_text(
-                "spectrum view — 21 perceptual log bands (fftBand) \
+        let toggle = widgets::chip(
+            ui,
+            if linear { "512·lin" } else { "21·log" },
+            Some(palette().blue),
+            false,
+        );
+        ui.interact(
+            toggle.rect,
+            ui.id().with("spectrum_toggle_hover"),
+            egui::Sense::hover(),
+        )
+        .on_hover_text(
+            "spectrum view — 21 perceptual log bands (fftBand) \
                  vs 512 linear bins (iChannel0)",
-            );
+        );
         if toggle.clicked {
             linear = !linear;
             ui.data_mut(|d| d.insert_temp(id, linear));
@@ -234,10 +255,14 @@ fn error_window(ui: &mut Ui, m: &UiMirror) {
     if let Some(err) = &m.shader_error {
         ui.data_mut(|d| d.insert_temp(text_id, err.to_string()));
     }
-    let text = ui.data_mut(|d| d.get_temp::<String>(text_id)).unwrap_or_default();
+    let text = ui
+        .data_mut(|d| d.get_temp::<String>(text_id))
+        .unwrap_or_default();
 
     let open_id = egui::Id::new("shader_err_window_open");
-    let mut open = ui.data_mut(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+    let mut open = ui
+        .data_mut(|d| d.get_temp::<bool>(open_id))
+        .unwrap_or(false);
     if !open {
         return;
     }
@@ -247,9 +272,11 @@ fn error_window(ui: &mut Ui, m: &UiMirror) {
         .default_size(egui::vec2(480.0, 240.0))
         .resizable(true)
         .show(ui.ctx(), |ui| {
-            egui::ScrollArea::vertical().id_salt("shader_err").show(ui, |ui| {
-                ui.label(egui::RichText::new(&text).monospace().color(p.fg_primary));
-            });
+            egui::ScrollArea::vertical()
+                .id_salt("shader_err")
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(&text).monospace().color(p.fg_primary));
+                });
         });
     ui.data_mut(|d| d.insert_temp(open_id, open));
 }

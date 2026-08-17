@@ -26,13 +26,27 @@ pub struct ControlEvent {
 #[must_use]
 pub fn source_key(source: &ControlSource) -> String {
     match source {
-        ControlSource::MidiNote { device, channel, note } => {
+        ControlSource::MidiNote {
+            device,
+            channel,
+            note,
+        } => {
             format!("midi:ch{channel}:note:{note}@{device}")
         }
-        ControlSource::MidiCc { device, channel, cc } => {
+        ControlSource::MidiCc {
+            device,
+            channel,
+            cc,
+        } => {
             format!("midi:ch{channel}:cc:{cc}@{device}")
         }
-        ControlSource::Key { key, ctrl, alt, shift, cmd } => {
+        ControlSource::Key {
+            key,
+            ctrl,
+            alt,
+            shift,
+            cmd,
+        } => {
             let mut mods = String::new();
             if *ctrl {
                 mods.push_str("ctrl+");

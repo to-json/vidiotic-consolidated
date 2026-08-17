@@ -61,7 +61,13 @@ impl DeviceFormat {
     pub fn fourcc_str(&self) -> String {
         self.fourcc
             .iter()
-            .map(|&b| if b.is_ascii_graphic() || b == b' ' { b as char } else { '?' })
+            .map(|&b| {
+                if b.is_ascii_graphic() || b == b' ' {
+                    b as char
+                } else {
+                    '?'
+                }
+            })
             .collect()
     }
 
@@ -245,7 +251,10 @@ pub fn enumerate() -> Vec<DeviceInfo> {
     // The demuxer prefix-matches names, so a device whose full name prefixes
     // another's is ambiguous to select. Rare; surface it rather than guess.
     for a in &out {
-        if out.iter().any(|b| b.uid != a.uid && b.name.starts_with(&a.name)) {
+        if out
+            .iter()
+            .any(|b| b.uid != a.uid && b.name.starts_with(&a.name))
+        {
             log::warn!(
                 "capture device name {:?} is a prefix of another device's name; \
                  selection may pick the wrong one",
@@ -384,7 +393,12 @@ struct RingState {
 
 impl RingState {
     fn new(window: Duration, byte_cap: usize) -> Self {
-        Self { frames: VecDeque::new(), bytes: 0, window, byte_cap }
+        Self {
+            frames: VecDeque::new(),
+            bytes: 0,
+            window,
+            byte_cap,
+        }
     }
 
     fn push(&mut self, wall: Instant, pts_sec: f64, frame: ff::frame::Video) {
@@ -399,7 +413,12 @@ impl RingState {
         }
         let bytes = frame_bytes(&frame);
         self.bytes += bytes;
-        self.frames.push_back(RingFrame { wall, pts_sec, frame: Arc::new(frame), bytes });
+        self.frames.push_back(RingFrame {
+            wall,
+            pts_sec,
+            frame: Arc::new(frame),
+            bytes,
+        });
         while self.frames.len() > 1 {
             let front = &self.frames[0];
             if self.bytes > self.byte_cap || wall.duration_since(front.wall) > self.window {
@@ -427,7 +446,11 @@ impl RingState {
 #[derive(Debug, Clone)]
 pub enum ServiceStatus {
     Starting,
-    Running { width: u32, height: u32, fps: f64 },
+    Running {
+        width: u32,
+        height: u32,
+        fps: f64,
+    },
     /// Open or capture failed (device missing, TCC denied, ...). The worker
     /// keeps retrying while this is shown.
     Failed(String),
@@ -454,7 +477,10 @@ pub struct CameraTap {
     /// the tap just reads frames `delay_eff` behind the live edge.
     pub delay_eff: f64,
     last_wall: Option<Instant>,
-    scaler: Option<(ff::software::scaling::Context, (u32, u32, ff::format::Pixel))>,
+    scaler: Option<(
+        ff::software::scaling::Context,
+        (u32, u32, ff::format::Pixel),
+    )>,
 }
 
 impl CameraTap {
@@ -475,7 +501,11 @@ impl CameraTap {
             (Arc::clone(&picked.frame), picked.wall, picked.pts_sec)
         };
         let (w, h, fmt) = (frame.width(), frame.height(), frame.format());
-        if self.scaler.as_ref().is_none_or(|(_, key)| *key != (w, h, fmt)) {
+        if self
+            .scaler
+            .as_ref()
+            .is_none_or(|(_, key)| *key != (w, h, fmt))
+        {
             let ctx = ff::software::scaling::Context::get(
                 fmt,
                 w,
@@ -529,7 +559,11 @@ impl CaptureService {
             let (ring, stop) = (Arc::clone(&ring), Arc::clone(&stop));
             std::thread::spawn(move || worker(&uid, &ring, &stop))
         };
-        Self { ring, stop, join: Some(join) }
+        Self {
+            ring,
+            stop,
+            join: Some(join),
+        }
     }
 
     /// A fresh zero-delay tap onto this service's ring.
@@ -619,8 +653,10 @@ fn capture_once(uid: &str, ring: &Ring, stop: &AtomicBool) -> anyhow::Result<()>
     );
 
     let start = Instant::now();
-    let mut ring_scaler: Option<(ff::software::scaling::Context, (u32, u32, ff::format::Pixel))> =
-        None;
+    let mut ring_scaler: Option<(
+        ff::software::scaling::Context,
+        (u32, u32, ff::format::Pixel),
+    )> = None;
     for (stream, packet) in ictx.packets() {
         if stop.load(Ordering::Relaxed) {
             return Ok(());
@@ -653,11 +689,17 @@ fn capture_once(uid: &str, ring: &Ring, stop: &AtomicBool) -> anyhow::Result<()>
 /// failure the original frame is ringed rather than dropped.
 fn normalize_for_ring(
     frame: ff::frame::Video,
-    scaler: &mut Option<(ff::software::scaling::Context, (u32, u32, ff::format::Pixel))>,
+    scaler: &mut Option<(
+        ff::software::scaling::Context,
+        (u32, u32, ff::format::Pixel),
+    )>,
 ) -> ff::frame::Video {
     use ff::format::Pixel;
     let (w, h, fmt) = (frame.width(), frame.height(), frame.format());
-    if matches!(fmt, Pixel::NV12 | Pixel::YUV420P | Pixel::UYVY422 | Pixel::YUYV422) {
+    if matches!(
+        fmt,
+        Pixel::NV12 | Pixel::YUV420P | Pixel::UYVY422 | Pixel::YUYV422
+    ) {
         return frame;
     }
     if scaler.as_ref().is_none_or(|(_, key)| *key != (w, h, fmt)) {
@@ -677,7 +719,9 @@ fn normalize_for_ring(
             }
         }
     }
-    let Some((ctx, _)) = scaler.as_mut() else { return frame };
+    let Some((ctx, _)) = scaler.as_mut() else {
+        return frame;
+    };
     let mut nv12 = ff::frame::Video::empty();
     match ctx.run(&frame, &mut nv12) {
         Ok(()) => nv12,
@@ -753,11 +797,18 @@ mod tests {
         let mut r = ring_for_test();
         let t0 = Instant::now();
         for i in 0..10 {
-            r.push(t0 + Duration::from_millis(i * 500), i as f64 * 0.5, nv12(4, 4));
+            r.push(
+                t0 + Duration::from_millis(i * 500),
+                i as f64 * 0.5,
+                nv12(4, 4),
+            );
         }
         // 10 frames over 4.5s; the 3s window keeps those within 3s of the last.
         let newest = t0 + Duration::from_millis(9 * 500);
-        assert!(r.frames.iter().all(|f| newest.duration_since(f.wall).as_secs_f64() <= 3.0));
+        assert!(r
+            .frames
+            .iter()
+            .all(|f| newest.duration_since(f.wall).as_secs_f64() <= 3.0));
         assert!(r.frames.len() >= 6);
     }
 

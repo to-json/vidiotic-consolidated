@@ -221,12 +221,10 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
     // running sum of the (compressed) chunk sizes.
     let chunk_offset = |i: usize| -> Result<usize, HapErr> {
         if let Some(off) = offsets {
-            Ok(u32::from_le_bytes([
-                off[i * 4],
-                off[i * 4 + 1],
-                off[i * 4 + 2],
-                off[i * 4 + 3],
-            ]) as usize)
+            Ok(
+                u32::from_le_bytes([off[i * 4], off[i * 4 + 1], off[i * 4 + 2], off[i * 4 + 3]])
+                    as usize,
+            )
         } else {
             (0..i)
                 .try_fold(0usize, |acc, j| acc.checked_add(chunk_size(j)))

@@ -283,7 +283,12 @@ impl Greeting {
     /// A greeting for the current [`crate::WIRE_VERSION`] at `epoch`.
     #[must_use]
     pub fn new(epoch: u64) -> Self {
-        Self { vidiotic: GreetingInfo { wire: crate::WIRE_VERSION, epoch } }
+        Self {
+            vidiotic: GreetingInfo {
+                wire: crate::WIRE_VERSION,
+                epoch,
+            },
+        }
     }
 
     /// Serialize to one JSON line, without a trailing newline (the caller
@@ -320,9 +325,17 @@ mod tests {
             cmd.to_json_line(),
             r#"{"id":1,"epoch":3,"req":{"cmd":{"SetBpm":[128.0]}}}"#
         );
-        let get = Request { id: 2, epoch: None, req: ReqBody::Get(WireQuery::Status) };
+        let get = Request {
+            id: 2,
+            epoch: None,
+            req: ReqBody::Get(WireQuery::Status),
+        };
         assert_eq!(get.to_json_line(), r#"{"id":2,"req":{"get":"Status"}}"#);
-        let unit = Request { id: 3, epoch: None, req: ReqBody::Cmd(WireCommand::TapTempo) };
+        let unit = Request {
+            id: 3,
+            epoch: None,
+            req: ReqBody::Cmd(WireCommand::TapTempo),
+        };
         assert_eq!(unit.to_json_line(), r#"{"id":3,"req":{"cmd":"TapTempo"}}"#);
         for r in [cmd, get, unit] {
             assert_eq!(Request::from_json_line(&r.to_json_line()).unwrap(), r);
@@ -349,10 +362,21 @@ mod tests {
                 r#""epoch":3,"wire_version":1,"advanced":false,"grammar_on":false}}}"#
             )
         );
-        let ack = Reply { id: 4, epoch: 3, result: ReplyResult::Ack };
+        let ack = Reply {
+            id: 4,
+            epoch: 3,
+            result: ReplyResult::Ack,
+        };
         assert_eq!(ack.to_json_line(), r#"{"id":4,"epoch":3,"ack":true}"#);
-        let err = Reply { id: 1, epoch: 3, result: ReplyResult::Err("unknown cue 9".into()) };
-        assert_eq!(err.to_json_line(), r#"{"id":1,"epoch":3,"err":"unknown cue 9"}"#);
+        let err = Reply {
+            id: 1,
+            epoch: 3,
+            result: ReplyResult::Err("unknown cue 9".into()),
+        };
+        assert_eq!(
+            err.to_json_line(),
+            r#"{"id":1,"epoch":3,"err":"unknown cue 9"}"#
+        );
         for r in [ok, ack, err] {
             assert_eq!(Reply::from_json_line(&r.to_json_line()).unwrap(), r);
         }
@@ -379,8 +403,14 @@ mod tests {
     #[test]
     fn greeting_golden_shape() {
         let greeting = Greeting::new(5);
-        assert_eq!(greeting.to_json_line(), r#"{"vidiotic":{"wire":1,"epoch":5}}"#);
-        assert_eq!(Greeting::from_json_line(&greeting.to_json_line()).unwrap(), greeting);
+        assert_eq!(
+            greeting.to_json_line(),
+            r#"{"vidiotic":{"wire":1,"epoch":5}}"#
+        );
+        assert_eq!(
+            Greeting::from_json_line(&greeting.to_json_line()).unwrap(),
+            greeting
+        );
     }
 
     #[test]
@@ -389,7 +419,11 @@ mod tests {
         let reply = Reply::from_json_line(line).unwrap();
         assert_eq!(
             reply,
-            Reply { id: 9, epoch: 4, result: ReplyResult::Err("nope".into()) }
+            Reply {
+                id: 9,
+                epoch: 4,
+                result: ReplyResult::Err("nope".into())
+            }
         );
     }
 
@@ -409,7 +443,10 @@ mod tests {
         let bodies = [
             ReqBody::Cmd(WireCommand::Quit),
             ReqBody::Cmd(WireCommand::SetCueOut(2, None)),
-            ReqBody::Cmd(WireCommand::RelinkCamera { from: "a".into(), to: "b".into() }),
+            ReqBody::Cmd(WireCommand::RelinkCamera {
+                from: "a".into(),
+                to: "b".into(),
+            }),
             ReqBody::Cmd(WireCommand::SetCueParam(
                 1,
                 crate::command::WireCueParam::CamDelay(crate::command::WireCamDelay {
@@ -421,9 +458,16 @@ mod tests {
             ReqBody::Get(WireQuery::Levels),
         ];
         for (id, body) in bodies.into_iter().enumerate() {
-            let req = Request { id: id as u64, epoch: Some(1), req: body };
+            let req = Request {
+                id: id as u64,
+                epoch: Some(1),
+                req: body,
+            };
             let line = req.to_json_line();
-            assert!(!line.contains('\n'), "line framing must stay single-line: {line}");
+            assert!(
+                !line.contains('\n'),
+                "line framing must stay single-line: {line}"
+            );
             assert_eq!(Request::from_json_line(&line).unwrap(), req, "{line}");
         }
     }

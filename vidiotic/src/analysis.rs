@@ -17,7 +17,7 @@ use std::time::Duration;
 /// `app.rs` and `spike_render.rs` and the two halves cannot disagree about the
 /// texture geometry or the band count.
 pub use vidiotic_play::analysis::{
-    AudioFrame, Analyzer, AUDIO_TEX_LEN, AUDIO_TEX_W, FFT_SIZE, NUM_BANDS,
+    Analyzer, AudioFrame, AUDIO_TEX_LEN, AUDIO_TEX_W, FFT_SIZE, NUM_BANDS,
 };
 
 /// Control messages from the main thread to the analysis thread.

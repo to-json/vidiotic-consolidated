@@ -100,7 +100,6 @@ pub enum SyncKind {
 mod tests {
     use super::*;
 
-
     // Under wasm32 there is no built-in test harness; aliasing the attribute lets
     // these same tests run unmodified under `wasm-bindgen-test` (web-port.md §7a).
     // Without it they compile away to nothing and the runner reports "no tests to
@@ -124,7 +123,10 @@ mod tests {
 
     #[test]
     fn time_sig_sanitized_clamps() {
-        assert_eq!(TimeSig { num: 0, den: 4 }.sanitized(), TimeSig { num: 1, den: 4 });
+        assert_eq!(
+            TimeSig { num: 0, den: 4 }.sanitized(),
+            TimeSig { num: 1, den: 4 }
+        );
         assert_eq!(TimeSig { num: 4, den: 3 }.sanitized().den, 2);
         assert_eq!(TimeSig { num: 4, den: 32 }.sanitized().den, 16);
         assert_eq!(TimeSig { num: 4, den: 0 }.sanitized().den, 1);

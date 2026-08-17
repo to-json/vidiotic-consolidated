@@ -21,7 +21,7 @@ mod schema;
 mod terminal;
 mod util;
 
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Sense, Stroke, StrokeKind, vec2};
+use egui::{vec2, Align2, Color32, CornerRadius, FontId, Pos2, Sense, Stroke, StrokeKind};
 use schema::DemoState;
 
 const CHROME_BG: Color32 = Color32::from_rgb(15, 15, 19);
@@ -32,7 +32,15 @@ const CHROME_ACCENT: Color32 = Color32::from_rgb(82, 191, 255);
 const CHROME_ACCENT_DIM: Color32 = Color32::from_rgb(36, 63, 83);
 const LEARN_RED: Color32 = Color32::from_rgb(255, 99, 99);
 
-const DIRECTIONS: [&str; 7] = ["CONSOLE", "ELEKTRON", "MOOG", "MAKE NOISE", "TERMINAL", "PHOSPHOR", "HYBRID"];
+const DIRECTIONS: [&str; 7] = [
+    "CONSOLE",
+    "ELEKTRON",
+    "MOOG",
+    "MAKE NOISE",
+    "TERMINAL",
+    "PHOSPHOR",
+    "HYBRID",
+];
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -84,7 +92,11 @@ impl App {
         // mode; a `widgets` arg starts on the widgets view.
         st.dark = !std::env::args().any(|a| a.eq_ignore_ascii_case("light"));
         let view = usize::from(std::env::args().any(|a| a.eq_ignore_ascii_case("widgets")));
-        Self { st, direction, view }
+        Self {
+            st,
+            direction,
+            view,
+        }
     }
 }
 
@@ -95,7 +107,10 @@ fn install_nerd_font(ctx: &egui::Context) -> bool {
     let Some(home) = std::env::var_os("HOME") else {
         return false;
     };
-    for name in ["IosevkaNerdFontMono-Regular.ttf", "JetBrainsMonoNerdFontMono-Regular.ttf"] {
+    for name in [
+        "IosevkaNerdFontMono-Regular.ttf",
+        "JetBrainsMonoNerdFontMono-Regular.ttf",
+    ] {
         let path = std::path::Path::new(&home).join("Library/Fonts").join(name);
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
@@ -257,7 +272,11 @@ fn view_tabs(ui: &mut egui::Ui, view: &mut usize) {
                 Align2::CENTER_CENTER,
                 *label,
                 FontId::proportional(11.0),
-                if selected { Color32::from_rgb(229, 192, 123) } else { CHROME_DIM },
+                if selected {
+                    Color32::from_rgb(229, 192, 123)
+                } else {
+                    CHROME_DIM
+                },
             );
         }
     });
@@ -283,7 +302,10 @@ fn learn_toggle(ui: &mut egui::Ui, armed: &mut bool, time: f64) {
         painter.rect_stroke(
             rect,
             CornerRadius::same(4),
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 99, 99, 120 + (pulse * 130.0) as u8)),
+            Stroke::new(
+                1.0,
+                Color32::from_rgba_unmultiplied(255, 99, 99, 120 + (pulse * 130.0) as u8),
+            ),
             StrokeKind::Inside,
         );
     }

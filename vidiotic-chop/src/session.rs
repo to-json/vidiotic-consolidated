@@ -193,7 +193,10 @@ mod tests {
                 crop: None,
             }],
             bank_names: vec!["from-a".to_string()],
-            defaults: SessionDefaults { bpm: 100.0, ..Default::default() },
+            defaults: SessionDefaults {
+                bpm: 100.0,
+                ..Default::default()
+            },
             snap_beats: 8.0,
             controls: vidiotic_ctl::ControlMap::default(),
         };
@@ -213,14 +216,24 @@ mod tests {
                 crop: None,
             }],
             bank_names: vec!["from-b".to_string()],
-            defaults: SessionDefaults { bpm: 200.0, ..Default::default() },
+            defaults: SessionDefaults {
+                bpm: 200.0,
+                ..Default::default()
+            },
             snap_beats: 2.0,
             controls: vidiotic_ctl::ControlMap::default(),
         };
         second.merge_into(&mut ed, &mut controls, Path::new("/b.mov"), false);
         assert_eq!(ed.spans.spans.len(), 2, "spans append rather than replace");
-        assert_eq!(ed.bank_names, vec!["from-a".to_string()], "globals not stomped");
-        assert!((ed.defaults.bpm - 100.0).abs() < f64::EPSILON, "globals not stomped");
+        assert_eq!(
+            ed.bank_names,
+            vec!["from-a".to_string()],
+            "globals not stomped"
+        );
+        assert!(
+            (ed.defaults.bpm - 100.0).abs() < f64::EPSILON,
+            "globals not stomped"
+        );
     }
 
     /// The whole point of the sidecar: what a session writes is what it reads.
@@ -255,7 +268,10 @@ mod tests {
                     channel: 1,
                     cc: 21,
                 },
-                action: Action::SetBpm { min: 60.0, max: 180.0 },
+                action: Action::SetBpm {
+                    min: 60.0,
+                    max: 180.0,
+                },
             }],
         };
         let file = SessionFile::capture(&Editor::default(), &controls, Path::new("/v.mov"));

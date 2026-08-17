@@ -279,7 +279,11 @@ fn ffmpegs_muxer_loses_the_last_frame_and_ours_does_not() {
 
     let (ours, theirs) = (demux(&a), demux(&b));
 
-    assert_eq!(ours.packets.len(), pkts.len(), "ours must keep every packet");
+    assert_eq!(
+        ours.packets.len(),
+        pkts.len(),
+        "ours must keep every packet"
+    );
     assert_eq!(
         theirs.packets.len(),
         pkts.len() - 1,
@@ -330,4 +334,3 @@ fn a_bake_written_to_memory_is_the_same_file_as_one_written_to_disk() {
     );
     let _ = std::fs::remove_file(&path);
 }
-

@@ -42,7 +42,11 @@ pub struct Mapper {
 impl Mapper {
     #[must_use]
     pub fn new(base: ControlMap, over: ControlMap) -> Self {
-        Self { base, over, last: HashMap::new() }
+        Self {
+            base,
+            over,
+            last: HashMap::new(),
+        }
     }
 
     /// Whether any binding (in either layer) matches `source` — including a
@@ -103,15 +107,45 @@ impl Mapper {
 fn shape_eq(a: &ControlSource, b: &ControlSource) -> bool {
     use ControlSource::{Key, MidiCc, MidiNote, PadAxis, PadButton};
     match (a, b) {
-        (MidiNote { channel: c1, note: n1, .. }, MidiNote { channel: c2, note: n2, .. }) => {
-            c1 == c2 && n1 == n2
-        }
-        (MidiCc { channel: c1, cc: cc1, .. }, MidiCc { channel: c2, cc: cc2, .. }) => {
-            c1 == c2 && cc1 == cc2
-        }
         (
-            Key { key: k1, ctrl: c1, alt: a1, shift: s1, cmd: m1 },
-            Key { key: k2, ctrl: c2, alt: a2, shift: s2, cmd: m2 },
+            MidiNote {
+                channel: c1,
+                note: n1,
+                ..
+            },
+            MidiNote {
+                channel: c2,
+                note: n2,
+                ..
+            },
+        ) => c1 == c2 && n1 == n2,
+        (
+            MidiCc {
+                channel: c1,
+                cc: cc1,
+                ..
+            },
+            MidiCc {
+                channel: c2,
+                cc: cc2,
+                ..
+            },
+        ) => c1 == c2 && cc1 == cc2,
+        (
+            Key {
+                key: k1,
+                ctrl: c1,
+                alt: a1,
+                shift: s1,
+                cmd: m1,
+            },
+            Key {
+                key: k2,
+                ctrl: c2,
+                alt: a2,
+                shift: s2,
+                cmd: m2,
+            },
         ) => k1 == k2 && c1 == c2 && a1 == a2 && s1 == s2 && m1 == m2,
         (PadButton { button: b1, .. }, PadButton { button: b2, .. }) => b1 == b2,
         (PadAxis { axis: x1, .. }, PadAxis { axis: x2, .. }) => x1 == x2,
@@ -122,15 +156,20 @@ fn shape_eq(a: &ControlSource, b: &ControlSource) -> bool {
 fn device_of(s: &ControlSource) -> &str {
     use ControlSource::{Key, MidiCc, MidiNote, PadAxis, PadButton};
     match s {
-        MidiNote { device, .. } | MidiCc { device, .. } | PadButton { device, .. } | PadAxis { device, .. } => {
-            device
-        }
+        MidiNote { device, .. }
+        | MidiCc { device, .. }
+        | PadButton { device, .. }
+        | PadAxis { device, .. } => device,
         Key { .. } => "",
     }
 }
 
 fn device_norm(d: &str) -> String {
-    let collapsed = d.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ");
+    let collapsed = d
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     if let Some(pos) = collapsed.rfind(' ') {
         let tail = &collapsed[pos + 1..];
         if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
@@ -177,11 +216,21 @@ mod tests {
     use crate::model::Binding;
 
     fn cc(device: &str, channel: u8, cc: u8) -> ControlSource {
-        ControlSource::MidiCc { device: device.into(), channel, cc }
+        ControlSource::MidiCc {
+            device: device.into(),
+            channel,
+            cc,
+        }
     }
 
     fn key(k: &str) -> ControlSource {
-        ControlSource::Key { key: k.into(), ctrl: false, alt: false, shift: false, cmd: false }
+        ControlSource::Key {
+            key: k.into(),
+            ctrl: false,
+            alt: false,
+            shift: false,
+            cmd: false,
+        }
     }
 
     fn binding(source: ControlSource, action: Action) -> Binding {
@@ -192,9 +241,14 @@ mod tests {
     fn trigger_fires_once_on_pressed() {
         let mut mapper = Mapper::new(
             ControlMap::default(),
-            ControlMap { bindings: vec![binding(key("t"), Action::TapDownbeat)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::TapDownbeat)],
+            },
         );
-        let ev = ControlEvent { source: key("t"), value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source: key("t"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&ev), Some((Action::TapDownbeat, 1.0)));
     }
 
@@ -202,9 +256,14 @@ mod tests {
     fn released_never_fires() {
         let mut mapper = Mapper::new(
             ControlMap::default(),
-            ControlMap { bindings: vec![binding(key("t"), Action::TapDownbeat)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::TapDownbeat)],
+            },
         );
-        let ev = ControlEvent { source: key("t"), value: EventValue::Released };
+        let ev = ControlEvent {
+            source: key("t"),
+            value: EventValue::Released,
+        };
         assert_eq!(mapper.resolve(&ev), None);
     }
 
@@ -212,11 +271,19 @@ mod tests {
     fn trigger_fires_once_per_rising_edge() {
         let mut mapper = Mapper::new(
             ControlMap::default(),
-            ControlMap { bindings: vec![binding(cc("Foo", 1, 21), Action::TapDownbeat)] },
+            ControlMap {
+                bindings: vec![binding(cc("Foo", 1, 21), Action::TapDownbeat)],
+            },
         );
         let src = cc("Foo", 1, 21);
-        let low = ControlEvent { source: src.clone(), value: EventValue::Continuous(0.2) };
-        let high = ControlEvent { source: src, value: EventValue::Continuous(0.9) };
+        let low = ControlEvent {
+            source: src.clone(),
+            value: EventValue::Continuous(0.2),
+        };
+        let high = ControlEvent {
+            source: src,
+            value: EventValue::Continuous(0.9),
+        };
         assert_eq!(mapper.resolve(&low), None);
         assert_eq!(mapper.resolve(&high), Some((Action::TapDownbeat, 1.0)));
         // Still high: no repeat fire until it drops back below 0.5.
@@ -230,30 +297,62 @@ mod tests {
         let mut mapper = Mapper::new(
             ControlMap::default(),
             ControlMap {
-                bindings: vec![binding(cc("Foo", 1, 21), Action::SetBpm { min: 60.0, max: 180.0 })],
+                bindings: vec![binding(
+                    cc("Foo", 1, 21),
+                    Action::SetBpm {
+                        min: 60.0,
+                        max: 180.0,
+                    },
+                )],
             },
         );
-        let ev = ControlEvent { source: cc("Foo", 1, 21), value: EventValue::Continuous(0.25) };
-        assert_eq!(mapper.resolve(&ev), Some((Action::SetBpm { min: 60.0, max: 180.0 }, 0.25)));
+        let ev = ControlEvent {
+            source: cc("Foo", 1, 21),
+            value: EventValue::Continuous(0.25),
+        };
+        assert_eq!(
+            mapper.resolve(&ev),
+            Some((
+                Action::SetBpm {
+                    min: 60.0,
+                    max: 180.0
+                },
+                0.25
+            ))
+        );
     }
 
     #[test]
     fn over_layer_wins_outright() {
         let mut mapper = Mapper::new(
-            ControlMap { bindings: vec![binding(key("t"), Action::TapDownbeat)] },
-            ControlMap { bindings: vec![binding(key("t"), Action::TapTempo)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::TapDownbeat)],
+            },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::TapTempo)],
+            },
         );
-        let ev = ControlEvent { source: key("t"), value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source: key("t"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&ev), Some((Action::TapTempo, 1.0)));
     }
 
     #[test]
     fn over_nothing_masks_base_binding() {
         let mut mapper = Mapper::new(
-            ControlMap { bindings: vec![binding(key("t"), Action::TapDownbeat)] },
-            ControlMap { bindings: vec![binding(key("t"), Action::Nothing)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::TapDownbeat)],
+            },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::Nothing)],
+            },
         );
-        let ev = ControlEvent { source: key("t"), value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source: key("t"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&ev), None);
     }
 
@@ -268,13 +367,21 @@ mod tests {
                     binding(key("b"), Action::TapTempo),
                 ],
             },
-            ControlMap { bindings: vec![binding(key("t"), Action::SoftReset)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::SoftReset)],
+            },
         );
         // Rebound in `over`.
-        let rebound = ControlEvent { source: key("t"), value: EventValue::Pressed };
+        let rebound = ControlEvent {
+            source: key("t"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&rebound), Some((Action::SoftReset, 1.0)));
         // Untouched by `over`: the base default still fires.
-        let default = ControlEvent { source: key("b"), value: EventValue::Pressed };
+        let default = ControlEvent {
+            source: key("b"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&default), Some((Action::TapTempo, 1.0)));
     }
 
@@ -298,7 +405,10 @@ mod tests {
     #[test]
     fn fuzzy_match_ignores_case_whitespace_and_trailing_number() {
         let map = ControlMap {
-            bindings: vec![binding(cc("launchkey mini mk3 1", 1, 21), Action::TapDownbeat)],
+            bindings: vec![binding(
+                cc("launchkey mini mk3 1", 1, 21),
+                Action::TapDownbeat,
+            )],
         };
         let mut mapper = Mapper::new(ControlMap::default(), map);
         let ev = ControlEvent {
@@ -311,7 +421,10 @@ mod tests {
     #[test]
     fn no_matching_binding_resolves_to_none() {
         let mut mapper = Mapper::new(ControlMap::default(), ControlMap::default());
-        let ev = ControlEvent { source: key("z"), value: EventValue::Pressed };
+        let ev = ControlEvent {
+            source: key("z"),
+            value: EventValue::Pressed,
+        };
         assert_eq!(mapper.resolve(&ev), None);
     }
 
@@ -319,7 +432,9 @@ mod tests {
     fn has_binding_distinguishes_masked_from_unmapped() {
         let mapper = Mapper::new(
             ControlMap::default(),
-            ControlMap { bindings: vec![binding(key("t"), Action::Nothing)] },
+            ControlMap {
+                bindings: vec![binding(key("t"), Action::Nothing)],
+            },
         );
         // Masked: resolve() is None, but a binding does exist.
         assert!(mapper.has_binding(&key("t")));

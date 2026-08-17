@@ -77,12 +77,19 @@ pub enum Command {
     UpdateSpanFromMarks(usize),
     SetSpanName(usize, String),
     /// Set a span's range directly; the executor keeps `out > in`.
-    SetSpanRange { idx: usize, in_frame: u64, out_frame: u64 },
+    SetSpanRange {
+        idx: usize,
+        in_frame: u64,
+        out_frame: u64,
+    },
     /// `None` falls back to the session bpm.
     SetSpanBpm(usize, Option<f64>),
     SetSpanBank(usize, usize),
     /// Set a span's crop box rect (`None` removes crop).
-    SetSpanCrop { idx: usize, crop: Option<vidiotic_core::project::CropRect> },
+    SetSpanCrop {
+        idx: usize,
+        crop: Option<vidiotic_core::project::CropRect>,
+    },
     ClearSpanCrop(usize),
 
     // --- banks / defaults (document state; undoable) ---

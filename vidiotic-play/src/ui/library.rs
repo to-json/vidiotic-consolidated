@@ -37,7 +37,9 @@ pub(super) fn show(
                 let _ = tx.send(Command::PickClipDir);
             }
             if let Some(d) = &m.clip_dir {
-                ui.add(egui::Label::new(egui::RichText::new(d).small().color(p.fg_muted)).truncate());
+                ui.add(
+                    egui::Label::new(egui::RichText::new(d).small().color(p.fg_muted)).truncate(),
+                );
             }
         });
         clip_bank_bar(ui, m, tx);
@@ -76,7 +78,12 @@ pub(super) fn show(
             .id_salt("cue_list")
             .show(ui, |ui| {
                 if m.cues.is_empty() {
-                    empty_state(ui, "Empty bank", "double-click a clip above to add a cue", None);
+                    empty_state(
+                        ui,
+                        "Empty bank",
+                        "double-click a clip above to add a cue",
+                        None,
+                    );
                 } else {
                     ui.horizontal_wrapped(|ui| {
                         for (i, cue) in m.cues.iter().enumerate() {
@@ -90,7 +97,12 @@ pub(super) fn show(
 
 /// Centered muted two-line prompt for an empty pool or bank; when
 /// `folder_pick` is given, a real "folder…" button follows.
-fn empty_state(ui: &mut Ui, headline: &str, sub: &str, folder_pick: Option<(&Sender<Command>, Command)>) {
+fn empty_state(
+    ui: &mut Ui,
+    headline: &str,
+    sub: &str,
+    folder_pick: Option<(&Sender<Command>, Command)>,
+) {
     let p = palette();
     ui.vertical_centered(|ui| {
         ui.add_space(SP_MD * 3.0);
@@ -157,7 +169,11 @@ fn cameras_section(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         }
     });
     if m.cameras.is_empty() {
-        ui.label(egui::RichText::new("no capture devices found").small().color(p.fg_muted));
+        ui.label(
+            egui::RichText::new("no capture devices found")
+                .small()
+                .color(p.fg_muted),
+        );
         return;
     }
     for cam in &m.cameras {
@@ -184,7 +200,11 @@ fn camera_row(ui: &mut Ui, m: &UiMirror, cam: &CameraEntry, tx: &Sender<Command>
         {
             let _ = tx.send(Command::SetCameraOnAir(cam.uid.clone(), on));
         }
-        let name_color = if cam.active { p.fg_primary } else { p.fg_secondary };
+        let name_color = if cam.active {
+            p.fg_primary
+        } else {
+            p.fg_secondary
+        };
         let resp = ui
             .add(
                 egui::Label::new(egui::RichText::new(format!("◉ {}", cam.name)).color(name_color))
@@ -229,20 +249,41 @@ fn missing_camera_row(ui: &mut Ui, m: &UiMirror, cam: &CameraEntry, tx: &Sender<
 
 /// One bracket-text tab: `[name (3)]` accent when selected, dim otherwise,
 /// with an optional `●` live dot before the name. Returns the click response.
-fn glyph_tab(ui: &mut Ui, id: egui::Id, name: &str, count: usize, selected: bool, live: bool) -> egui::Response {
+fn glyph_tab(
+    ui: &mut Ui,
+    id: egui::Id,
+    name: &str,
+    count: usize,
+    selected: bool,
+    live: bool,
+) -> egui::Response {
     let p = palette();
     let body = format!("{name} ({count})");
-    let text = if selected { format!("[{body}]") } else { format!(" {body} ") };
+    let text = if selected {
+        format!("[{body}]")
+    } else {
+        format!(" {body} ")
+    };
     let dot_w = if live { 2.0 } else { 0.0 };
     let cw = widgets::cell_width(ui);
-    let galley = ui.painter().layout_no_wrap(text.clone(), mono(), p.fg_muted);
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(galley.size().x + dot_w * cw, row()), Sense::hover());
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.clone(), mono(), p.fg_muted);
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(galley.size().x + dot_w * cw, row()),
+        Sense::hover(),
+    );
     let resp = ui.interact(rect, id, Sense::click());
     let painter = ui.painter();
     let mut x = rect.min.x;
     if live {
-        painter.text(egui::pos2(x + cw * 0.5, rect.center().y), Align2::LEFT_CENTER, "●", mono(), p.phosphor);
+        painter.text(
+            egui::pos2(x + cw * 0.5, rect.center().y),
+            Align2::LEFT_CENTER,
+            "●",
+            mono(),
+            p.phosphor,
+        );
         x += dot_w * cw;
     }
     let color = if selected {
@@ -252,7 +293,13 @@ fn glyph_tab(ui: &mut Ui, id: egui::Id, name: &str, count: usize, selected: bool
     } else {
         p.fg_secondary
     };
-    painter.text(egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, text, mono(), color);
+    painter.text(
+        egui::pos2(x, rect.center().y),
+        Align2::LEFT_CENTER,
+        text,
+        mono(),
+        color,
+    );
     resp
 }
 
@@ -296,7 +343,10 @@ fn bank_bar(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         for (i, b) in m.banks.iter().enumerate() {
             bank_tab(ui, m, i, b, tx);
         }
-        if widgets::bracket_button(ui, icon::ADD, None, 0.0).on_hover_text("add a bank").clicked() {
+        if widgets::bracket_button(ui, icon::ADD, None, 0.0)
+            .on_hover_text("add a bank")
+            .clicked()
+        {
             let _ = tx.send(Command::AddBank);
         }
     });
@@ -321,9 +371,21 @@ fn bank_tab(ui: &mut Ui, m: &UiMirror, i: usize, bank: &BankView, tx: &Sender<Co
         );
         let play_resp = ui
             .interact(play_rect, base_id.with("play"), Sense::click())
-            .on_hover_text("play this bank (it takes over at the next phrase). Keys: , / . cycle live bank");
-        let color = if play_resp.hovered() { p.accent } else { p.fg_secondary };
-        ui.painter().text(play_rect.center(), Align2::CENTER_CENTER, "▶", mono(), color);
+            .on_hover_text(
+                "play this bank (it takes over at the next phrase). Keys: , / . cycle live bank",
+            );
+        let color = if play_resp.hovered() {
+            p.accent
+        } else {
+            p.fg_secondary
+        };
+        ui.painter().text(
+            play_rect.center(),
+            Align2::CENTER_CENTER,
+            "▶",
+            mono(),
+            color,
+        );
         if play_resp.clicked() {
             let _ = tx.send(Command::SetLiveBank(i));
         }
@@ -403,14 +465,24 @@ fn cue_chip(
                 let cross_resp = ui
                     .interact(cross_rect, cross_id, egui::Sense::click())
                     .on_hover_text("remove cue");
-                let color = if cross_resp.hovered() { p.error } else { p.fg_primary };
+                let color = if cross_resp.hovered() {
+                    p.error
+                } else {
+                    p.fg_primary
+                };
                 let painter = ui.painter();
                 painter.rect_filled(
                     cross_rect,
                     egui::CornerRadius::ZERO,
                     theme::with_alpha(p.bg_inset, 200),
                 );
-                painter.text(cross_rect.center(), Align2::CENTER_CENTER, "×", mono(), color);
+                painter.text(
+                    cross_rect.center(),
+                    Align2::CENTER_CENTER,
+                    "×",
+                    mono(),
+                    color,
+                );
                 if cross_resp.clicked() {
                     let _ = tx.send(Command::RemoveCue(cue.id));
                 }
@@ -435,7 +507,11 @@ fn cue_chip(
                 }
                 widgets::chip(ui, &trim_label(cue), None, false);
                 if let Some(pv) = cue.preserve {
-                    let (text, tint) = if pv { ("keep", p.playing) } else { ("cut", p.fg_muted) };
+                    let (text, tint) = if pv {
+                        ("keep", p.playing)
+                    } else {
+                        ("cut", p.fg_muted)
+                    };
                     widgets::chip(ui, text, Some(tint), false);
                 }
                 if !cue.chain.is_empty() {
@@ -480,7 +556,10 @@ fn fmt_beats(ticks: u32) -> String {
     if b.fract() == 0.0 {
         format!("{}", b as i64)
     } else {
-        format!("{b:.2}").trim_end_matches('0').trim_end_matches('.').to_string()
+        format!("{b:.2}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
@@ -488,6 +567,9 @@ fn trim_label(cue: &CueView) -> String {
     if cue.camera {
         return "live".to_string();
     }
-    let out = cue.out_sec.map(super::fmt_time).unwrap_or_else(|| "end".to_string());
+    let out = cue
+        .out_sec
+        .map(super::fmt_time)
+        .unwrap_or_else(|| "end".to_string());
     format!("{}–{}", super::fmt_time(cue.in_sec), out)
 }

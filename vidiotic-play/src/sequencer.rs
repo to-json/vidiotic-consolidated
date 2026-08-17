@@ -157,7 +157,10 @@ impl Sequencer {
             SeqState::Idle => {
                 if let Some(first) = self.active.first().map(|s| s.id) {
                     ev.push(SequencerEvent::SwapTo(first));
-                    self.state = SeqState::Playing { cue: first, started: beat };
+                    self.state = SeqState::Playing {
+                        cue: first,
+                        started: beat,
+                    };
                 }
             }
             SeqState::Playing { cue, started } => {
@@ -170,7 +173,12 @@ impl Sequencer {
                         Some(next) if next != cue => {
                             ev.push(SequencerEvent::ArmDecoder(next));
                             let fire_at = boundary + self.trig_delay_of(next);
-                            self.state = SeqState::PlayingArmed { cue, started, next, fire_at };
+                            self.state = SeqState::PlayingArmed {
+                                cue,
+                                started,
+                                next,
+                                fire_at,
+                            };
                         }
                         _ => self.state = SeqState::Playing { cue, started },
                     }
@@ -178,14 +186,22 @@ impl Sequencer {
                     self.state = SeqState::Playing { cue, started };
                 }
             }
-            SeqState::PlayingArmed { cue, started, next, fire_at } => {
+            SeqState::PlayingArmed {
+                cue,
+                started,
+                next,
+                fire_at,
+            } => {
                 if beat + EPS < started {
                     // Backward jump past our window origin: cancel and re-anchor.
                     ev.push(SequencerEvent::DisarmDecoder);
                     self.state = SeqState::Playing { cue, started: beat };
                 } else if beat >= fire_at {
                     ev.push(SequencerEvent::SwapTo(next));
-                    self.state = SeqState::Playing { cue: next, started: fire_at };
+                    self.state = SeqState::Playing {
+                        cue: next,
+                        started: fire_at,
+                    };
                 }
             }
         }
@@ -200,13 +216,24 @@ impl Sequencer {
         let id = step.id;
         if let Some(i) = self.active.iter().position(|s| s.id == id) {
             self.active.remove(i);
-            if let SeqState::PlayingArmed { cue, next, started, fire_at } = self.state {
+            if let SeqState::PlayingArmed {
+                cue,
+                next,
+                started,
+                fire_at,
+            } = self.state
+            {
                 if next == id && fire_at - beat >= self.bar {
                     ev.push(SequencerEvent::DisarmDecoder);
                     match self.pick_next(cue) {
                         Some(n2) if n2 != cue => {
                             ev.push(SequencerEvent::ArmDecoder(n2));
-                            self.state = SeqState::PlayingArmed { cue, next: n2, started, fire_at };
+                            self.state = SeqState::PlayingArmed {
+                                cue,
+                                next: n2,
+                                started,
+                                fire_at,
+                            };
                         }
                         _ => self.state = SeqState::Playing { cue, started },
                     }
@@ -219,7 +246,10 @@ impl Sequencer {
             self.active.push(step);
             if matches!(self.state, SeqState::Idle) {
                 ev.push(SequencerEvent::SwapTo(id));
-                self.state = SeqState::Playing { cue: id, started: beat };
+                self.state = SeqState::Playing {
+                    cue: id,
+                    started: beat,
+                };
             }
         }
         ev
@@ -236,12 +266,17 @@ impl Sequencer {
             SeqState::Idle => {
                 if let Some(first) = self.active.first().map(|s| s.id) {
                     ev.push(SequencerEvent::SwapTo(first));
-                    self.state = SeqState::Playing { cue: first, started: 0.0 };
+                    self.state = SeqState::Playing {
+                        cue: first,
+                        started: 0.0,
+                    };
                     self.reanchor = true;
                 }
             }
             SeqState::Playing { .. } => {}
-            SeqState::PlayingArmed { cue, next, started, .. } => {
+            SeqState::PlayingArmed {
+                cue, next, started, ..
+            } => {
                 if !self.active.iter().any(|s| s.id == next) {
                     ev.push(SequencerEvent::DisarmDecoder);
                     self.state = SeqState::Playing { cue, started };
@@ -283,7 +318,10 @@ impl Sequencer {
         if self.playing() != Some(first) {
             ev.push(SequencerEvent::SwapTo(first));
         }
-        self.state = SeqState::Playing { cue: first, started: 0.0 };
+        self.state = SeqState::Playing {
+            cue: first,
+            started: 0.0,
+        };
         self.reanchor = true;
         ev
     }
@@ -326,13 +364,20 @@ mod tests {
 
     /// A step with the default 16-beat dwell and no trig delay.
     fn step(id: CueId) -> CueStep {
-        CueStep { id, dwell: 16.0, trig_delay: 0.0 }
+        CueStep {
+            id,
+            dwell: 16.0,
+            trig_delay: 0.0,
+        }
     }
 
     #[test]
     fn idle_starts_first_active_clip() {
         let mut s = Sequencer::new(16.0);
-        assert_eq!(s.toggle_active(step(1), 0.0), vec![SequencerEvent::SwapTo(1)]);
+        assert_eq!(
+            s.toggle_active(step(1), 0.0),
+            vec![SequencerEvent::SwapTo(1)]
+        );
         assert_eq!(s.playing(), Some(1));
     }
 
@@ -341,7 +386,7 @@ mod tests {
         let mut s = Sequencer::new(16.0);
         s.toggle_active(step(1), 0.0);
         s.toggle_active(step(2), 0.0); // active = [1,2], playing 1 from beat 0
-        // mid-window: nothing to do yet
+                                       // mid-window: nothing to do yet
         assert!(s.tick(&snap(1.0)).is_empty());
         // one bar before the boundary (beat 12 = 16 - 4) -> arm clip 2
         assert_eq!(s.tick(&snap(12.0)), vec![SequencerEvent::ArmDecoder(2)]);
@@ -355,8 +400,22 @@ mod tests {
     fn per_cue_dwell_controls_advance() {
         let mut s = Sequencer::new(16.0);
         // Two 8-beat cues override the 16-beat global default.
-        s.toggle_active(CueStep { id: 1, dwell: 8.0, trig_delay: 0.0 }, 0.0);
-        s.toggle_active(CueStep { id: 2, dwell: 8.0, trig_delay: 0.0 }, 0.0);
+        s.toggle_active(
+            CueStep {
+                id: 1,
+                dwell: 8.0,
+                trig_delay: 0.0,
+            },
+            0.0,
+        );
+        s.toggle_active(
+            CueStep {
+                id: 2,
+                dwell: 8.0,
+                trig_delay: 0.0,
+            },
+            0.0,
+        );
         assert!(s.tick(&snap(1.0)).is_empty());
         // arm a bar (4) before the 8-beat boundary
         assert_eq!(s.tick(&snap(4.0)), vec![SequencerEvent::ArmDecoder(2)]);
@@ -367,8 +426,22 @@ mod tests {
     #[test]
     fn trig_delay_holds_previous_cue_past_the_boundary() {
         let mut s = Sequencer::new(16.0);
-        s.toggle_active(CueStep { id: 1, dwell: 8.0, trig_delay: 0.0 }, 0.0);
-        s.toggle_active(CueStep { id: 2, dwell: 8.0, trig_delay: 2.0 }, 0.0);
+        s.toggle_active(
+            CueStep {
+                id: 1,
+                dwell: 8.0,
+                trig_delay: 0.0,
+            },
+            0.0,
+        );
+        s.toggle_active(
+            CueStep {
+                id: 2,
+                dwell: 8.0,
+                trig_delay: 2.0,
+            },
+            0.0,
+        );
         s.tick(&snap(1.0));
         assert_eq!(s.tick(&snap(4.0)), vec![SequencerEvent::ArmDecoder(2)]);
         // past the boundary (8) but within cue 2's 2-beat trig delay: cue 1 holds

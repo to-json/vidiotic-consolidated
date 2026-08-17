@@ -32,14 +32,8 @@ fn main() {
     let mut ok = true;
 
     // The two real user shaders from the reference project.
-    ok &= try_glsl(
-        "plain.frag",
-        "../throw-shade/resource/plain.frag",
-    );
-    ok &= try_glsl(
-        "zellij.fs",
-        "../throw-shade/resource/zellij.fs",
-    );
+    ok &= try_glsl("plain.frag", "../throw-shade/resource/plain.frag");
+    ok &= try_glsl("zellij.fs", "../throw-shade/resource/zellij.fs");
 
     // A minimal shader exercising the video() helper + fftBand + shadertoy aliases.
     let synthetic = r#"

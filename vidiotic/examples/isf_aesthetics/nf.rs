@@ -14,13 +14,20 @@
 pub const EXCLUDED: &[(u32, u32, &str)] = &[
     (0xEA60, 0xEC1E, "Codicons — CC BY 4.0"),
     (0xED00, 0xF2FF, "Font Awesome — CC BY 4.0"),
-    (0xF300, 0xF381, "Font Logos — unlicensed + trademarked logos"),
+    (
+        0xF300,
+        0xF381,
+        "Font Logos — unlicensed + trademarked logos",
+    ),
 ];
 
 /// Whether every char in `s` is license-clean; see [`EXCLUDED`].
 pub fn allowed(s: &str) -> bool {
-    s.chars()
-        .all(|c| EXCLUDED.iter().all(|&(lo, hi, _)| !(lo..=hi).contains(&(c as u32))))
+    s.chars().all(|c| {
+        EXCLUDED
+            .iter()
+            .all(|&(lo, hi, _)| !(lo..=hi).contains(&(c as u32)))
+    })
 }
 
 /// Debug-asserting pass-through: the demo's cheap enforcement point.

@@ -27,7 +27,10 @@ fn hash(b: &[u8]) -> u64 {
 
 /// Clips live outside this crate; the workspace root holds them.
 fn clips_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("clips")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("clips")
 }
 
 fn fixtures_dir() -> PathBuf {
@@ -104,7 +107,11 @@ fn gen_fixtures() {
                 hash(&alpha),
             ));
 
-            println!("wrote {name} ({} bytes packet, {} bytes BC)", data.len(), main.len());
+            println!(
+                "wrote {name} ({} bytes packet, {} bytes BC)",
+                data.len(),
+                main.len()
+            );
             names.push(name);
             written += 1;
         }
@@ -119,7 +126,10 @@ fn gen_fixtures() {
         let p = entry.expect("dir entry").path();
         if p.extension().is_some_and(|e| e == "hap") {
             let n = p.file_name().unwrap().to_string_lossy().to_string();
-            assert!(names.contains(&n), "stale fixture {n} — delete it and rerun");
+            assert!(
+                names.contains(&n),
+                "stale fixture {n} — delete it and rerun"
+            );
         }
     }
     println!("{written} fixtures + goldens.tsv in {}", out.display());

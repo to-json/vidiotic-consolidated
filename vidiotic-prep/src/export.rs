@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Sender;
 
-use vidiotic_core::project::{self, SessionDefaults};
 use vidiotic_bake::transcode::BakeQuality;
+use vidiotic_core::project::{self, SessionDefaults};
 
 use vidiotic_chop::export::{assemble, clip_file_name, BakedClip};
 use vidiotic_chop::spans::Span;
@@ -83,7 +83,9 @@ pub fn spawn_export(
             }
         })
     {
-        let _ = fail_tx.send(ExportMsg::Error(format!("could not start export worker: {e}")));
+        let _ = fail_tx.send(ExportMsg::Error(format!(
+            "could not start export worker: {e}"
+        )));
     }
 }
 
@@ -178,7 +180,12 @@ fn run(
             &out_path,
             in_sec,
             Some(out_sec),
-            span.crop.map(|c| vidiotic_bake::frame::CropRect { x: c.x, y: c.y, w: c.w, h: c.h }),
+            span.crop.map(|c| vidiotic_bake::frame::CropRect {
+                x: c.x,
+                y: c.y,
+                w: c.w,
+                h: c.h,
+            }),
             quality,
             |u| {
                 // ~10 Hz is plenty for a progress bar; don't flood the channel.
@@ -191,8 +198,7 @@ fn run(
                         cur_done: u.emitted,
                         cur_total: expected,
                         src_sec: u.src_sec,
-                        enc_fps: u.emitted as f64
-                            / span_started.elapsed().as_secs_f64().max(1e-9),
+                        enc_fps: u.emitted as f64 / span_started.elapsed().as_secs_f64().max(1e-9),
                     }));
                 }
             },

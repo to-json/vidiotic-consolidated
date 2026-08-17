@@ -102,9 +102,7 @@ fn ident_words(line: &str) -> Vec<&str> {
         let c = bytes[i];
         if c.is_ascii_alphanumeric() || c == b'_' {
             let start = i;
-            while i < bytes.len()
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_')
-            {
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
                 i += 1;
             }
             out.push(&line[start..i]);
@@ -187,9 +185,7 @@ fn rewrite_freqs1(line: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         // match identifier "freqs1" with word boundaries
-        if line[i..].starts_with("freqs1")
-            && (i == 0 || !is_ident_byte(bytes[i - 1]))
-        {
+        if line[i..].starts_with("freqs1") && (i == 0 || !is_ident_byte(bytes[i - 1])) {
             let after = i + "freqs1".len();
             // require '[' possibly after whitespace, and NOT part of a longer ident
             let next_is_ident = after < bytes.len() && is_ident_byte(bytes[after]);
@@ -266,8 +262,7 @@ pub fn preprocess_glsl(user_src: &str) -> Preprocessed {
                 }
                 "out" => {
                     if name != "FragColor" {
-                        generated_defines
-                            .push_str(&format!("#define {name} FragColor\n"));
+                        generated_defines.push_str(&format!("#define {name} FragColor\n"));
                     }
                     processed_lines.push(String::new());
                     continue;
@@ -366,10 +361,15 @@ pub fn compile_isf_program(prog: &crate::isf::IsfProgram) -> Result<naga::Module
 pub fn compile_glsl_vertex_module(src: &str) -> Result<naga::Module, ShaderError> {
     let mut frontend = naga::front::glsl::Frontend::default();
     let options = naga::front::glsl::Options::from(naga::ShaderStage::Vertex);
-    let module = frontend.parse(&options, src).map_err(|errs| ShaderError::Parse {
-        msg: errs.emit_to_string(src),
-        line: errs.errors.first().map(|e| e.meta.location(src).line_number),
-    })?;
+    let module = frontend
+        .parse(&options, src)
+        .map_err(|errs| ShaderError::Parse {
+            msg: errs.emit_to_string(src),
+            line: errs
+                .errors
+                .first()
+                .map(|e| e.meta.location(src).line_number),
+        })?;
     validate(&module).map_err(|e| ShaderError::Validation {
         msg: format!("{e:?}"),
         line: None,
@@ -454,9 +454,15 @@ mod tests {
     #[test]
     fn rewrites_freqs1_indexing() {
         assert_eq!(rewrite_freqs1("x = freqs1[band];"), "x = fftBand((band));");
-        assert_eq!(rewrite_freqs1("y = freqs1[1] + freqs1[4];"), "y = fftBand((1)) + fftBand((4));");
+        assert_eq!(
+            rewrite_freqs1("y = freqs1[1] + freqs1[4];"),
+            "y = fftBand((1)) + fftBand((4));"
+        );
         // nested
-        assert_eq!(rewrite_freqs1("freqs1[clamp(i,0,20)]"), "fftBand((clamp(i,0,20)))");
+        assert_eq!(
+            rewrite_freqs1("freqs1[clamp(i,0,20)]"),
+            "fftBand((clamp(i,0,20)))"
+        );
         // not a false match on a longer identifier
         assert_eq!(rewrite_freqs1("freqs1x[0]"), "freqs1x[0]");
     }
@@ -580,7 +586,10 @@ void main() { gl_FragColor = IMG_PIXEL(inputImage, gl_FragCoord.xy); }
                 checked += 1;
             }
         }
-        assert!(checked >= 1, "expected at least one bundled .fs ISF example");
+        assert!(
+            checked >= 1,
+            "expected at least one bundled .fs ISF example"
+        );
     }
 
     #[test]

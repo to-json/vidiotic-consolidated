@@ -203,11 +203,27 @@ pub enum IsfValue {
 /// `SerJson`/`DeJson` serve the IPC layer's `WireIsfInputKind` re-export.
 #[derive(Clone, Debug, PartialEq, SerJson, DeJson)]
 pub enum IsfInputKind {
-    Float { min: f32, max: f32, default: f32 },
-    Bool { default: bool },
-    Long { values: Vec<i32>, labels: Vec<String>, default: i32 },
-    Color { default: [f32; 4] },
-    Point2D { min: [f32; 2], max: [f32; 2], default: [f32; 2] },
+    Float {
+        min: f32,
+        max: f32,
+        default: f32,
+    },
+    Bool {
+        default: bool,
+    },
+    Long {
+        values: Vec<i32>,
+        labels: Vec<String>,
+        default: i32,
+    },
+    Color {
+        default: [f32; 4],
+    },
+    Point2D {
+        min: [f32; 2],
+        max: [f32; 2],
+        default: [f32; 2],
+    },
     /// A momentary trigger; treated as a bool in the uniform.
     Event,
     /// A generic image input; aliases to the effect's stage input (`inputImage`).
@@ -294,7 +310,12 @@ pub struct IsfTarget {
 /// `$WIDTH`/`$HEIGHT`, `+ - * /`, parentheses, and `floor`/`ceil`/`abs`/`min`/`max`.
 fn eval_expr(src: &str, w: f64, h: f64) -> Option<f64> {
     let toks = tokenize_expr(src)?;
-    let mut p = ExprParser { toks: &toks, pos: 0, w, h };
+    let mut p = ExprParser {
+        toks: &toks,
+        pos: 0,
+        w,
+        h,
+    };
     let v = p.expr()?;
     (p.pos == p.toks.len()).then_some(v)
 }
@@ -502,11 +523,12 @@ impl IsfHeader {
             .and_then(JVal::as_arr)
             .map(|a| a.iter().filter_map(parse_pass).collect())
             .unwrap_or_default();
-        let imported = v
-            .get("IMPORTED")
-            .map(parse_imported)
-            .unwrap_or_default();
-        Self { inputs, passes, imported }
+        let imported = v.get("IMPORTED").map(parse_imported).unwrap_or_default();
+        Self {
+            inputs,
+            passes,
+            imported,
+        }
     }
 }
 
@@ -527,12 +549,20 @@ fn parse_input(v: &JVal) -> Option<IsfInput> {
             let values = v
                 .get("VALUES")
                 .and_then(JVal::as_arr)
-                .map(|a| a.iter().filter_map(|x| x.as_num().map(|n| n as i32)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_num().map(|n| n as i32))
+                        .collect()
+                })
                 .unwrap_or_default();
             let labels = v
                 .get("LABELS")
                 .and_then(JVal::as_arr)
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default();
             IsfInputKind::Long {
                 values,
@@ -627,9 +657,16 @@ pub fn detect(src: &str) -> Option<IsfHeader> {
     }
     // Require at least one ISF-identifying key so a stray leading comment that
     // happens to be a JSON object doesn't get mistaken for an ISF header.
-    let isf_ish = ["ISFVSN", "INPUTS", "PASSES", "CATEGORIES", "DESCRIPTION", "IMPORTED"]
-        .iter()
-        .any(|k| v.get(k).is_some());
+    let isf_ish = [
+        "ISFVSN",
+        "INPUTS",
+        "PASSES",
+        "CATEGORIES",
+        "DESCRIPTION",
+        "IMPORTED",
+    ]
+    .iter()
+    .any(|k| v.get(k).is_some());
     if !isf_ish {
         return None;
     }
@@ -914,7 +951,10 @@ fn tex_inputs_of(header: &IsfHeader) -> Vec<IsfTexInput> {
             IsfInputKind::AudioFft => IsfTexSource::AudioFft,
             _ => return None,
         };
-        Some(IsfTexInput { name: i.name.clone(), source })
+        Some(IsfTexInput {
+            name: i.name.clone(),
+            source,
+        })
     });
     let imported = header.imported.iter().map(|(name, path)| IsfTexInput {
         name: name.clone(),
@@ -999,7 +1039,9 @@ fn generate_additions(
         s.push_str("layout(set = 3, binding = 1) uniform sampler isfSmp;\n");
         for (i, name) in tex_names.enumerate() {
             let b = i + 2;
-            s.push_str(&format!("layout(set = 3, binding = {b}) uniform texture2D {name}Tex;\n"));
+            s.push_str(&format!(
+                "layout(set = 3, binding = {b}) uniform texture2D {name}Tex;\n"
+            ));
         }
     }
     s.push_str("// ---- end ISF compatibility ----\n");
@@ -1111,7 +1153,6 @@ fn strip_body(body: &str) -> String {
 mod tests {
     use super::*;
 
-
     // Under wasm32 there is no built-in test harness; aliasing the attribute lets
     // these same tests run unmodified under `wasm-bindgen-test` (web-port.md §7a).
     // Without it they compile away to nothing and the runner reports "no tests to
@@ -1158,7 +1199,10 @@ void main() {
             h.inputs[0].kind,
             IsfInputKind::Float { min, max, default } if min == 0.0 && max == 2.0 && default == 1.0
         ));
-        assert!(matches!(h.inputs[1].kind, IsfInputKind::Bool { default: false }));
+        assert!(matches!(
+            h.inputs[1].kind,
+            IsfInputKind::Bool { default: false }
+        ));
     }
 
     #[test]
@@ -1181,14 +1225,20 @@ void main(){ gl_FragColor = tint; }
 "#;
         let h = detect(src).unwrap();
         match &h.inputs[0].kind {
-            IsfInputKind::Long { values, labels, default } => {
+            IsfInputKind::Long {
+                values,
+                labels,
+                default,
+            } => {
                 assert_eq!(values, &[0, 1, 2]);
                 assert_eq!(labels, &["a", "b", "c"]);
                 assert_eq!(*default, 1);
             }
             other => panic!("expected long, got {other:?}"),
         }
-        assert!(matches!(h.inputs[1].kind, IsfInputKind::Color { default } if default == [0.1, 0.2, 0.3, 1.0]));
+        assert!(
+            matches!(h.inputs[1].kind, IsfInputKind::Color { default } if default == [0.1, 0.2, 0.3, 1.0])
+        );
         assert!(matches!(h.inputs[2].kind, IsfInputKind::Point2D { .. }));
     }
 
@@ -1242,13 +1292,41 @@ void main(){ gl_FragColor = b; }
     #[test]
     fn eval_size_exprs() {
         assert_eq!(eval_size(&SizeExpr::Full, 1920, 1080, 1920), 1920);
-        assert_eq!(eval_size(&SizeExpr::Expr("$WIDTH/2.0".into()), 1920, 1080, 1920), 960);
-        assert_eq!(eval_size(&SizeExpr::Expr("floor($WIDTH/4.0)".into()), 1920, 1080, 1920), 480);
-        assert_eq!(eval_size(&SizeExpr::Expr("$HEIGHT*0.25".into()), 1920, 1080, 1080), 270);
-        assert_eq!(eval_size(&SizeExpr::Expr("256".into()), 1920, 1080, 1920), 256);
-        assert_eq!(eval_size(&SizeExpr::Expr("max($WIDTH/8.0, 4.0)".into()), 1920, 1080, 1920), 240);
+        assert_eq!(
+            eval_size(&SizeExpr::Expr("$WIDTH/2.0".into()), 1920, 1080, 1920),
+            960
+        );
+        assert_eq!(
+            eval_size(
+                &SizeExpr::Expr("floor($WIDTH/4.0)".into()),
+                1920,
+                1080,
+                1920
+            ),
+            480
+        );
+        assert_eq!(
+            eval_size(&SizeExpr::Expr("$HEIGHT*0.25".into()), 1920, 1080, 1080),
+            270
+        );
+        assert_eq!(
+            eval_size(&SizeExpr::Expr("256".into()), 1920, 1080, 1920),
+            256
+        );
+        assert_eq!(
+            eval_size(
+                &SizeExpr::Expr("max($WIDTH/8.0, 4.0)".into()),
+                1920,
+                1080,
+                1920
+            ),
+            240
+        );
         // unparseable falls back to default
-        assert_eq!(eval_size(&SizeExpr::Expr("$BOGUS +".into()), 1920, 1080, 999), 999);
+        assert_eq!(
+            eval_size(&SizeExpr::Expr("$BOGUS +".into()), 1920, 1080, 999),
+            999
+        );
     }
 
     #[test]
@@ -1269,7 +1347,9 @@ void main() { gl_FragColor = IMG_NORM_PIXEL(bufA, isf_FragNormCoord); }
         assert_eq!(prog.passes.len(), 2);
         assert!(prog.combined.contains("uniform texture2D bufATex"));
         // the body's `bufA` reference is rewritten onto the sampler pair
-        assert!(prog.combined.contains("IMG_NORM_PIXEL(sampler2D(bufATex, isfSmp), isf_FragNormCoord)"));
+        assert!(prog
+            .combined
+            .contains("IMG_NORM_PIXEL(sampler2D(bufATex, isfSmp), isf_FragNormCoord)"));
     }
 
     #[test]
@@ -1290,17 +1370,29 @@ void main() { gl_FragColor = IMG_NORM_PIXEL(spectrum, vec2(isf_FragNormCoord.x, 
         assert_eq!(
             prog.tex_inputs,
             vec![
-                IsfTexInput { name: "wave".into(), source: IsfTexSource::AudioWave },
-                IsfTexInput { name: "spectrum".into(), source: IsfTexSource::AudioFft },
+                IsfTexInput {
+                    name: "wave".into(),
+                    source: IsfTexSource::AudioWave
+                },
+                IsfTexInput {
+                    name: "spectrum".into(),
+                    source: IsfTexSource::AudioFft
+                },
             ]
         );
         // Targets take bindings 2.., audio inputs follow: bufA@2, wave@3, spectrum@4.
-        assert!(prog.combined.contains("layout(set = 3, binding = 2) uniform texture2D bufATex;"));
-        assert!(prog.combined.contains("layout(set = 3, binding = 3) uniform texture2D waveTex;"));
+        assert!(prog
+            .combined
+            .contains("layout(set = 3, binding = 2) uniform texture2D bufATex;"));
+        assert!(prog
+            .combined
+            .contains("layout(set = 3, binding = 3) uniform texture2D waveTex;"));
         assert!(prog
             .combined
             .contains("layout(set = 3, binding = 4) uniform texture2D spectrumTex;"));
-        assert!(prog.combined.contains("IMG_NORM_PIXEL(sampler2D(spectrumTex, isfSmp), vec2(isf_FragNormCoord.x, 0.0))"));
+        assert!(prog.combined.contains(
+            "IMG_NORM_PIXEL(sampler2D(spectrumTex, isfSmp), vec2(isf_FragNormCoord.x, 0.0))"
+        ));
     }
 
     #[test]
@@ -1316,7 +1408,10 @@ void main() { gl_FragColor = IMG_THIS_NORM_PIXEL(noise) + IMG_THIS_NORM_PIXEL(wa
         assert_eq!(
             prog.tex_inputs,
             vec![
-                IsfTexInput { name: "wave".into(), source: IsfTexSource::AudioWave },
+                IsfTexInput {
+                    name: "wave".into(),
+                    source: IsfTexSource::AudioWave
+                },
                 IsfTexInput {
                     name: "noise".into(),
                     source: IsfTexSource::Imported(PathBuf::from("tex/noise.png")),
@@ -1324,8 +1419,12 @@ void main() { gl_FragColor = IMG_THIS_NORM_PIXEL(noise) + IMG_THIS_NORM_PIXEL(wa
             ]
         );
         // wave@2, noise@3; both body references rewrite onto sampler pairs.
-        assert!(prog.combined.contains("layout(set = 3, binding = 3) uniform texture2D noiseTex;"));
-        assert!(prog.combined.contains("IMG_THIS_NORM_PIXEL(sampler2D(noiseTex, isfSmp))"));
+        assert!(prog
+            .combined
+            .contains("layout(set = 3, binding = 3) uniform texture2D noiseTex;"));
+        assert!(prog
+            .combined
+            .contains("IMG_THIS_NORM_PIXEL(sampler2D(noiseTex, isfSmp))"));
     }
 
     #[test]
@@ -1335,7 +1434,10 @@ void main() { gl_FragColor = IMG_THIS_NORM_PIXEL(noise) + IMG_THIS_NORM_PIXEL(wa
             ("rate".to_string(), "uISF.in_rate".to_string()),
         ];
         // plain identifier uses are rewritten
-        assert_eq!(rewrite_names("if (r) x = rate;", &renames), "if ((uISF.in_r != 0)) x = uISF.in_rate;");
+        assert_eq!(
+            rewrite_names("if (r) x = rate;", &renames),
+            "if ((uISF.in_r != 0)) x = uISF.in_rate;"
+        );
         // member/swizzle accesses are not, even with whitespace around the dot
         assert_eq!(rewrite_names("c.r = c . r;", &renames), "c.r = c . r;");
         // longer identifiers sharing a prefix are untouched
@@ -1343,7 +1445,10 @@ void main() { gl_FragColor = IMG_THIS_NORM_PIXEL(noise) + IMG_THIS_NORM_PIXEL(wa
         // no rename after a float literal's trailing dot (exponent-style tokens)
         assert_eq!(rewrite_names("x = 1.r;", &renames), "x = 1.r;");
         // multibyte chars pass through intact
-        assert_eq!(rewrite_names("// crédit — r\nfloat x = rate;", &renames), "// crédit — (uISF.in_r != 0)\nfloat x = uISF.in_rate;");
+        assert_eq!(
+            rewrite_names("// crédit — r\nfloat x = rate;", &renames),
+            "// crédit — (uISF.in_r != 0)\nfloat x = uISF.in_rate;"
+        );
     }
 
     #[test]
@@ -1364,8 +1469,12 @@ void main() {
 }
 "#;
         let prog = transpile(src).unwrap();
-        assert!(prog.combined.contains("if ((uISF.in_r != 0)) c.r = 1.0 - c.r;"));
-        assert!(prog.combined.contains("if ((uISF.in_g != 0)) c.g = 1.0 - c.g;"));
+        assert!(prog
+            .combined
+            .contains("if ((uISF.in_r != 0)) c.r = 1.0 - c.r;"));
+        assert!(prog
+            .combined
+            .contains("if ((uISF.in_g != 0)) c.g = 1.0 - c.g;"));
     }
 
     #[test]

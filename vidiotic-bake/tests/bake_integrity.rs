@@ -68,7 +68,10 @@ fn every_emitted_frame_reaches_the_file() {
     .expect("bake");
 
     let (found, _) = demuxed(&out);
-    assert!(report.frames > 0, "bake emitted nothing — test proves nothing");
+    assert!(
+        report.frames > 0,
+        "bake emitted nothing — test proves nothing"
+    );
     assert_eq!(
         found, report.frames,
         "bake reported {} frames but the file contains {found}",

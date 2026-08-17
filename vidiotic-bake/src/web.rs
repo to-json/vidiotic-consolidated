@@ -115,7 +115,11 @@ impl Baker {
     ) -> Result<Self, JsValue> {
         let tier = if narrow { Tier::Narrow } else { Tier::Wide };
         let (w, h) = tier.fit(src_w, src_h);
-        let quality = if high_quality { BakeQuality::High } else { BakeQuality::Draft };
+        let quality = if high_quality {
+            BakeQuality::High
+        } else {
+            BakeQuality::Draft
+        };
         let baker = FrameBaker::new(w, h, quality).map_err(|e: BakeErr| {
             JsValue::from_str(&format!("{src_w}x{src_h} cannot be baked: {e}"))
         })?;
@@ -134,7 +138,13 @@ impl Baker {
         )
         .map_err(|e| JsValue::from_str(&format!("could not start the container: {e}")))?;
         log::info!("ingest: {src_w}x{src_h} -> {w}x{h} ({quality:?}), {reserve} bytes reserved");
-        Ok(Self { baker, mov, base_sec: None, last_pts: None, repeats: 0 })
+        Ok(Self {
+            baker,
+            mov,
+            base_sec: None,
+            last_pts: None,
+            repeats: 0,
+        })
     }
 
     /// Baked width, in pixels. Frames must be exactly this wide.
@@ -185,7 +195,9 @@ impl Baker {
     /// can express, or if the container write fails.
     pub fn push(&mut self, rgba: &[u8], t_sec: f64) -> Result<bool, JsValue> {
         if !t_sec.is_finite() || t_sec < 0.0 {
-            return Err(JsValue::from_str(&format!("frame timestamp {t_sec} is not a time")));
+            return Err(JsValue::from_str(&format!(
+                "frame timestamp {t_sec} is not a time"
+            )));
         }
         let base = *self.base_sec.get_or_insert(t_sec);
         let micros = (t_sec - base) * f64::from(TIMESCALE);

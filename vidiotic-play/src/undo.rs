@@ -109,11 +109,11 @@ mod tests {
 
     // Under wasm32 there is no built-in test harness; aliasing the attribute lets
     // these same tests run unmodified under `wasm-bindgen-test` (web-port.md §7a).
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::wasm_bindgen_test as test;
     use std::sync::Arc;
     use std::time::Duration;
     use vidiotic_core::bank::{Bank, Cue};
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     fn doc(names: &[&str], next: CueId) -> Doc {
         let cues: Vec<Cue> = names
@@ -122,7 +122,10 @@ mod tests {
             .map(|(i, n)| Cue::new(i as CueId, 0, Arc::from(*n)))
             .collect();
         Doc {
-            banks: vec![Bank { name: Arc::from("A"), cues }],
+            banks: vec![Bank {
+                name: Arc::from("A"),
+                cues,
+            }],
             next_cue_id: next,
             selected_cue: None,
             clip_bpms: Vec::new(),
@@ -176,16 +179,28 @@ mod tests {
         assert!(h.should_push(None, t));
         // ...until a fresh edit lands, which drops it.
         h.push(undone, None, t);
-        assert!(h.redo(doc(&["x"], 1)).is_none(), "the redo branch was cleared");
+        assert!(
+            h.redo(doc(&["x"], 1)).is_none(),
+            "the redo branch was cleared"
+        );
     }
 
     #[test]
     fn classify_splits_edits_from_live_actions() {
         assert!(classify(&Command::AddCue(0)) == Some(None), "structural");
-        assert!(matches!(classify(&Command::SetCueIn(3, 1.0)), Some(Some(EditTag::CueRange(3)))));
+        assert!(matches!(
+            classify(&Command::SetCueIn(3, 1.0)),
+            Some(Some(EditTag::CueRange(3)))
+        ));
         assert!(classify(&Command::TapTempo).is_none(), "live: not undoable");
-        assert!(classify(&Command::SetLiveBank(1)).is_none(), "performance: not undoable");
-        assert!(classify(&Command::SelectCue(None)).is_none(), "navigation: not undoable");
+        assert!(
+            classify(&Command::SetLiveBank(1)).is_none(),
+            "performance: not undoable"
+        );
+        assert!(
+            classify(&Command::SelectCue(None)).is_none(),
+            "navigation: not undoable"
+        );
         assert!(is_history_boundary(&Command::LoadProject("/x".into())));
         assert!(!is_history_boundary(&Command::AddCue(0)));
     }

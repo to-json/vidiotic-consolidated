@@ -449,7 +449,10 @@ mod tests {
             WireCommand::SetCueChain(
                 8,
                 vec![
-                    WireChainSlot { shader: WireSlotRef::Live, params: vec![] },
+                    WireChainSlot {
+                        shader: WireSlotRef::Live,
+                        params: vec![],
+                    },
                     WireChainSlot {
                         shader: WireSlotRef::Builtin("kaleido".into()),
                         params: vec![WireParam {
@@ -457,7 +460,10 @@ mod tests {
                             value: WireIsfValue::Long(6),
                         }],
                     },
-                    WireChainSlot { shader: WireSlotRef::Pinned(2), params: vec![] },
+                    WireChainSlot {
+                        shader: WireSlotRef::Pinned(2),
+                        params: vec![],
+                    },
                     WireChainSlot {
                         shader: WireSlotRef::Isf("fx/glitch.fs".into()),
                         params: vec![WireParam {
@@ -476,7 +482,10 @@ mod tests {
             WireCommand::LoadIsf("shaders/warp.fs".into()),
             WireCommand::SetCueParam(
                 3,
-                WireCueParam::StartNudge(WireToggleF64 { on: true, val: -0.05 }),
+                WireCueParam::StartNudge(WireToggleF64 {
+                    on: true,
+                    val: -0.05,
+                }),
             ),
             WireCommand::NudgeCueParam(WireCueParamKind::SpeedMul, -1),
             WireCommand::MoveCue(3, 0),
@@ -496,7 +505,10 @@ mod tests {
             WireCommand::RefreshCameras,
             WireCommand::SetCameraOnAir("uid:cam0".into(), true),
             WireCommand::AddCameraCue("uid:cam0".into()),
-            WireCommand::RelinkCamera { from: "uid:old".into(), to: "uid:new".into() },
+            WireCommand::RelinkCamera {
+                from: "uid:old".into(),
+                to: "uid:new".into(),
+            },
             WireCommand::SetShaderPath("live.frag".into()),
             WireCommand::SetAudioDevice(None),
             WireCommand::ToggleFullscreen,
@@ -512,8 +524,7 @@ mod tests {
     #[test]
     fn catalog_covers_every_variant() {
         let catalog = catalog();
-        let names: std::collections::BTreeSet<_> =
-            catalog.iter().map(variant_name).collect();
+        let names: std::collections::BTreeSet<_> = catalog.iter().map(variant_name).collect();
         assert_eq!(names.len(), catalog.len(), "catalog repeats a variant");
         assert_eq!(catalog.len(), EXPECTED_VARIANTS);
     }
@@ -535,12 +546,19 @@ mod tests {
             WireCueParam::Dwell(None),
             WireCueParam::Loop(Some(64)),
             WireCueParam::LoopPhase(WireToggleI32 { on: true, val: -3 }),
-            WireCueParam::StartNudge(WireToggleF64 { on: false, val: 0.125 }),
+            WireCueParam::StartNudge(WireToggleF64 {
+                on: false,
+                val: 0.125,
+            }),
             WireCueParam::TrigDelay(WireToggleU32 { on: true, val: 16 }),
             WireCueParam::Bpm(Some(90.0)),
             WireCueParam::BpmSync(true),
             WireCueParam::SpeedMul(WireToggleF64 { on: true, val: 2.0 }),
-            WireCueParam::CamDelay(WireCamDelay { value: 1.5, beats: true, quantize: true }),
+            WireCueParam::CamDelay(WireCamDelay {
+                value: 1.5,
+                beats: true,
+                quantize: true,
+            }),
         ];
         for p in params {
             let json = p.serialize_json();
@@ -562,7 +580,11 @@ mod tests {
         ];
         for k in kinds {
             let json = k.serialize_json();
-            assert_eq!(WireCueParamKind::deserialize_json(&json).unwrap(), k, "{json}");
+            assert_eq!(
+                WireCueParamKind::deserialize_json(&json).unwrap(),
+                k,
+                "{json}"
+            );
         }
     }
 }

@@ -32,8 +32,7 @@ impl Engine {
     ) -> Vec<CameraEntry> {
         let armed = self.sequencer.armed();
         let live = &self.banks[self.live_bank];
-        let active: std::collections::HashSet<ClipId> =
-            live.cues.iter().map(|c| c.clip).collect();
+        let active: std::collections::HashSet<ClipId> = live.cues.iter().map(|c| c.clip).collect();
         let playing_clip = self.current.and_then(|c| live.cue(c)).map(|c| c.clip);
         let armed_clip = armed.and_then(|c| live.cue(c)).map(|c| c.clip);
         let role_of = |clip: Option<ClipId>| {
@@ -49,8 +48,11 @@ impl Engine {
         let mut rows: Vec<CameraEntry> = devices
             .iter()
             .map(|&(uid, name)| {
-                let clip_id =
-                    self.clips.iter().find(|c| c.camera_uid() == Some(uid)).map(|c| c.id);
+                let clip_id = self
+                    .clips
+                    .iter()
+                    .find(|c| c.camera_uid() == Some(uid))
+                    .map(|c| c.id);
                 let (on_air, status) = status(uid);
                 CameraEntry {
                     uid: uid.into(),
@@ -101,8 +103,13 @@ impl Engine {
             .find(|&&(d_uid, _)| d_uid == uid)
             .map_or("camera", |&(_, name)| name)
             .into();
-        let clip =
-            self.intern_clip(ClipSource::Camera { uid: uid.into(), name: name.clone() }, name);
+        let clip = self.intern_clip(
+            ClipSource::Camera {
+                uid: uid.into(),
+                name: name.clone(),
+            },
+            name,
+        );
         self.add_cue(clip);
     }
 
@@ -123,7 +130,10 @@ impl Engine {
         let name: std::sync::Arc<str> = name.into();
         for c in &mut self.clips {
             if c.camera_uid() == Some(from) {
-                c.source = ClipSource::Camera { uid: to.into(), name: name.clone() };
+                c.source = ClipSource::Camera {
+                    uid: to.into(),
+                    name: name.clone(),
+                };
                 c.name = name.clone();
             }
         }

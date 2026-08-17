@@ -35,20 +35,31 @@ impl PadPoller {
 
     /// Drain pending events onto `tx`. No-op if init failed.
     pub fn poll(&mut self, tx: &Sender<ControlEvent>) {
-        let Some(gilrs) = self.gilrs.as_mut() else { return };
+        let Some(gilrs) = self.gilrs.as_mut() else {
+            return;
+        };
         while let Some(gilrs::Event { id, event, .. }) = gilrs.next_event() {
             let device = gilrs.gamepad(id).name().to_string();
             let sent = match event {
                 EventType::ButtonPressed(button, _) => Some(ControlEvent {
-                    source: ControlSource::PadButton { device, button: format!("{button:?}") },
+                    source: ControlSource::PadButton {
+                        device,
+                        button: format!("{button:?}"),
+                    },
                     value: EventValue::Pressed,
                 }),
                 EventType::ButtonReleased(button, _) => Some(ControlEvent {
-                    source: ControlSource::PadButton { device, button: format!("{button:?}") },
+                    source: ControlSource::PadButton {
+                        device,
+                        button: format!("{button:?}"),
+                    },
                     value: EventValue::Released,
                 }),
                 EventType::AxisChanged(axis, value, _) => Some(ControlEvent {
-                    source: ControlSource::PadAxis { device, axis: format!("{axis:?}") },
+                    source: ControlSource::PadAxis {
+                        device,
+                        axis: format!("{axis:?}"),
+                    },
                     value: EventValue::Continuous((value + 1.0) / 2.0),
                 }),
                 _ => None,
@@ -61,8 +72,13 @@ impl PadPoller {
 
     /// Currently connected gamepad names.
     pub fn device_names(&self) -> Vec<String> {
-        let Some(gilrs) = &self.gilrs else { return Vec::new() };
-        gilrs.gamepads().map(|(_, gamepad)| gamepad.name().to_string()).collect()
+        let Some(gilrs) = &self.gilrs else {
+            return Vec::new();
+        };
+        gilrs
+            .gamepads()
+            .map(|(_, gamepad)| gamepad.name().to_string())
+            .collect()
     }
 }
 

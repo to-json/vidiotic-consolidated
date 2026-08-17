@@ -18,7 +18,11 @@ impl App {
         let name = dir_bank_name(&dir);
         self.engine.replace_pool(
             clips,
-            vec![ClipBank { name, dir: Some(dir), clip_ids }],
+            vec![ClipBank {
+                name,
+                dir: Some(dir),
+                clip_ids,
+            }],
             Vec::new(),
         );
         if let Some(egui) = self.egui.as_mut() {

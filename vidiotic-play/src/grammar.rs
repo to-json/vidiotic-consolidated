@@ -182,7 +182,11 @@ pub enum GrammarState {
     AwaitingConjugation { root: Token },
     /// A repeat-friendly terminal mode; `trail_root` is the root that led
     /// here, for the input-trail display.
-    Sticky { label: &'static str, entries: &'static StickyTable, trail_root: Token },
+    Sticky {
+        label: &'static str,
+        entries: &'static StickyTable,
+        trail_root: Token,
+    },
 }
 
 /// What one input did to the machine.
@@ -226,9 +230,11 @@ impl Grammar {
                     Some(conj) => {
                         let root = *root;
                         self.state = match &conj.sticky {
-                            Some((label, entries)) => {
-                                GrammarState::Sticky { label, entries, trail_root: root }
-                            }
+                            Some((label, entries)) => GrammarState::Sticky {
+                                label,
+                                entries,
+                                trail_root: root,
+                            },
                             None => GrammarState::Idle,
                         };
                         match conj.verb {
@@ -294,9 +300,9 @@ pub fn token_of_source(source: &ControlSource) -> Option<Input> {
             _ => None,
         },
         ControlSource::MidiNote { note: 35, .. } => Some(Input::Cancel),
-        ControlSource::MidiNote { note: n @ 36..=43, .. } => {
-            Token::new(n - 36).map(Input::Token)
-        }
+        ControlSource::MidiNote {
+            note: n @ 36..=43, ..
+        } => Token::new(n - 36).map(Input::Token),
         _ => None,
     }
 }
@@ -306,7 +312,11 @@ const NV: Option<Verb> = None;
 
 /// A plain conjugation: emit and return to idle.
 const fn conj(label: &'static str, verb: Verb) -> Option<Conjugation> {
-    Some(Conjugation { label, verb: Some(verb), sticky: None })
+    Some(Conjugation {
+        label,
+        verb: Some(verb),
+        sticky: None,
+    })
 }
 
 /// A conjugation that (optionally) emits, then enters a sticky mode.
@@ -316,7 +326,11 @@ const fn conj_mode(
     mode: &'static str,
     entries: StickyTable,
 ) -> Option<Conjugation> {
-    Some(Conjugation { label, verb, sticky: Some((mode, entries)) })
+    Some(Conjugation {
+        label,
+        verb,
+        sticky: Some((mode, entries)),
+    })
 }
 
 /// A ± sticky table: T1 fires `up`, T2 fires `down`.
@@ -339,7 +353,10 @@ const fn knob(kind: CueParamKind) -> Option<Conjugation> {
 
 /// A root with no conjugations in this pane — the verb doesn't apply here.
 const fn empty_root(label: &'static str) -> RootEntry {
-    RootEntry { label, conjugations: [NC; TOKEN_COUNT] }
+    RootEntry {
+        label,
+        conjugations: [NC; TOKEN_COUNT],
+    }
 }
 
 /// Cue-selection movement mode: T1 up, T2 down, entered from Go.
@@ -404,7 +421,16 @@ const GO_CUES: [Option<Conjugation>; 4] = [
 /// Cut's shared "dd removes the selected cue" slot for the bank and cue panes.
 const CUT_CUE: RootEntry = RootEntry {
     label: "Cut",
-    conjugations: [NC, NC, NC, NC, conj("cue", Verb::RemoveSelectedCue), NC, NC, NC],
+    conjugations: [
+        NC,
+        NC,
+        NC,
+        NC,
+        conj("cue", Verb::RemoveSelectedCue),
+        NC,
+        NC,
+        NC,
+    ],
 };
 
 /// The pool pane: the clip grid. Go moves the clip cursor (and clip banks);
@@ -414,8 +440,18 @@ static POOL_TABLE: GrammarTable = GrammarTable {
         RootEntry {
             label: "Go",
             conjugations: [
-                conj_mode("up", Some(Verb::SelectClipDelta(-1)), "move", CLIP_MOVE_STICKY),
-                conj_mode("down", Some(Verb::SelectClipDelta(1)), "move", CLIP_MOVE_STICKY),
+                conj_mode(
+                    "up",
+                    Some(Verb::SelectClipDelta(-1)),
+                    "move",
+                    CLIP_MOVE_STICKY,
+                ),
+                conj_mode(
+                    "down",
+                    Some(Verb::SelectClipDelta(1)),
+                    "move",
+                    CLIP_MOVE_STICKY,
+                ),
                 conj("first", Verb::SelectClipFirst),
                 conj("last", Verb::SelectClipLast),
                 conj("bank-", Verb::ClipBankDelta(-1)),
@@ -428,7 +464,16 @@ static POOL_TABLE: GrammarTable = GrammarTable {
         empty_root("Mark"),
         RootEntry {
             label: "Make",
-            conjugations: [NC, NC, NC, conj("cue @ clip", Verb::AddCueAtClip), NC, NC, NC, NC],
+            conjugations: [
+                NC,
+                NC,
+                NC,
+                conj("cue @ clip", Verb::AddCueAtClip),
+                NC,
+                NC,
+                NC,
+                NC,
+            ],
         },
         empty_root("Cut"),
         empty_root("Tune"),
@@ -495,7 +540,9 @@ static CUE_TABLE: GrammarTable = GrammarTable {
     roots: [
         RootEntry {
             label: "Go",
-            conjugations: [GO_CUES[0], GO_CUES[1], GO_CUES[2], GO_CUES[3], NC, NC, NC, NC],
+            conjugations: [
+                GO_CUES[0], GO_CUES[1], GO_CUES[2], GO_CUES[3], NC, NC, NC, NC,
+            ],
         },
         empty_root("Fire"),
         RootEntry {
@@ -552,7 +599,16 @@ static CLOCK_TABLE: GrammarTable = GrammarTable {
         },
         RootEntry {
             label: "Mark",
-            conjugations: [NC, NC, conj("downbeat", Verb::TapDownbeat), NC, NC, NC, NC, NC],
+            conjugations: [
+                NC,
+                NC,
+                conj("downbeat", Verb::TapDownbeat),
+                NC,
+                NC,
+                NC,
+                NC,
+                NC,
+            ],
         },
         empty_root("Make"),
         RootEntry {
@@ -573,8 +629,18 @@ static CLOCK_TABLE: GrammarTable = GrammarTable {
             conjugations: [
                 conj_mode("bpm +1", Some(Verb::BpmDelta(1.0)), "bpm", BPM_STICKY),
                 conj_mode("bpm -1", Some(Verb::BpmDelta(-1.0)), "bpm", BPM_STICKY),
-                conj_mode("nudge +", Some(Verb::NudgeBpm(0.001)), "nudge", NUDGE_STICKY),
-                conj_mode("nudge -", Some(Verb::NudgeBpm(-0.001)), "nudge", NUDGE_STICKY),
+                conj_mode(
+                    "nudge +",
+                    Some(Verb::NudgeBpm(0.001)),
+                    "nudge",
+                    NUDGE_STICKY,
+                ),
+                conj_mode(
+                    "nudge -",
+                    Some(Verb::NudgeBpm(-0.001)),
+                    "nudge",
+                    NUDGE_STICKY,
+                ),
                 NC,
                 NC,
                 NC,
@@ -640,15 +706,26 @@ mod tests {
     fn root_then_conjugation_emits_verb() {
         let (g, steps) = seq(&BANK_TABLE, &[G, M]);
         assert_eq!(steps, [Step::Pending, Step::Verb(Verb::SelectCueFirst)]);
-        assert!(matches!(g.state, GrammarState::Idle), "plain conjugation returns to idle");
+        assert!(
+            matches!(g.state, GrammarState::Idle),
+            "plain conjugation returns to idle"
+        );
     }
 
     #[test]
     fn doubled_root_emits_hot_verb() {
         let (_, steps) = seq(&BANK_TABLE, &[F, F]);
-        assert_eq!(steps[1], Step::Verb(Verb::SendEditBankLive), "ff sends the edit bank live");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::SendEditBankLive),
+            "ff sends the edit bank live"
+        );
         let (_, steps) = seq(&BANK_TABLE, &[D, D]);
-        assert_eq!(steps[1], Step::Verb(Verb::RemoveSelectedCue), "dd removes the selected cue");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::RemoveSelectedCue),
+            "dd removes the selected cue"
+        );
     }
 
     #[test]
@@ -661,7 +738,11 @@ mod tests {
     #[test]
     fn cancel_while_idle_is_rejected() {
         let (_, steps) = seq(&BANK_TABLE, &[Input::Cancel]);
-        assert_eq!(steps, [Step::Rejected], "idle Escape falls through to the app");
+        assert_eq!(
+            steps,
+            [Step::Rejected],
+            "idle Escape falls through to the app"
+        );
     }
 
     #[test]
@@ -681,7 +762,11 @@ mod tests {
         let (_, steps) = seq(&CUE_TABLE, &[B, A]);
         assert_eq!(steps[1], Step::Verb(Verb::FocusPane(Pane::Clock)));
         let (g, steps) = seq(&POOL_TABLE, &[B, B]);
-        assert_eq!(steps[1], Step::Verb(Verb::FocusPrevPane), "bb bounces to the previous pane");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::FocusPrevPane),
+            "bb bounces to the previous pane"
+        );
         assert!(matches!(g.state, GrammarState::Idle));
     }
 
@@ -709,7 +794,11 @@ mod tests {
     #[test]
     fn tune_conjugation_enters_nudge_sticky_and_steps_signed() {
         let (g, steps) = seq(&CUE_TABLE, &[T, G, G, G, F]);
-        assert_eq!(steps[1], Step::Pending, "knob selection alone emits nothing");
+        assert_eq!(
+            steps[1],
+            Step::Pending,
+            "knob selection alone emits nothing"
+        );
         assert_eq!(
             &steps[2..],
             [
@@ -718,7 +807,10 @@ mod tests {
                 Step::Verb(Verb::NudgeParam(CueParamKind::Dwell, -1)),
             ]
         );
-        assert!(matches!(g.state, GrammarState::Sticky { .. }, ), "± stays in the knob mode");
+        assert!(
+            matches!(g.state, GrammarState::Sticky { .. },),
+            "± stays in the knob mode"
+        );
     }
 
     #[test]
@@ -747,7 +839,11 @@ mod tests {
             "gg moves the clip cursor up; f down"
         );
         let (_, steps) = seq(&POOL_TABLE, &[A, A]);
-        assert_eq!(steps[1], Step::Verb(Verb::AddCueAtClip), "aa cues the cursored clip");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::AddCueAtClip),
+            "aa cues the cursored clip"
+        );
     }
 
     #[test]
@@ -763,9 +859,17 @@ mod tests {
             "tg enters bpm mode at +1; further g/f repeat ±"
         );
         let (_, steps) = seq(&CLOCK_TABLE, &[M, M]);
-        assert_eq!(steps[1], Step::Verb(Verb::TapDownbeat), "mm marks the downbeat");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::TapDownbeat),
+            "mm marks the downbeat"
+        );
         let (_, steps) = seq(&CLOCK_TABLE, &[D, D]);
-        assert_eq!(steps[1], Step::Verb(Verb::SoftReset), "dd soft-resets the grid");
+        assert_eq!(
+            steps[1],
+            Step::Verb(Verb::SoftReset),
+            "dd soft-resets the grid"
+        );
     }
 
     #[test]
@@ -781,7 +885,11 @@ mod tests {
     #[test]
     fn key_tokens_round_trip() {
         for (i, k) in KEY_TOKENS.iter().enumerate() {
-            assert_eq!(token_of_key(k), Some(Input::Token(Token(i as u8))), "key {k:?}");
+            assert_eq!(
+                token_of_key(k),
+                Some(Input::Token(Token(i as u8))),
+                "key {k:?}"
+            );
         }
         assert_eq!(token_of_key("Escape"), Some(Input::Cancel));
         assert_eq!(token_of_key("z"), None);
@@ -790,26 +898,64 @@ mod tests {
 
     #[test]
     fn pad_buttons_map_dpad_then_diamond() {
-        let names = ["DPadUp", "DPadDown", "DPadLeft", "DPadRight", "North", "South", "East", "West"];
+        let names = [
+            "DPadUp",
+            "DPadDown",
+            "DPadLeft",
+            "DPadRight",
+            "North",
+            "South",
+            "East",
+            "West",
+        ];
         for (i, name) in names.iter().enumerate() {
-            let src = ControlSource::PadButton { device: String::new(), button: (*name).into() };
-            assert_eq!(token_of_source(&src), Some(Input::Token(Token(i as u8))), "{name}");
+            let src = ControlSource::PadButton {
+                device: String::new(),
+                button: (*name).into(),
+            };
+            assert_eq!(
+                token_of_source(&src),
+                Some(Input::Token(Token(i as u8))),
+                "{name}"
+            );
         }
-        let select = ControlSource::PadButton { device: String::new(), button: "Select".into() };
+        let select = ControlSource::PadButton {
+            device: String::new(),
+            button: "Select".into(),
+        };
         assert_eq!(token_of_source(&select), Some(Input::Cancel));
-        let start = ControlSource::PadButton { device: String::new(), button: "Start".into() };
+        let start = ControlSource::PadButton {
+            device: String::new(),
+            button: "Start".into(),
+        };
         assert_eq!(token_of_source(&start), None);
     }
 
     #[test]
     fn midi_notes_map_tokens_and_cancel() {
         for (i, note) in (36..=43).enumerate() {
-            let src = ControlSource::MidiNote { device: String::new(), channel: 1, note };
-            assert_eq!(token_of_source(&src), Some(Input::Token(Token(i as u8))), "note {note}");
+            let src = ControlSource::MidiNote {
+                device: String::new(),
+                channel: 1,
+                note,
+            };
+            assert_eq!(
+                token_of_source(&src),
+                Some(Input::Token(Token(i as u8))),
+                "note {note}"
+            );
         }
-        let cancel = ControlSource::MidiNote { device: String::new(), channel: 1, note: 35 };
+        let cancel = ControlSource::MidiNote {
+            device: String::new(),
+            channel: 1,
+            note: 35,
+        };
         assert_eq!(token_of_source(&cancel), Some(Input::Cancel));
-        let out = ControlSource::MidiNote { device: String::new(), channel: 1, note: 44 };
+        let out = ControlSource::MidiNote {
+            device: String::new(),
+            channel: 1,
+            note: 44,
+        };
         assert_eq!(token_of_source(&out), None);
     }
 
@@ -820,7 +966,10 @@ mod tests {
             for (i, root) in table.roots.iter().enumerate() {
                 assert!(!root.label.is_empty(), "{pane:?} root {i} has a label");
             }
-            assert_eq!(table.roots[6].label, "Pane", "{pane:?} keeps the pane selector on T7");
+            assert_eq!(
+                table.roots[6].label, "Pane",
+                "{pane:?} keeps the pane selector on T7"
+            );
             assert_eq!(table.roots[7].label, "Meta", "{pane:?} keeps Meta on T8");
             let focus_slots = table.roots[6]
                 .conjugations

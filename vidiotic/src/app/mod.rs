@@ -22,13 +22,10 @@ use crate::audio::{self, AudioCapture};
 use crate::bank::{Bank, CueId};
 use crate::clippool::{self, Clip, ClipBank, Thumbnail};
 use crate::clock::{InternalClock, LinkClock};
-use crate::commands::{
-    Cadence, ChainSlot, ClipId, Command, SlotRef, SyncKind, TimeSig, UiMirror,
-};
+use crate::commands::{Cadence, ChainSlot, ClipId, Command, SlotRef, SyncKind, TimeSig, UiMirror};
 use crate::control_input::ControlInput;
-use crate::grammar;
-use vidiotic_wire::envelope::{Reply, ReplyResult, ReqBody};
 use crate::gfx::Graphics;
+use crate::grammar;
 use crate::render::{Globals, Renderer};
 use crate::sequencer::Sequencer;
 use crate::shader::lang_of;
@@ -38,6 +35,7 @@ use crate::video::capture;
 use crate::video::frame::{DecodedFrame, PixelData};
 use vidiotic_ctl::event::EventValue;
 use vidiotic_play::engine::Engine;
+use vidiotic_wire::envelope::{Reply, ReplyResult, ReqBody};
 
 mod cameras;
 mod clips;
@@ -272,7 +270,9 @@ impl App {
             auto_active: boot.auto_active,
             preserve_playhead: boot.preserve_playhead,
             advanced: boot.advanced,
-            opener: Box::new(NativeSources { captures: captures.clone() }),
+            opener: Box::new(NativeSources {
+                captures: captures.clone(),
+            }),
         });
         let mut app = Self {
             graphics: None,
@@ -415,7 +415,10 @@ impl App {
         if self.watcher.as_ref().is_some_and(|w| w.dirty()) {
             self.dirty_at = Some(Instant::now());
         }
-        if self.dirty_at.is_some_and(|t| t.elapsed() >= SHADER_DEBOUNCE) {
+        if self
+            .dirty_at
+            .is_some_and(|t| t.elapsed() >= SHADER_DEBOUNCE)
+        {
             self.dirty_at = None;
             self.load_shader();
         }
@@ -440,7 +443,10 @@ impl App {
             if let (Some(g), Some(r)) = (self.graphics.as_ref(), self.renderer.as_mut()) {
                 if tick.blank {
                     let black = DecodedFrame {
-                        pixels: PixelData::Rgba { data: vec![0; 16], stride: 8 },
+                        pixels: PixelData::Rgba {
+                            data: vec![0; 16],
+                            stride: 8,
+                        },
                         w: 2,
                         h: 2,
                         pts_sec: 0.0,
@@ -565,7 +571,12 @@ impl ApplicationHandler for App {
         };
         // The control layout is designed to stack down to ~420 px wide;
         // below that, rows would clip rather than wrap.
-        let (output_win, control_win) = if let (Ok(o), Ok(c)) = (make("vidiotic output", 1280.0, 720.0, 160.0, 90.0), make("vidiotic control", 1000.0, 720.0, 420.0, 480.0)) { (Arc::new(o), Arc::new(c)) } else {
+        let (output_win, control_win) = if let (Ok(o), Ok(c)) = (
+            make("vidiotic output", 1280.0, 720.0, 160.0, 90.0),
+            make("vidiotic control", 1000.0, 720.0, 420.0, 480.0),
+        ) {
+            (Arc::new(o), Arc::new(c))
+        } else {
             log::error!("failed to create windows");
             event_loop.exit();
             return;

@@ -72,12 +72,23 @@ fn window() -> web_sys::Window {
 /// point, including while egui is mid-layout inside `update`. Draining at a
 /// known point is the same discipline the command queue itself exists for.
 enum FromPage {
-    VideoOpened { name: String, info: MediaInfo },
+    VideoOpened {
+        name: String,
+        info: MediaInfo,
+    },
     Failed(String),
     Session(String),
-    Project { name: String, text: String },
+    Project {
+        name: String,
+        text: String,
+    },
     Shader(String),
-    Frame { index: u64, width: u32, height: u32, rgba: Vec<u8> },
+    Frame {
+        index: u64,
+        width: u32,
+        height: u32,
+        rgba: Vec<u8>,
+    },
     ExportFailed(String),
     Exported(String),
     StartExport,
@@ -244,7 +255,12 @@ impl ChopApp {
                     d.shader_path = Some(name);
                     self.editor.post(Command::SetDefaults(Box::new(d)));
                 }
-                FromPage::Frame { index, width, height, rgba } => {
+                FromPage::Frame {
+                    index,
+                    width,
+                    height,
+                    rgba,
+                } => {
                     self.accept_frame(ctx, index, width, height, &rgba);
                 }
                 FromPage::ExportFailed(msg) => {
@@ -303,7 +319,8 @@ impl ChopApp {
                 // sidecar restore.
                 self.editor.reset_undo();
                 self.last_saved.clear();
-                self.editor.set_status(format!("restored {spans} span(s) from your last session"));
+                self.editor
+                    .set_status(format!("restored {spans} span(s) from your last session"));
             }
             Err(e) => log::warn!("ignoring the stored session: {e:#}"),
         }
@@ -397,7 +414,14 @@ impl ChopApp {
                     .events
                     .iter()
                     .filter_map(|event| {
-                        let egui::Event::Key { key, pressed, repeat, modifiers, .. } = event else {
+                        let egui::Event::Key {
+                            key,
+                            pressed,
+                            repeat,
+                            modifiers,
+                            ..
+                        } = event
+                        else {
                             return None;
                         };
                         let source = vidiotic_ctl::ControlSource::Key {
@@ -423,11 +447,19 @@ impl ChopApp {
             // Undo/redo are reserved chords resolved ahead of the table, as in
             // `Controls::observe`. Cmd+Z on mac, Ctrl+Z elsewhere.
             if !repeat && matches!(value, vidiotic_ctl::EventValue::Pressed) {
-                if let vidiotic_ctl::ControlSource::Key { key, ctrl, alt, shift, cmd } = &source {
+                if let vidiotic_ctl::ControlSource::Key {
+                    key,
+                    ctrl,
+                    alt,
+                    shift,
+                    cmd,
+                } = &source
+                {
                     let accel = (*ctrl || *cmd) && !*alt;
                     if accel && (key == "z" || key == "y") {
                         let redo = key == "y" || *shift;
-                        self.editor.post(if redo { Command::Redo } else { Command::Undo });
+                        self.editor
+                            .post(if redo { Command::Redo } else { Command::Undo });
                         continue;
                     }
                 }
@@ -469,7 +501,10 @@ impl ChopApp {
                 self.apply_shell_command(rest);
             }
         }
-        log::warn!("command drain hit its budget; dropping {} queued", self.editor.queued_len());
+        log::warn!(
+            "command drain hit its budget; dropping {} queued",
+            self.editor.queued_len()
+        );
         self.editor.clear_queue();
     }
 
@@ -487,7 +522,9 @@ impl ChopApp {
             // The page holds the bytes before the editor hears a name, so an
             // `Open` here is only ever a routing decision.
             Command::Open(path) => {
-                let viproj = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("viproj"));
+                let viproj = path
+                    .extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("viproj"));
                 if viproj {
                     request_file("project");
                 } else {
@@ -502,10 +539,12 @@ impl ChopApp {
                 if self.editor.source_path.as_deref() == Some(path.as_path()) {
                     self.editor.resume(then);
                 } else {
-                    let name = path
-                        .file_name()
-                        .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
-                    self.editor.set_error(format!("that span was marked on {name} — open it to edit"));
+                    let name = path.file_name().map_or_else(
+                        || path.display().to_string(),
+                        |n| n.to_string_lossy().into_owned(),
+                    );
+                    self.editor
+                        .set_error(format!("that span was marked on {name} — open it to edit"));
                 }
             }
 
@@ -524,7 +563,8 @@ impl ChopApp {
 
             Command::ConfirmQuit => {
                 self.editor.show_quit_dialog = false;
-                self.editor.set_status("close the tab when you're done".to_string());
+                self.editor
+                    .set_status("close the tab when you're done".to_string());
             }
 
             other => {
@@ -545,7 +585,9 @@ impl ChopApp {
     /// comparing is cheap next to a bake, and a dirty flag is a second source
     /// of truth that can be wrong in the direction that loses work.
     fn autosave(&mut self, ctx: &egui::Context) {
-        let Some(source) = self.editor.source_path.clone() else { return };
+        let Some(source) = self.editor.source_path.clone() else {
+            return;
+        };
         let now = ctx.input(|i| i.time);
         let waited = now - self.last_save_check;
         if waited < 1.0 {
@@ -586,7 +628,8 @@ impl ChopApp {
             return;
         }
         let Some(source) = self.editor.source_path.clone() else {
-            self.editor.set_error("open the source video before exporting".to_string());
+            self.editor
+                .set_error("open the source video before exporting".to_string());
             return;
         };
         // Every span must be from the open video: there is one `<video>`
@@ -612,8 +655,10 @@ impl ChopApp {
         }
 
         let fps = self.editor.fps();
-        let source_label =
-            source.file_name().map_or_else(|| source.display().to_string(), |n| n.to_string_lossy().into_owned());
+        let source_label = source.file_name().map_or_else(
+            || source.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
         let spans: Vec<String> = self
             .editor
             .spans
@@ -653,8 +698,10 @@ impl ChopApp {
             });
             (if render == 1 { "high" } else { "draft" }, st.dest)
         };
-        let plan =
-            format!(r#"{{"quality":"{quality}","dest":{dest},"spans":[{}]}}"#, spans.join(","));
+        let plan = format!(
+            r#"{{"quality":"{quality}","dest":{dest},"spans":[{}]}}"#,
+            spans.join(",")
+        );
         dispatch("vidiotic-chop-export", &JsValue::from_str(&plan));
     }
 
@@ -694,7 +741,11 @@ impl ChopApp {
         let size = bytes.len();
         let handoff = self.export.borrow().dest == 1;
         deliver_file(
-            if handoff { "vidiotic-chop-handoff" } else { "vidiotic-chop-download" },
+            if handoff {
+                "vidiotic-chop-handoff"
+            } else {
+                "vidiotic-chop-download"
+            },
             &format!("{name}.viproj"),
             &bytes,
         );
@@ -842,7 +893,10 @@ impl ChopApp {
             self.editor.playing(),
             spans.join(","),
             self.editor.bank_names.len(),
-            self.editor.status.as_deref().map_or_else(String::new, json_escape),
+            self.editor
+                .status
+                .as_deref()
+                .map_or_else(String::new, json_escape),
             self.editor.status_is_error,
             self.mirror.preview.is_some(),
             self.awaiting.is_some(),
@@ -859,12 +913,14 @@ impl eframe::App for ChopApp {
         phosphor::theme::sync(&ctx);
         self.drain_page(&ctx);
 
-        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().and_then(|f| f.path.clone())) {
+        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().and_then(|f| f.path.clone()))
+        {
             self.editor.post(Command::Open(path));
         }
         self.pump_keys(&ctx);
         self.autosave(&ctx);
-        self.editor.advance_playback(ctx.input(|i| i.stable_dt) as f64);
+        self.editor
+            .advance_playback(ctx.input(|i| i.stable_dt) as f64);
         self.request_preview();
 
         // Cloned before the editor is borrowed: the hook draws browser-only
@@ -1046,7 +1102,10 @@ pub fn open_failed(msg: &str) {
 /// A `.viproj`, as text.
 #[wasm_bindgen]
 pub fn load_project(name: &str, text: &str) {
-    post(FromPage::Project { name: name.to_string(), text: text.to_string() });
+    post(FromPage::Project {
+        name: name.to_string(),
+        text: text.to_string(),
+    });
 }
 
 /// A shader chosen for the session defaults. Only the name travels: prep stores
@@ -1233,7 +1292,9 @@ fn finish_entries() -> Result<(String, Vec<(String, Vec<u8>)>), JsValue> {
             let (got, want) = (st.baked.len(), plan.spans.len());
             st.baked.clear();
             st.note = None;
-            return Err(JsValue::from_str(&format!("{got} clip(s) came back for {want} span(s)")));
+            return Err(JsValue::from_str(&format!(
+                "{got} clip(s) came back for {want} span(s)"
+            )));
         }
         let clips: Vec<BakedClip> = st.baked.iter().map(|(c, _)| c.clone()).collect();
         let project = export::assemble(
@@ -1253,7 +1314,11 @@ fn finish_entries() -> Result<(String, Vec<(String, Vec<u8>)>), JsValue> {
             format!("{name}/{name}.viproj"),
             export::viproj_bytes(&project),
         )];
-        entries.extend(st.baked.iter().map(|(c, bytes)| (format!("{name}/{}", c.path), bytes.clone())));
+        entries.extend(
+            st.baked
+                .iter()
+                .map(|(c, bytes)| (format!("{name}/{}", c.path), bytes.clone())),
+        );
         st.baked.clear();
         st.note = None;
         Ok((name, entries))

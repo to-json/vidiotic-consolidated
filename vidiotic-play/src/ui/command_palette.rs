@@ -387,71 +387,65 @@ pub(super) fn show(ctx: &egui::Context, m: &UiMirror, tx: &Sender<Command>) {
                     ui.separator();
 
                     // Items list
-                    ScrollArea::vertical()
-                        .max_height(320.0)
-                        .show(ui, |ui| {
-                            if filtered.is_empty() {
-                                ui.label(
-                                    RichText::new("No matching commands")
-                                        .font(mono())
-                                        .color(p.fg_muted),
-                                );
-                            } else {
-                                for (idx, item) in filtered.iter().enumerate() {
-                                    let is_selected = idx == selected_index;
-                                    let bg = if is_selected {
-                                        p.bg_inset
-                                    } else {
-                                        p.bg_elevated
-                                    };
-                                    let fg = if is_selected {
-                                        p.accent
-                                    } else {
-                                        p.fg_primary
-                                    };
+                    ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        if filtered.is_empty() {
+                            ui.label(
+                                RichText::new("No matching commands")
+                                    .font(mono())
+                                    .color(p.fg_muted),
+                            );
+                        } else {
+                            for (idx, item) in filtered.iter().enumerate() {
+                                let is_selected = idx == selected_index;
+                                let bg = if is_selected {
+                                    p.bg_inset
+                                } else {
+                                    p.bg_elevated
+                                };
+                                let fg = if is_selected { p.accent } else { p.fg_primary };
 
-                                    let resp = ui.horizontal(|ui| {
-                                        ui.painter().rect_filled(ui.max_rect(), 0.0, bg);
-                                        // Category badge
-                                        ui.label(
-                                            RichText::new(format!("[{}]", item.category))
-                                                .font(mono())
-                                                .color(p.fg_muted),
+                                let resp = ui.horizontal(|ui| {
+                                    ui.painter().rect_filled(ui.max_rect(), 0.0, bg);
+                                    // Category badge
+                                    ui.label(
+                                        RichText::new(format!("[{}]", item.category))
+                                            .font(mono())
+                                            .color(p.fg_muted),
+                                    );
+                                    // Command name
+                                    ui.label(RichText::new(item.name).font(mono()).color(fg));
+                                    // Shortcut right-aligned
+                                    if !item.shortcut.is_empty() {
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                ui.label(
+                                                    RichText::new(item.shortcut)
+                                                        .font(mono())
+                                                        .color(p.accent_dim),
+                                                );
+                                            },
                                         );
-                                        // Command name
-                                        ui.label(RichText::new(item.name).font(mono()).color(fg));
-                                        // Shortcut right-aligned
-                                        if !item.shortcut.is_empty() {
-                                            ui.with_layout(
-                                                egui::Layout::right_to_left(egui::Align::Center),
-                                                |ui| {
-                                                    ui.label(
-                                                        RichText::new(item.shortcut)
-                                                            .font(mono())
-                                                            .color(p.accent_dim),
-                                                    );
-                                                },
-                                            );
-                                        }
-                                    });
-
-                                    let rect = resp.response.rect;
-                                    if ui
-                                        .interact(
-                                            rect,
-                                            Id::new(("cmd_item", idx)),
-                                            egui::Sense::click(),
-                                        )
-                                        .clicked()
-                                    {
-                                        let _ = tx.send(item.command.clone());
-                                        let _ = tx.send(Command::ToggleCommandPalette);
-                                        query.clear();
-                                        selected_index = 0;
                                     }
+                                });
+
+                                let rect = resp.response.rect;
+                                if ui
+                                    .interact(
+                                        rect,
+                                        Id::new(("cmd_item", idx)),
+                                        egui::Sense::click(),
+                                    )
+                                    .clicked()
+                                {
+                                    let _ = tx.send(item.command.clone());
+                                    let _ = tx.send(Command::ToggleCommandPalette);
+                                    query.clear();
+                                    selected_index = 0;
                                 }
                             }
-                        });
+                        }
+                    });
 
                     ui.separator();
                     ui.label(

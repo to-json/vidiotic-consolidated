@@ -53,7 +53,12 @@ pub struct BakedClip {
 /// and makes the clips directory sort in span order.
 #[must_use]
 pub fn clip_file_name(i: usize, span: &Span) -> String {
-    format!("{i:02}_{}_{}-{}.mov", sanitize(&span.name), span.in_frame, span.out_frame)
+    format!(
+        "{i:02}_{}_{}-{}.mov",
+        sanitize(&span.name),
+        span.in_frame,
+        span.out_frame
+    )
 }
 
 /// The source video, as an offsets export needs to describe it.
@@ -151,7 +156,10 @@ pub fn assemble_offsets(
     let cue_banks: Vec<CueBankSpec> = banks
         .into_iter()
         .map(|(idx, group)| CueBankSpec {
-            name: bank_names.get(idx).cloned().unwrap_or_else(|| format!("bank {idx}")),
+            name: bank_names
+                .get(idx)
+                .cloned()
+                .unwrap_or_else(|| format!("bank {idx}")),
             cues: group
                 .into_iter()
                 .map(|span| CueSpec {
@@ -172,7 +180,10 @@ pub fn assemble_offsets(
         defaults,
         clips: vec![clip],
         clip_banks: vec![ClipBankSpec {
-            name: bank_names.first().cloned().unwrap_or_else(|| "clips".to_string()),
+            name: bank_names
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "clips".to_string()),
             clip_ids: vec![0],
             ..Default::default()
         }],
@@ -200,7 +211,10 @@ pub fn assemble(
     controls: vidiotic_ctl::ControlMap,
     starter_cue_bank: bool,
 ) -> Project {
-    assert!(baked.len() >= spans.len(), "every span must have been baked");
+    assert!(
+        baked.len() >= spans.len(),
+        "every span must have been baked"
+    );
 
     // `..Default::default()` on the spec literals even where every field is
     // set: additive `.viproj` fields must not break this build.
@@ -235,7 +249,10 @@ pub fn assemble(
     // order regardless of what order the spans were marked in.
     let mut banks: std::collections::BTreeMap<usize, Vec<u32>> = std::collections::BTreeMap::new();
     for (i, span) in spans.iter().enumerate() {
-        banks.entry(span.clip_bank).or_default().push(u32::try_from(i).unwrap_or(u32::MAX));
+        banks
+            .entry(span.clip_bank)
+            .or_default()
+            .push(u32::try_from(i).unwrap_or(u32::MAX));
     }
 
     #[allow(clippy::needless_update)]
@@ -361,7 +378,10 @@ mod tests {
         assert_eq!(re.spans.len(), 2);
         assert_eq!(re.spans[0].in_frame, 10);
         assert_eq!(re.spans[1].name, "two");
-        assert_eq!(re.bank_names, vec!["first".to_string(), "second".to_string()]);
+        assert_eq!(
+            re.bank_names,
+            vec!["first".to_string(), "second".to_string()]
+        );
     }
 
     #[test]
@@ -462,7 +482,7 @@ mod tests {
     /// and looks like a bug in the player.
     #[test]
     fn a_spans_frames_become_a_cues_seconds() {
-        let spans = [span("a", 0)];   // [10..40) at 30 fps
+        let spans = [span("a", 0)]; // [10..40) at 30 fps
         let p = assemble_offsets(
             &spans,
             &source_ref(),
@@ -513,7 +533,4 @@ mod tests {
         assert_eq!(re.spans.len(), 1);
         assert_eq!(re.spans[0].out_frame, 900);
     }
-
-
-
 }

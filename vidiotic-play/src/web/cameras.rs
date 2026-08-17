@@ -59,7 +59,10 @@ pub struct Device {
 /// covers only the enumeration, leaving `engine` free for the mutable call
 /// that follows.
 pub(crate) fn camera_device_pairs(devices: &[Device]) -> Vec<(&str, &str)> {
-    devices.iter().map(|d| (d.uid.as_str(), d.name.as_str())).collect()
+    devices
+        .iter()
+        .map(|d| (d.uid.as_str(), d.name.as_str()))
+        .collect()
 }
 
 /// A live camera: the element playing it, and the canvas it is sampled through.
@@ -100,7 +103,13 @@ impl Tap {
             .ok_or("no 2d context")?
             .dyn_into()
             .map_err(|_| "not a 2d context".to_string())?;
-        Ok(Self { video, canvas, ctx, size: (0, 0), status: "starting…".to_string() })
+        Ok(Self {
+            video,
+            canvas,
+            ctx,
+            size: (0, 0),
+            status: "starting…".to_string(),
+        })
     }
 
     /// Draw the current video frame and read it back as RGBA.
@@ -118,11 +127,17 @@ impl Tap {
             self.size = (w, h);
             self.status = format!("{w}x{h}");
         }
-        if let Err(e) = self.ctx.draw_image_with_html_video_element(&self.video, 0.0, 0.0) {
+        if let Err(e) = self
+            .ctx
+            .draw_image_with_html_video_element(&self.video, 0.0, 0.0)
+        {
             self.status = format!("error: {e:?}");
             return None;
         }
-        let data = match self.ctx.get_image_data(0.0, 0.0, f64::from(w), f64::from(h)) {
+        let data = match self
+            .ctx
+            .get_image_data(0.0, 0.0, f64::from(w), f64::from(h))
+        {
             Ok(d) => d,
             Err(e) => {
                 // The one plausible cause is a tainted canvas, which cannot
@@ -133,7 +148,10 @@ impl Tap {
             }
         };
         Some(DecodedFrame {
-            pixels: PixelData::Rgba { data: data.data().0, stride: w * 4 },
+            pixels: PixelData::Rgba {
+                data: data.data().0,
+                stride: w * 4,
+            },
             w,
             h,
             pts_sec: 0.0,
@@ -164,7 +182,13 @@ impl CameraSource {
         // ever removes duplicate readbacks rather than dropping frames — the
         // element holds the newest frame either way, so sampling faster than it
         // produces costs a full `getImageData` to learn nothing.
-        Self { uid, taps, paused, last: None, interval: 1.0 / 60.0 }
+        Self {
+            uid,
+            taps,
+            paused,
+            last: None,
+            interval: 1.0 / 60.0,
+        }
     }
 }
 

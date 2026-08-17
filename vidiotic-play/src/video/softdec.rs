@@ -125,12 +125,15 @@ pub fn to_rgba(frame: &DecodedFrame) -> Result<DecodedFrame, SoftDecErr> {
                 let plane = alpha.ok_or(SoftDecErr::AlphaTruncated { need: 1, got: 0 })?;
                 let mut a = vec![0u8; (w as usize) * (h as usize) * 4];
                 expand(plane, w, h, 8, &mut a, bc4_as_red).map_err(|e| match e {
-                    SoftDecErr::Truncated { need, got } => {
-                        SoftDecErr::AlphaTruncated { need, got }
-                    }
+                    SoftDecErr::Truncated { need, got } => SoftDecErr::AlphaTruncated { need, got },
                     other => other,
                 })?;
-                for (px, ap) in out.as_chunks_mut::<4>().0.iter_mut().zip(a.as_chunks::<4>().0) {
+                for (px, ap) in out
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(a.as_chunks::<4>().0)
+                {
                     px[3] = ap[0];
                 }
             }
@@ -403,7 +406,8 @@ mod tests {
         // exactly, with no interpolation rounding in the way.
         let mut idx = [0u8; 16];
         idx[1] = 1;
-        let out = rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0xF800, 0x001F, idx), 0)).unwrap());
+        let out =
+            rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0xF800, 0x001F, idx), 0)).unwrap());
         assert_eq!(&out[0..4], &[255, 0, 0, 255], "index 0 is endpoint 0");
         assert_eq!(&out[4..8], &[0, 0, 255, 255], "index 1 is endpoint 1");
     }
@@ -422,7 +426,8 @@ mod tests {
         idx[0] = 2;
         idx[1] = 3;
         // Black to white, so the interpolants are pure fractions of 255.
-        let out = rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0xFFFF, 0x0000, idx), 0)).unwrap());
+        let out =
+            rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0xFFFF, 0x0000, idx), 0)).unwrap());
         // color_2 = (2*c0 + c1)/3, so index 2 sits nearer c0 (white), not nearer c1.
         assert_eq!(out[0], 170, "index 2 is 2/3 of the way toward white");
         assert_eq!(out[4], 85, "index 3 is 1/3 of the way toward white");
@@ -436,7 +441,8 @@ mod tests {
         let mut idx = [0u8; 16];
         idx[0] = 3;
         idx[1] = 2;
-        let out = rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0x0000, 0xFFFF, idx), 0)).unwrap());
+        let out =
+            rgba_of(&to_rgba(&frame(HapTextureFormat::Bc1, bc1(0x0000, 0xFFFF, idx), 0)).unwrap());
         assert_eq!(&out[0..4], &[0, 0, 0, 0], "index 3 punches through");
         assert_eq!(out[4 + 3], 255, "index 2 is still opaque");
         assert_eq!(out[4], 128, "index 2 is the midpoint");
@@ -451,8 +457,14 @@ mod tests {
         let mut data = bc4(255, 255, [0u8; 16]); // constant alpha 255
         data.extend(bc1(0x0000, 0xFFFF, idx));
         let out = rgba_of(&to_rgba(&frame(HapTextureFormat::Bc3, data, 0)).unwrap());
-        assert_eq!(out[3], 255, "alpha comes from the alpha block, not the index");
-        assert_eq!(out[0], 170, "index 3 is 2/3 of the way, not transparent black");
+        assert_eq!(
+            out[3], 255,
+            "alpha comes from the alpha block, not the index"
+        );
+        assert_eq!(
+            out[0], 170,
+            "index 3 is 2/3 of the way, not transparent black"
+        );
     }
 
     #[test]
@@ -529,7 +541,10 @@ mod tests {
             pts_sec: 0.0,
         };
         let out = rgba_of(&to_rgba(&f).unwrap());
-        assert_eq!(out[3], 200, "first texel takes the alpha plane's endpoint 0");
+        assert_eq!(
+            out[3], 200,
+            "first texel takes the alpha plane's endpoint 0"
+        );
         assert_eq!(out[7], 40, "second takes endpoint 1");
     }
 
@@ -538,7 +553,12 @@ mod tests {
         // 6x6 is a 2x2 block grid covering 8x8; the output must be 6x6 and the
         // rows must not pick up the padding column.
         let solid = bc1(0xF800, 0xF800, [0u8; 16]);
-        let data: Vec<u8> = solid.iter().copied().cycle().take(solid.len() * 4).collect();
+        let data: Vec<u8> = solid
+            .iter()
+            .copied()
+            .cycle()
+            .take(solid.len() * 4)
+            .collect();
         let f = DecodedFrame {
             pixels: PixelData::Bc {
                 format: HapTextureFormat::Bc1,
@@ -557,7 +577,10 @@ mod tests {
         assert_eq!(*stride, 24, "6 px at 4 bytes");
         assert_eq!(data.len(), 6 * 6 * 4);
         assert!(
-            data.as_chunks::<4>().0.iter().all(|p| *p == [255, 0, 0, 255]),
+            data.as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| *p == [255, 0, 0, 255]),
             "every in-bounds texel is the block's colour"
         );
     }
@@ -609,11 +632,17 @@ mod tests {
         const H: u32 = 8;
         // Four blocks of solid red, as `transcode.rs` would emit for a red frame.
         let block = bc1(0xF800, 0xF800, [0u8; 16]);
-        let bc: Vec<u8> = block.iter().copied().cycle().take(block.len() * 4).collect();
+        let bc: Vec<u8> = block
+            .iter()
+            .copied()
+            .cycle()
+            .take(block.len() * 4)
+            .collect();
 
         let mut w = mov::MovWriter::new(std::io::Cursor::new(Vec::new()), W, H, 30_000, 1_000)
             .expect("writer");
-        w.write_sample(&hap::encode_hap1_frame(&bc), 0).expect("write");
+        w.write_sample(&hap::encode_hap1_frame(&bc), 0)
+            .expect("write");
         let bytes = std::rc::Rc::new(w.finish().expect("finish").into_inner());
         let mut clip = Clip::open(bytes).expect("open");
 
@@ -624,7 +653,10 @@ mod tests {
         assert_eq!(*stride, W * 4);
         assert_eq!(data.len(), (W * H * 4) as usize);
         assert!(
-            data.as_chunks::<4>().0.iter().all(|p| *p == [255, 0, 0, 255]),
+            data.as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| *p == [255, 0, 0, 255]),
             "the whole frame should be the red it was baked with"
         );
     }

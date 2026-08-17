@@ -28,7 +28,10 @@ pub(super) fn show(ui: &mut Ui, m: &UiMirror, tx: &Sender<Command>) {
         .min_size(210.0)
         .show(ui, |ui| {
             ui.add_space(SP_SM);
-            if let Some(cue) = m.selected_cue.and_then(|id| m.cues.iter().find(|c| c.id == id)) {
+            if let Some(cue) = m
+                .selected_cue
+                .and_then(|id| m.cues.iter().find(|c| c.id == id))
+            {
                 cue_editor(ui, m, cue, tx);
             } else {
                 empty_state(ui);
@@ -97,48 +100,15 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
         delay_section(ui, m, cue, tx);
     }
     if !cue.camera {
-    egui::Grid::new("cue_trim").num_columns(2).spacing(egui::vec2(SP_SM, SP_SM)).show(ui, |ui| {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(egui::RichText::new("in").color(p.fg_muted));
-        });
-        ui.horizontal(|ui| {
-            let mut v = cue.in_sec;
-            if ui
-                .add(
-                    egui::DragValue::new(&mut v)
-                        .speed(0.05)
-                        .range(0.0..=f64::MAX)
-                        .suffix(" s")
-                        .fixed_decimals(2),
-                )
-                .changed()
-            {
-                let _ = tx.send(Command::SetCueIn(cue.id, v));
-            }
-            if widgets::bracket_button(ui, "⏺", Some(p.accent), 0.0)
-                .on_hover_text("set in-point to the current playhead")
-                .clicked()
-            {
-                let _ = tx.send(Command::SetCueInToPlayhead(cue.id));
-            }
-        });
-        ui.end_row();
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(egui::RichText::new("out").color(p.fg_muted));
-        });
-        ui.horizontal(|ui| {
-            let mut trimmed = cue.out_sec.is_some();
-            if widgets::glyph_checkbox(ui, &mut trimmed, "")
-                .on_hover_text("trim the end (off = play to the clip's natural end)")
-                .changed()
-            {
-                let out = trimmed.then_some(cue.in_sec + 1.0);
-                let _ = tx.send(Command::SetCueOut(cue.id, out));
-            }
-            match cue.out_sec {
-                Some(out) => {
-                    let mut v = out;
+        egui::Grid::new("cue_trim")
+            .num_columns(2)
+            .spacing(egui::vec2(SP_SM, SP_SM))
+            .show(ui, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new("in").color(p.fg_muted));
+                });
+                ui.horizontal(|ui| {
+                    let mut v = cue.in_sec;
                     if ui
                         .add(
                             egui::DragValue::new(&mut v)
@@ -149,22 +119,58 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
                         )
                         .changed()
                     {
-                        let _ = tx.send(Command::SetCueOut(cue.id, Some(v)));
+                        let _ = tx.send(Command::SetCueIn(cue.id, v));
                     }
                     if widgets::bracket_button(ui, "⏺", Some(p.accent), 0.0)
-                        .on_hover_text("set out-point to the current playhead")
+                        .on_hover_text("set in-point to the current playhead")
                         .clicked()
                     {
-                        let _ = tx.send(Command::SetCueOutToPlayhead(cue.id));
+                        let _ = tx.send(Command::SetCueInToPlayhead(cue.id));
                     }
-                }
-                None => {
-                    ui.label(egui::RichText::new("clip end").color(p.fg_muted));
-                }
-            }
-        });
-        ui.end_row();
-    });
+                });
+                ui.end_row();
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new("out").color(p.fg_muted));
+                });
+                ui.horizontal(|ui| {
+                    let mut trimmed = cue.out_sec.is_some();
+                    if widgets::glyph_checkbox(ui, &mut trimmed, "")
+                        .on_hover_text("trim the end (off = play to the clip's natural end)")
+                        .changed()
+                    {
+                        let out = trimmed.then_some(cue.in_sec + 1.0);
+                        let _ = tx.send(Command::SetCueOut(cue.id, out));
+                    }
+                    match cue.out_sec {
+                        Some(out) => {
+                            let mut v = out;
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut v)
+                                        .speed(0.05)
+                                        .range(0.0..=f64::MAX)
+                                        .suffix(" s")
+                                        .fixed_decimals(2),
+                                )
+                                .changed()
+                            {
+                                let _ = tx.send(Command::SetCueOut(cue.id, Some(v)));
+                            }
+                            if widgets::bracket_button(ui, "⏺", Some(p.accent), 0.0)
+                                .on_hover_text("set out-point to the current playhead")
+                                .clicked()
+                            {
+                                let _ = tx.send(Command::SetCueOutToPlayhead(cue.id));
+                            }
+                        }
+                        None => {
+                            ui.label(egui::RichText::new("clip end").color(p.fg_muted));
+                        }
+                    }
+                });
+                ui.end_row();
+            });
     }
 
     ui.add_space(SP_LG);
@@ -178,9 +184,12 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
             Some(true) => 1,
             Some(false) => 2,
         };
-        if let Some(i) =
-            widgets::segmented(ui, "cue_preserve", &["inherit", "on", "off"], Some(preserve_idx))
-        {
+        if let Some(i) = widgets::segmented(
+            ui,
+            "cue_preserve",
+            &["inherit", "on", "off"],
+            Some(preserve_idx),
+        ) {
             let val = match i {
                 0 => None,
                 1 => Some(true),
@@ -231,21 +240,35 @@ fn delay_section(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>)
     );
     let bpm = m.bpm.max(1.0);
     ui.horizontal(|ui| {
-        if let Some(i) =
-            widgets::segmented(ui, "cam_delay_unit", &["seconds", "beats"], Some(usize::from(d.beats)))
-        {
+        if let Some(i) = widgets::segmented(
+            ui,
+            "cam_delay_unit",
+            &["seconds", "beats"],
+            Some(usize::from(d.beats)),
+        ) {
             let beats = i == 1;
             if beats != d.beats {
-                let value = if beats { d.value * bpm / 60.0 } else { d.value * 60.0 / bpm };
+                let value = if beats {
+                    d.value * bpm / 60.0
+                } else {
+                    d.value * 60.0 / bpm
+                };
                 send(CamDelay { value, beats, ..d });
             }
         }
     });
     ui.horizontal(|ui| {
-        let max = if d.beats { (DELAY_CAP * bpm / 60.0).max(1.0) } else { DELAY_CAP };
+        let max = if d.beats {
+            (DELAY_CAP * bpm / 60.0).max(1.0)
+        } else {
+            DELAY_CAP
+        };
         let mut v = d.value as f32;
         if widgets::fader(ui, "cam_delay_fader", 0.0, max as f32, &mut v, 12).changed() {
-            send(CamDelay { value: f64::from(v), ..d });
+            send(CamDelay {
+                value: f64::from(v),
+                ..d
+            });
         }
         let unit = if d.beats { "b" } else { "s" };
         ui.label(
@@ -362,7 +385,11 @@ fn chain_section(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>)
 
         // ISF slots expose their declared inputs as inline controls.
         if let SlotRef::Isf(path) = &slot.shader {
-            if let Some(entry) = m.shader_pool.iter().find(|s| s.name.as_ref() == path.as_ref()) {
+            if let Some(entry) = m
+                .shader_pool
+                .iter()
+                .find(|s| s.name.as_ref() == path.as_ref())
+            {
                 isf_params_ui(ui, cue, i, slot, &entry.inputs, tx);
             }
         }
@@ -461,7 +488,11 @@ fn isf_params_ui(
                         {
                             send(&input.name, IsfValue::Float(v));
                         }
-                        ui.label(egui::RichText::new(format!("{v:>7.2}")).monospace().color(p.fg_primary));
+                        ui.label(
+                            egui::RichText::new(format!("{v:>7.2}"))
+                                .monospace()
+                                .color(p.fg_primary),
+                        );
                     });
                 }
                 IsfInputKind::Bool { default } => {
@@ -473,7 +504,11 @@ fn isf_params_ui(
                         send(&input.name, IsfValue::Bool(v));
                     }
                 }
-                IsfInputKind::Long { values, labels, default } => {
+                IsfInputKind::Long {
+                    values,
+                    labels,
+                    default,
+                } => {
                     let cur = match slot.param(&input.name) {
                         Some(IsfValue::Long(i)) => *i,
                         _ => *default,
@@ -499,7 +534,8 @@ fn isf_params_ui(
                         Some(IsfValue::Color(c)) => *c,
                         _ => *default,
                     };
-                    let mut rgba = egui::Rgba::from_rgba_unmultiplied(cur[0], cur[1], cur[2], cur[3]);
+                    let mut rgba =
+                        egui::Rgba::from_rgba_unmultiplied(cur[0], cur[1], cur[2], cur[3]);
                     ui.horizontal_wrapped(|ui| {
                         ui.label(egui::RichText::new(label.to_lowercase()).color(p.fg_muted));
                         let swatch = egui::Color32::from(rgba);
@@ -580,7 +616,10 @@ fn advanced_sections(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Comma
         0,
     ) {
         let val = v.round() as i32;
-        let _ = tx.send(Command::SetCueParam(cue.id, CueParam::LoopPhase(Toggle { on, val })));
+        let _ = tx.send(Command::SetCueParam(
+            cue.id,
+            CueParam::LoopPhase(Toggle { on, val }),
+        ));
     }
     // Nudge shifts the in-point — meaningless without a timeline.
     ui.add_enabled_ui(!cue.camera, |ui| {
@@ -596,8 +635,10 @@ fn advanced_sections(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Comma
             2,
         ) {
             if !cue.camera {
-                let _ = tx
-                    .send(Command::SetCueParam(cue.id, CueParam::StartNudge(Toggle { on, val: v })));
+                let _ = tx.send(Command::SetCueParam(
+                    cue.id,
+                    CueParam::StartNudge(Toggle { on, val: v }),
+                ));
             }
         }
     });
@@ -613,7 +654,10 @@ fn advanced_sections(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Comma
         2,
     ) {
         let val = (v * TPB).round().max(0.0) as u32;
-        let _ = tx.send(Command::SetCueParam(cue.id, CueParam::TrigDelay(Toggle { on, val })));
+        let _ = tx.send(Command::SetCueParam(
+            cue.id,
+            CueParam::TrigDelay(Toggle { on, val }),
+        ));
     }
 
     ui.add_space(SP_LG);
@@ -675,14 +719,23 @@ fn loop_row(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
     egui::ComboBox::from_id_salt("cue_loop")
         .selected_text(selected)
         .show_ui(ui, |ui| {
-            if ui.selectable_label(cue.loop_len.is_none(), "inherit").clicked() {
+            if ui
+                .selectable_label(cue.loop_len.is_none(), "inherit")
+                .clicked()
+            {
                 let _ = tx.send(Command::SetCueParam(cue.id, CueParam::Loop(None)));
             }
-            if ui.selectable_label(cue.loop_len == Some(0), "off").clicked() {
+            if ui
+                .selectable_label(cue.loop_len == Some(0), "off")
+                .clicked()
+            {
                 let _ = tx.send(Command::SetCueParam(cue.id, CueParam::Loop(Some(0))));
             }
             for (label, ticks) in LOOP_CADENCE {
-                if ui.selectable_label(cue.loop_len == Some(ticks), label).clicked() {
+                if ui
+                    .selectable_label(cue.loop_len == Some(ticks), label)
+                    .clicked()
+                {
                     let _ = tx.send(Command::SetCueParam(cue.id, CueParam::Loop(Some(ticks))));
                 }
             }
@@ -707,7 +760,10 @@ fn param_row(
     let mut out = None;
     ui.horizontal(|ui| {
         let mut o = on;
-        if widgets::glyph_checkbox(ui, &mut o, "").on_hover_text(hover).changed() {
+        if widgets::glyph_checkbox(ui, &mut o, "")
+            .on_hover_text(hover)
+            .changed()
+        {
             out = Some((o, val));
         }
         let color = if o { p.fg_secondary } else { p.fg_muted };
@@ -745,7 +801,10 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
             .on_hover_text("Source tempo of the underlying clip, shared by every cue on it.")
             .changed()
         {
-            let _ = tx.send(Command::SetClipBpm(cue.clip, has.then(|| cue.clip_bpm.unwrap_or(120.0))));
+            let _ = tx.send(Command::SetClipBpm(
+                cue.clip,
+                has.then(|| cue.clip_bpm.unwrap_or(120.0)),
+            ));
         }
         if let Some(bpm) = cue.clip_bpm {
             let mut v = bpm;
@@ -762,7 +821,10 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
             .changed()
         {
             let seed = cue.bpm.or(cue.clip_bpm).unwrap_or(120.0);
-            let _ = tx.send(Command::SetCueParam(cue.id, CueParam::Bpm(has.then_some(seed))));
+            let _ = tx.send(Command::SetCueParam(
+                cue.id,
+                CueParam::Bpm(has.then_some(seed)),
+            ));
         }
         if let Some(bpm) = cue.bpm {
             let mut v = bpm;
@@ -776,7 +838,9 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
     ui.add_enabled_ui(source_known, |ui| {
         let mut sync = cue.bpm_sync_on;
         if widgets::glyph_checkbox(ui, &mut sync, "sync to tempo")
-            .on_hover_text("Retime playback so the clip runs at the session tempo (needs a source BPM).")
+            .on_hover_text(
+                "Retime playback so the clip runs at the session tempo (needs a source BPM).",
+            )
             .changed()
         {
             let _ = tx.send(Command::SetCueParam(cue.id, CueParam::BpmSync(sync)));
@@ -788,7 +852,10 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
         if widgets::glyph_checkbox(ui, &mut on, "× mult").changed() {
             let _ = tx.send(Command::SetCueParam(
                 cue.id,
-                CueParam::SpeedMul(Toggle { on, val: cue.speed_mul.val }),
+                CueParam::SpeedMul(Toggle {
+                    on,
+                    val: cue.speed_mul.val,
+                }),
             ));
         }
         ui.add_enabled_ui(on, |ui| {
@@ -803,7 +870,10 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
                 )
                 .changed()
             {
-                let _ = tx.send(Command::SetCueParam(cue.id, CueParam::SpeedMul(Toggle { on, val: v })));
+                let _ = tx.send(Command::SetCueParam(
+                    cue.id,
+                    CueParam::SpeedMul(Toggle { on, val: v }),
+                ));
             }
         });
     });
@@ -816,5 +886,9 @@ fn speed_section(ui: &mut Ui, cue: &CueView, tx: &Sender<Command>) {
 
 /// A BPM `DragValue`, shared by the clip and cue tempo fields.
 fn bpm_drag(v: &mut f64) -> egui::DragValue<'_> {
-    egui::DragValue::new(v).speed(0.5).range(20.0..=400.0).suffix(" bpm").fixed_decimals(1)
+    egui::DragValue::new(v)
+        .speed(0.5)
+        .range(20.0..=400.0)
+        .suffix(" bpm")
+        .fixed_decimals(1)
 }

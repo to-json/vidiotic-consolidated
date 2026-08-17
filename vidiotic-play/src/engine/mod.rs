@@ -41,11 +41,11 @@ use std::collections::{HashMap, VecDeque};
 
 use web_time::Instant;
 
+use crate::analysis::AudioFrame;
 use crate::bank::{Bank, Cue, CueId};
 use crate::chain::{ChainSlot, ClipId};
 use crate::clippool::{Clip, ClipBank, ClipSource};
 use crate::clock::{BoundaryTracker, ClockSnapshot, ClockSource, InternalClock, TapTempo};
-use crate::analysis::AudioFrame;
 use crate::commands::{
     BankView, Cadence, ClipBankView, ClipEntry, ClipRole, Command, CueView, SyncKind, TimeSig,
     UiMirror, LOOP_TICKS_PER_BEAT,
@@ -241,8 +241,16 @@ impl Engine {
         // A loaded project seeds cue banks; otherwise start with one empty "A".
         let seeded = !boot.cue_banks.is_empty();
         let next_clip_id = boot.clips.iter().map(|c| c.id).max().map_or(0, |m| m + 1);
-        let cue_banks = if seeded { boot.cue_banks } else { vec![Bank::new("A")] };
-        let next_cue_id = cue_banks.iter().flat_map(Bank::ids).max().map_or(1, |m| m + 1);
+        let cue_banks = if seeded {
+            boot.cue_banks
+        } else {
+            vec![Bank::new("A")]
+        };
+        let next_cue_id = cue_banks
+            .iter()
+            .flat_map(Bank::ids)
+            .max()
+            .map_or(1, |m| m + 1);
         let mut engine = Self {
             clock: Box::new(InternalClock::new(boot.bpm, boot.time_sig.quantum())),
             sync: SyncKind::Internal,
@@ -320,7 +328,12 @@ impl Engine {
         let mut boundary_crossed = false;
         if let (Some(ticks), Some(cur)) = (loop_ticks, self.current) {
             let grid = f64::from(ticks) / f64::from(LOOP_TICKS_PER_BEAT);
-            if snap.is_playing && self.loop_tracker.crossed(snap.beat - loop_phase, grid).is_some() {
+            if snap.is_playing
+                && self
+                    .loop_tracker
+                    .crossed(snap.beat - loop_phase, grid)
+                    .is_some()
+            {
                 boundary_crossed = true;
                 if let Some(h) = self.decoders.get_mut(&cur) {
                     // No-op for cameras — a live feed has nothing to seek. The
@@ -358,7 +371,13 @@ impl Engine {
             .map(|cue| cue.chain.clone())
             .unwrap_or_default();
 
-        Tick { snap, boundary_crossed, frame, blank, chain }
+        Tick {
+            snap,
+            boundary_crossed,
+            frame,
+            blank,
+            chain,
+        }
     }
 
     /// Apply one command, or hand it back.
@@ -449,7 +468,12 @@ impl Engine {
             }
             Command::SetCuePreserve(id, v) => self.edit_cue(id, |c| c.preserve = v),
             Command::SetCueChain(id, chain) => self.edit_cue(id, |c| c.chain = chain),
-            Command::SetChainParam { cue, slot, name, value } => {
+            Command::SetChainParam {
+                cue,
+                slot,
+                name,
+                value,
+            } => {
                 self.edit_cue(cue, |c| {
                     if let Some(s) = c.chain.get_mut(slot) {
                         s.set_param(name, value);
@@ -520,7 +544,9 @@ impl Engine {
     /// `time_sig` and push the concrete lengths into the sequencer and the loop
     /// grid. Called after any edit to the cadences or the signature.
     pub fn apply_cadences(&mut self) {
-        let ev = self.sequencer.set_phrase_len(self.phrase_cadence.beats(self.time_sig));
+        let ev = self
+            .sequencer
+            .set_phrase_len(self.phrase_cadence.beats(self.time_sig));
         self.apply_seq_events(ev);
         self.set_loop_len(self.loop_cadence.map(|c| c.ticks(self.time_sig)));
     }
@@ -537,10 +563,13 @@ impl Engine {
     /// The capture-device uid behind a clip, if it's camera-sourced.
     #[must_use]
     pub fn clip_camera_uid(&self, id: ClipId) -> Option<std::sync::Arc<str>> {
-        self.clips.iter().find(|c| c.id == id).and_then(|c| match &c.source {
-            ClipSource::Camera { uid, .. } => Some(uid.clone()),
-            ClipSource::File(_) => None,
-        })
+        self.clips
+            .iter()
+            .find(|c| c.id == id)
+            .and_then(|c| match &c.source {
+                ClipSource::Camera { uid, .. } => Some(uid.clone()),
+                ClipSource::File(_) => None,
+            })
     }
 
     #[must_use]
@@ -629,7 +658,10 @@ impl Engine {
         out.clip_banks = self
             .clip_banks
             .iter()
-            .map(|b| ClipBankView { name: b.name.clone(), clip_count: b.clip_ids.len() })
+            .map(|b| ClipBankView {
+                name: b.name.clone(),
+                clip_count: b.clip_ids.len(),
+            })
             .collect();
         out.active_clip_bank = active;
         // `has_thumb`, `duration_sec` and `fps` are the shell's to fill: a
@@ -657,7 +689,10 @@ impl Engine {
         out.banks = self
             .banks
             .iter()
-            .map(|b| BankView { name: b.name.clone(), cue_count: b.cues.len() })
+            .map(|b| BankView {
+                name: b.name.clone(),
+                cue_count: b.cues.len(),
+            })
             .collect();
         out.live_bank = self.live_bank;
         out.edit_bank = self.edit_bank;
@@ -669,7 +704,10 @@ impl Engine {
         let clips = &self.clips;
         let clip_bpm = |id: ClipId| clips.iter().find(|c| c.id == id).and_then(|c| c.bpm);
         let clip_camera = |id: ClipId| {
-            clips.iter().find(|c| c.id == id).is_some_and(|c| c.camera_uid().is_some())
+            clips
+                .iter()
+                .find(|c| c.id == id)
+                .is_some_and(|c| c.camera_uid().is_some())
         };
         // Live tap delays for the editor's "effective" readout; cues without a
         // tap fall back to their resolved target. A camera source reports a
@@ -726,8 +764,11 @@ impl Engine {
         out.levels = audio.bands;
         // The 512-bin linear FFT row of the iChannel0 texture, already 0..1.
         out.spectrum_linear.clear();
-        out.spectrum_linear
-            .extend(audio.audio_tex[..crate::analysis::AUDIO_TEX_W].iter().map(|&b| b as f32 / 255.0));
+        out.spectrum_linear.extend(
+            audio.audio_tex[..crate::analysis::AUDIO_TEX_W]
+                .iter()
+                .map(|&b| b as f32 / 255.0),
+        );
         out.level = audio.level;
     }
 }
@@ -748,7 +789,11 @@ pub fn resolve_speed(advanced: bool, session_bpm: f64, cue: &Cue, clip_bpm: Opti
     } else {
         1.0
     };
-    let mul = if cue.speed_mul.on { cue.speed_mul.val } else { 1.0 };
+    let mul = if cue.speed_mul.on {
+        cue.speed_mul.val
+    } else {
+        1.0
+    };
     (sync * mul).clamp(0.05, 20.0)
 }
 
@@ -837,8 +882,16 @@ mod tests {
     #[test]
     fn step_index_clamps_and_enters_from_either_end() {
         assert_eq!(step_index(0, None, 1), None, "empty list has no cursor");
-        assert_eq!(step_index(3, None, 1), Some(0), "positive entry starts at the first");
-        assert_eq!(step_index(3, None, -1), Some(2), "negative entry starts at the last");
+        assert_eq!(
+            step_index(3, None, 1),
+            Some(0),
+            "positive entry starts at the first"
+        );
+        assert_eq!(
+            step_index(3, None, -1),
+            Some(2),
+            "negative entry starts at the last"
+        );
         assert_eq!(step_index(3, Some(1), 1), Some(2));
         assert_eq!(step_index(3, Some(2), 1), Some(2), "clamps at the end");
         assert_eq!(step_index(3, Some(0), -5), Some(0), "clamps at the start");
@@ -912,14 +965,28 @@ mod tests {
             self.beat.set(0.0);
         }
         fn caps(&self) -> crate::clock::ClockCaps {
-            crate::clock::ClockCaps { can_set_tempo: true, can_set_phase: true, peers: 0 }
+            crate::clock::ClockCaps {
+                can_set_tempo: true,
+                can_set_phase: true,
+                peers: 0,
+            }
         }
     }
 
     fn two_clips() -> Vec<Clip> {
         vec![
-            Clip { id: 0, source: ClipSource::File("a.mov".into()), name: "a".into(), bpm: None },
-            Clip { id: 1, source: ClipSource::File("b.mov".into()), name: "b".into(), bpm: None },
+            Clip {
+                id: 0,
+                source: ClipSource::File("a.mov".into()),
+                name: "a".into(),
+                bpm: None,
+            },
+            Clip {
+                id: 1,
+                source: ClipSource::File("b.mov".into()),
+                name: "b".into(),
+                bpm: None,
+            },
         ]
     }
 
@@ -931,7 +998,10 @@ mod tests {
     #[test]
     fn cues_rotate_over_a_phrase_boundary() {
         let beat = Rc::new(Cell::new(0.0));
-        let mut e = Engine::new(Boot { clips: two_clips(), ..Boot::default() });
+        let mut e = Engine::new(Boot {
+            clips: two_clips(),
+            ..Boot::default()
+        });
         e.clock = Box::new(FakeClock { beat: beat.clone() });
         e.add_cue(0);
         e.add_cue(1);
@@ -941,7 +1011,9 @@ mod tests {
         // ids and must turn regardless of whether any of them has pixels.
         let now = Instant::now();
         e.tick(now);
-        let first = e.current.expect("the sequencer starts playing as soon as the set is non-empty");
+        let first = e
+            .current
+            .expect("the sequencer starts playing as soon as the set is non-empty");
 
         // One phrase is 16 beats by default (4 bars of 4/4). Step past it in bar
         // increments rather than jumping, because arming happens a bar early and
@@ -966,14 +1038,21 @@ mod tests {
     #[test]
     fn the_pool_path_also_rotates() {
         let beat = Rc::new(Cell::new(0.0));
-        let mut e = Engine::new(Boot { clips: two_clips(), ..Boot::default() });
+        let mut e = Engine::new(Boot {
+            clips: two_clips(),
+            ..Boot::default()
+        });
         e.clock = Box::new(FakeClock { beat: beat.clone() });
         e.toggle_clip_active(0, 0.0);
         let now = Instant::now();
         e.tick(now);
         let first = e.current.expect("the first clip starts playing");
         e.toggle_clip_active(1, beat.get());
-        assert_eq!(e.sequencer.active_len(), 2, "the second clip joined the rotation");
+        assert_eq!(
+            e.sequencer.active_len(),
+            2,
+            "the second clip joined the rotation"
+        );
         for bar in 1..=6 {
             beat.set(f64::from(bar) * 4.0);
             e.tick(now);
@@ -985,7 +1064,10 @@ mod tests {
     #[test]
     fn a_lone_cue_keeps_playing() {
         let beat = Rc::new(Cell::new(0.0));
-        let mut e = Engine::new(Boot { clips: two_clips(), ..Boot::default() });
+        let mut e = Engine::new(Boot {
+            clips: two_clips(),
+            ..Boot::default()
+        });
         e.clock = Box::new(FakeClock { beat: beat.clone() });
         e.add_cue(0);
         let now = Instant::now();

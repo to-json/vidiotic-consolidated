@@ -141,7 +141,14 @@ impl Controls {
         // press edge, and only when a text field isn't eating keys — the caller
         // already gates that, and egui's TextEdit keeps its own inline undo.
         if !repeat && matches!(ev.value, EventValue::Pressed) {
-            if let ControlSource::Key { key, ctrl, alt, shift, cmd } = &ev.source {
+            if let ControlSource::Key {
+                key,
+                ctrl,
+                alt,
+                shift,
+                cmd,
+            } = &ev.source
+            {
                 let accel = (*ctrl || *cmd) && !*alt;
                 if accel && key == "z" {
                     return Some(if *shift { Command::Redo } else { Command::Undo });
@@ -245,7 +252,10 @@ impl Controls {
     /// Add a project-layer binding that masks a global-layer one: same
     /// source, `Action::Nothing`.
     pub fn mask_global_binding(&mut self, source: ControlSource) {
-        self.project.bindings.push(Binding { source, action: Action::Nothing });
+        self.project.bindings.push(Binding {
+            source,
+            action: Action::Nothing,
+        });
     }
 
     /// Append a placeholder binding to prep's own map and start learning it.
@@ -266,7 +276,10 @@ impl Controls {
 
     /// Add an override that suppresses a built-in default outright.
     pub fn mask_prep_default(&mut self, source: ControlSource) {
-        self.mapper.over.bindings.push(Binding { source, action: Action::Nothing });
+        self.mapper.over.bindings.push(Binding {
+            source,
+            action: Action::Nothing,
+        });
         self.dirty = true;
     }
 
@@ -323,7 +336,11 @@ mod tests {
         c.start_learn(LearnTarget::PrepMap(2));
 
         c.remove_prep_binding(0);
-        assert_eq!(c.learn, Some(LearnTarget::PrepMap(1)), "the session must follow its row");
+        assert_eq!(
+            c.learn,
+            Some(LearnTarget::PrepMap(1)),
+            "the session must follow its row"
+        );
 
         c.remove_prep_binding(1);
         assert_eq!(c.learn, None, "removing the learned row ends the session");
@@ -349,7 +366,10 @@ mod tests {
     fn prep_bindings_stay_out_of_the_project_map() {
         let mut c = Controls::default();
         c.add_prep_binding();
-        assert!(c.project.bindings.is_empty(), "prep's keys must not enter the player's map");
+        assert!(
+            c.project.bindings.is_empty(),
+            "prep's keys must not enter the player's map"
+        );
         assert_eq!(c.mapper.over.bindings.len(), 1);
     }
 
@@ -359,7 +379,10 @@ mod tests {
         c.add_prep_binding();
         c.reset_prep_map();
         assert!(c.mapper.over.bindings.is_empty());
-        assert!(c.learn.is_none(), "reset must end any session pointing into the cleared map");
+        assert!(
+            c.learn.is_none(),
+            "reset must end any session pointing into the cleared map"
+        );
         // The base layer is the shared table, and is untouched.
         assert!(!c.mapper.base.bindings.is_empty());
     }

@@ -85,7 +85,10 @@ pub fn canon(raw: &str) -> String {
     NAMED_TO_CHARACTER
         .iter()
         .find(|(named, _)| *named == raw)
-        .map_or_else(|| lower_single(raw), |(_, character)| (*character).to_string())
+        .map_or_else(
+            || lower_single(raw),
+            |(_, character)| (*character).to_string(),
+        )
 }
 
 /// Lowercase a single character; leave any longer name alone.
@@ -184,14 +187,33 @@ mod tests {
     fn table_names_and_characters_never_overlap() {
         for (named, character) in NAMED_TO_CHARACTER {
             assert!(named.chars().count() > 1, "{named} must be multi-character");
-            assert_eq!(character.chars().count(), 1, "{character:?} must be one character");
-            assert_eq!(from_character(named), *named, "from_character must not map {named}");
+            assert_eq!(
+                character.chars().count(),
+                1,
+                "{character:?} must be one character"
+            );
+            assert_eq!(
+                from_character(named),
+                *named,
+                "from_character must not map {named}"
+            );
         }
     }
 
     #[test]
     fn canon_is_idempotent() {
-        for raw in ["T", "t", "Space", "ArrowLeft", "F1", " q ", "OpenBracket", "[", "Num1", "1"] {
+        for raw in [
+            "T",
+            "t",
+            "Space",
+            "ArrowLeft",
+            "F1",
+            " q ",
+            "OpenBracket",
+            "[",
+            "Num1",
+            "1",
+        ] {
             let once = canon(raw);
             let twice = canon(&once);
             assert_eq!(once, twice, "canon not idempotent for {raw:?}");
