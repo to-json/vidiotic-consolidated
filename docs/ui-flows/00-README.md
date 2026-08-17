@@ -32,8 +32,10 @@ Two axes of workflow, which the individual docs don't fully connect:
   - **The `.viproj` project + IPC** — `vidiotic-prep` exports HAP clips into a
     `.viproj`, and (if the running engine launched it) can hand that project
     straight back over the `vidiotic-wire` Unix socket. The socket is the same
-    "anything the UI can do, a script can do" surface documented in
-    `../ipc.md`.
+    "anything the UI can do, a script can do" surface. It is documented where it
+    is defined — `vidiotic-wire`'s crate and `envelope.rs` module docs for the
+    protocol, `vidiotic/src/ipc.rs` for the server — rather than in a
+    `docs/ipc.md`, which was referenced for a while and never written.
 
 For the *lived-use* read — where these flows are annoying or surprising to
 actually operate, as opposed to whether they're internally coherent — see

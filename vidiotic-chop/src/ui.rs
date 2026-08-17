@@ -266,7 +266,7 @@ fn transport_controls(ed: &mut Editor, ui: &mut egui::Ui) {
 
     // Transport keys are resolved in `Controls::observe`, through the same
     // `vidiotic-ctl` mapper as MIDI and gamepads — see
-    // `crate::control_input::default_map` for the built-in bindings.
+    // `crate::keymap::default_map` for the built-in bindings.
 
     ui.horizontal(|ui| {
         ui.label(format!("t = {:.3}s", ed.cur_frame as f64 / fps));

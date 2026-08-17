@@ -8,7 +8,7 @@
 // file existed. The site's own convention says the same thing ("No inline
 // scripts — CSP forbids them. Always use external .js files").
 //
-// It is copied *into the hashed bundle directory* by scripts/release-play.sh,
+// It is copied *into the hashed bundle directory* by scripts/release-web.sh,
 // alongside the wasm and wasm-bindgen's glue, and the directory hash is taken
 // over all three. That placement does two things:
 //

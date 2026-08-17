@@ -497,14 +497,18 @@ void main() {
   // and reading the state back is what shows the engine crossed to the browser
   // rather than merely linking.
 
-  // §9a's face has to be the one actually painting, not merely requested:
+  // The face has to be the one actually painting, not merely requested: a
   // `set_state` only takes effect when `theme::sync` next runs, so reading it
   // back after frames have gone by is what distinguishes the two.
+  //
+  // Classic, on its 18-point cell. §9a's lo-res Grid face was the boot face for
+  // a while and this asserted it; /play boots on Classic like every other
+  // surface now, and the toggle is what reaches Grid.
   const face = await state();
-  if (face.face === 'Grid' && face.cell === 16) {
-    ok(`the lo-res face is live: ${face.face}, ${face.cell}-point cell`);
+  if (face.face === 'Classic' && face.cell === 18) {
+    ok(`the boot face is live: ${face.face}, ${face.cell}-point cell`);
   } else {
-    bad(`expected the Grid face on a 16-point cell, got ${face.face} / ${face.cell}`);
+    bad(`expected the Classic face on an 18-point cell, got ${face.face} / ${face.cell}`);
   }
 
   const b0 = await state();

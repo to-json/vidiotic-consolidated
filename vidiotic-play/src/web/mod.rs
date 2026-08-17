@@ -772,22 +772,6 @@ impl Shell {
         Ok(())
     }
 
-    /// Compile an ISF shader the page read for us, and hang it on the selected
-    /// cue.
-    ///
-    /// Nothing here is browser-specific except where the text came from:
-    /// `isf::transpile` is in `vidiotic-core` and `Renderer::load_isf` is in
-    /// this crate, so the browser compiles the identical shader the native
-    /// player does. Only the `std::fs::read_to_string` was ever native, which
-    /// is why this is a dozen lines and not a port.
-    ///
-    /// Two honest differences from `App::load_isf`. `IMPORTED` images do not
-    /// resolve — there is no directory to resolve them against — and
-    /// `Renderer::load_isf` binds those black and loads anyway, so a shader
-    /// that uses one renders without it rather than refusing. And with no cue
-    /// selected this still compiles into the pool instead of declining: the
-    /// pool is a list the chain editor can assign from later, so loading is
-    /// useful before there is anywhere to put it.
     /// The running session as a `Project`.
     ///
     /// The mirror image of [`Shell::load_project`], and it goes through the
@@ -1084,6 +1068,22 @@ impl Shell {
         ))
     }
 
+    /// Compile an ISF shader the page read for us, and hang it on the selected
+    /// cue.
+    ///
+    /// Nothing here is browser-specific except where the text came from:
+    /// `isf::transpile` is in `vidiotic-core` and `Renderer::load_isf` is in
+    /// this crate, so the browser compiles the identical shader the native
+    /// player does. Only the `std::fs::read_to_string` was ever native, which
+    /// is why this is a dozen lines and not a port.
+    ///
+    /// Two honest differences from `App::load_isf`. `IMPORTED` images do not
+    /// resolve — there is no directory to resolve them against — and
+    /// `Renderer::load_isf` binds those black and loads anyway, so a shader
+    /// that uses one renders without it rather than refusing. And with no cue
+    /// selected this still compiles into the pool instead of declining: the
+    /// pool is a list the chain editor can assign from later, so loading is
+    /// useful before there is anywhere to put it.
     fn load_isf_source(&mut self, name: &str, src: &str) -> Result<(), String> {
         let name: std::sync::Arc<str> = name.into();
         self.renderer
@@ -1168,18 +1168,19 @@ pub async fn boot(
 
     let renderer = Renderer::new(&gfx.device, gfx.output.config.format);
     let egui_ctx = egui::Context::default();
+    // The Classic face, like every other surface in the tree — `apply` installs
+    // it, because it is `Face::default()`.
+    //
+    // §9a argued the other way: `/play`'s panel is the P0 skeleton, deliberately
+    // ad-hoc, so it is *designed* to the lo-res 16-point cell rather than
+    // retrofitted onto one, and this booted on `Face::Grid` for a while. Classic
+    // is the decision that stands. The theme toggle still switches it per
+    // session; what changed is only which one a fresh tab starts on.
+    //
+    // There is no `set_state` here on purpose: one used to sit here setting the
+    // face to `Classic` explicitly, which is exactly `ThemeState::default()`, so
+    // it did nothing at all and read as though it did something.
     phosphor::theme::apply(&egui_ctx);
-    // §9a's lo-res face, and `/play` is the one surface entitled to it: its
-    // panel is the P0 skeleton, deliberately ad-hoc, so it is *designed* to a
-    // 16-point cell rather than retrofitted onto one. `vidiotic` and
-    // Set the theme face to Classic (12pt font) by default on web.
-    phosphor::theme::set_state(
-        &egui_ctx,
-        phosphor::theme::ThemeState {
-            face: phosphor::theme::Face::Classic,
-            ..phosphor::theme::ThemeState::default()
-        },
-    );
     egui_ctx.set_pixels_per_point(dpr);
     let egui_rend = egui_wgpu::Renderer::new(
         &gfx.device,
@@ -1414,15 +1415,6 @@ pub fn load_clip(name: &str, bytes: Vec<u8>) -> Result<(), JsValue> {
     })
 }
 
-/// Compile an ISF shader, read by the page as text, into the shader pool.
-///
-/// The answer to a `vidiotic-pick` of kind `isf`. `name` is what the visitor
-/// called the file and is the key the chain slot holds, so a project saved
-/// elsewhere names the same shader the native player would.
-///
-/// # Errors
-/// Returns a JS error if the shell has not booted, the source carries no ISF
-/// header, or the transpiled shader fails to compile.
 /// Load a `.viproj`'s text, resolving its clips against the loaded pool.
 ///
 /// # Errors
@@ -1582,6 +1574,15 @@ pub fn save_project() -> Result<(), JsValue> {
     })
 }
 
+/// Compile an ISF shader, read by the page as text, into the shader pool.
+///
+/// The answer to a `vidiotic-pick` of kind `isf`. `name` is what the visitor
+/// called the file and is the key the chain slot holds, so a project saved
+/// elsewhere names the same shader the native player would.
+///
+/// # Errors
+/// Returns a JS error if the shell has not booted, the source carries no ISF
+/// header, or the transpiled shader fails to compile.
 #[wasm_bindgen]
 pub fn load_isf_source(name: &str, src: &str) -> Result<(), JsValue> {
     with_shell(|s| {

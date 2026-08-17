@@ -29,8 +29,10 @@
 #               (default: ../webb/_site, then a generated stub).
 #   --clips     the smoke test's video fixtures (default: ./clips, then the
 #               directory beside --dist). Only staging serves these.
-#   --port      host port for http (default 8080). https is --port + 363,
-#               mirroring the 8180/8543 offset the Vagrantfile uses.
+#   --port      host port for http (default 8080). https is --port + 463, so
+#               the default pair is 8080/8543 — 8543 being the port the
+#               Vagrantfile forwards. (serve-play.sh uses +363 from the same
+#               default, landing on 8443; the two rigs are not the same host.)
 #
 # ── Where the build happens ───────────────────────────────────────────────────
 #

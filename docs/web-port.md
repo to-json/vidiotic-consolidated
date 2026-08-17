@@ -2607,8 +2607,9 @@ scriptable control are the same build, not two.
   vocabulary will need. That is the decision to revisit when `ui/*` is ported:
   extend the input bridge, or bring winit back for the control head only.
 - **The scriptable-control story survives, via §10.** Cutting `ipc.rs` initially
-  looked like giving up the `docs/ipc.md` surface — "anything the UI can do, a
-  script can do". Dual-head brings it back for free: two windows need a transport,
+  looked like giving up the scriptable-control surface — "anything the UI can do,
+  a script can do", documented in `vidiotic-wire`'s module docs and
+  `vidiotic/src/ipc.rs`. Dual-head brings it back for free: two windows need a transport,
   and `vidiotic-wire` over `BroadcastChannel` is that transport. Cheap to keep in
   scope; do not let it drift out.
 - **HAP's justification changed under §3a, and that is load-bearing.** At the

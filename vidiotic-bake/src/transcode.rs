@@ -172,9 +172,6 @@ pub struct TranscodeReport {
 ///
 /// # Errors
 /// Propagates ffmpeg initialization, demux/decode, and mux/write failures.
-///
-/// # Panics
-/// Panics if the output stream just added to the muxer cannot be read back.
 pub fn run(input: &Path, output: &Path) -> anyhow::Result<()> {
     run_span(input, output, 0.0, None).map(|_| ())
 }
@@ -216,9 +213,6 @@ pub struct BakeUpdate {
 ///
 /// # Errors
 /// Propagates ffmpeg initialization, seek, demux/decode, and mux/write failures.
-///
-/// # Panics
-/// Panics if the output stream just added to the muxer cannot be read back.
 pub fn run_span_with(
     input: &Path,
     output: &Path,
