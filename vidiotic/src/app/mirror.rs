@@ -61,7 +61,7 @@ impl App {
     /// same active/role marking as clip tiles (via the device's pool clip).
     ///
     /// The row builder is `Engine::camera_rows`, shared with the browser shell;
-    /// what differs here is the status source — an AVFoundation capture service
+    /// what differs here is the status source — an `AVFoundation` capture service
     /// rather than a `MediaStream` tap.
     fn build_camera_rows(&mut self) {
         let devices = camera_device_pairs(&self.camera_devices);

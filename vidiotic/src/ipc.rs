@@ -638,7 +638,7 @@ fn w_chain(slot: &ChainSlot) -> WireChainSlot {
             .iter()
             .map(|(name, value)| WireParam {
                 name: name.to_string(),
-                value: value.clone(),
+                value: *value,
             })
             .collect(),
     }

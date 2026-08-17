@@ -6,7 +6,7 @@
 //! used to duplicate (`vidiotic::app::mirror::build_camera_rows` and
 //! `vidiotic-play::web::build_camera_rows`). The machine part — whether a
 //! device is actually on air and what its status text is — differs per shell
-//! (an AVFoundation capture service vs. a `MediaStream` tap), so it arrives as
+//! (an `AVFoundation` capture service vs. a `MediaStream` tap), so it arrives as
 //! a closure rather than living here.
 //!
 //! [`Engine::add_camera_cue`] and [`Engine::relink_camera`] are the same split
@@ -116,8 +116,11 @@ impl Engine {
     /// Point every clip referencing the missing device `from` at the connected
     /// device `to`, and drop those cues' taps so they re-open against the new
     /// device's service on the next tick rather than holding one for a uid
-    /// nothing points at any more. `Err` carries a message for the shell to
-    /// surface when `to` is not in its last enumeration.
+    /// nothing points at any more.
+    ///
+    /// # Errors
+    /// A message for the shell to surface when `to` is not in its last
+    /// enumeration.
     pub fn relink_camera(
         &mut self,
         devices: &[(&str, &str)],

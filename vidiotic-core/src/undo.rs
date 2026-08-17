@@ -40,7 +40,7 @@ impl CoalesceClock for f64 {
 
 impl CoalesceClock for web_time::Instant {
     fn elapsed_secs(&self, earlier: &Self) -> f64 {
-        self.duration_since(earlier.clone()).as_secs_f64()
+        self.duration_since(*earlier).as_secs_f64()
     }
 }
 
