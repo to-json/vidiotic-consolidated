@@ -58,7 +58,14 @@ pub fn spawn_export(
     quality: BakeQuality,
     tx: Sender<ExportMsg>,
 ) {
-    std::thread::Builder::new()
+    // Kept behind for the spawn-failure path: on `Err` the closure — and the
+    // `tx` it moved — is dropped, so the UI would only ever see a bare
+    // disconnect. `poll_export` handles that too, but a real message says what
+    // actually happened. Swallowing the failure here used to wedge the app:
+    // nothing cleared `export_rx`, so `exporting()` stayed true and quit was
+    // vetoed with "export in progress" for the rest of the run.
+    let fail_tx = tx.clone();
+    if let Err(e) = std::thread::Builder::new()
         .name("export".into())
         .spawn(move || {
             if let Err(e) = run(
@@ -75,7 +82,9 @@ pub fn spawn_export(
                 let _ = tx.send(ExportMsg::Error(format!("{e:#}")));
             }
         })
-        .ok();
+    {
+        let _ = fail_tx.send(ExportMsg::Error(format!("could not start export worker: {e}")));
+    }
 }
 
 /// Probe a source's own average frame rate, just enough to convert its

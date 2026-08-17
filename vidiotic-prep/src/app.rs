@@ -470,10 +470,10 @@ impl PrepApp {
         let mut finished = false;
         // Deferred past the loop: `rx` borrows self for the drain.
         let mut hand_back = None;
-        while let Ok(msg) = rx.try_recv() {
-            match msg {
-                ExportMsg::Progress(p) => self.export_progress = Some(p),
-                ExportMsg::Done(path) => {
+        loop {
+            match rx.try_recv() {
+                Ok(ExportMsg::Progress(p)) => self.export_progress = Some(p),
+                Ok(ExportMsg::Done(path)) => {
                     self.export_result = Some(Ok(path.clone()));
                     self.last_export_fingerprint = Some(format!("{:?}", self.editor.spans.spans));
                     finished = true;
@@ -481,9 +481,24 @@ impl PrepApp {
                         hand_back = Some(path);
                     }
                 }
-                ExportMsg::Error(e) => {
+                Ok(ExportMsg::Error(e)) => {
                     self.export_result = Some(Err(e));
                     finished = true;
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => break,
+                // Sender gone. Either the worker already said its piece (in
+                // which case `export_result` is set and this is just the drain
+                // finding the tail) or it died without one — a panic, or a
+                // thread that never started. Treating a disconnect as "keep
+                // waiting" is what wedged the app: `export_rx` never cleared,
+                // `exporting()` stayed true, and quit was vetoed forever.
+                // `poll_engine` below already handles it this way.
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    if self.export_result.is_none() {
+                        self.export_result = Some(Err("export worker died".to_string()));
+                    }
+                    finished = true;
+                    break;
                 }
             }
         }
