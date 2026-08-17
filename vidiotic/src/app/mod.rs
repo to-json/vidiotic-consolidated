@@ -362,6 +362,75 @@ impl App {
         }
     }
 
+    /// The GPU half of a tick: upload the current frame, point the renderer at
+    /// the playing cue's chain, and refresh the uniforms.
+    ///
+    /// Split out of [`Self::update`] because it is the one part of that function
+    /// with a single subject — the three steps only ever run together, share the
+    /// `graphics`/`renderer` pair, and share one reason for being skipped.
+    ///
+    /// That reason: **occlusion**. When the output window is occluded (screen
+    /// locked or asleep, covered, minimized) nothing will ever present these
+    /// writes, and `write_texture`/`write_buffer` leak GPU-side staging memory
+    /// until a frame is submitted to reclaim it. On a Poll loop that is every
+    /// tick, forever.
+    fn render_tick(
+        &mut self,
+        tick: vidiotic_play::engine::Tick,
+        snap: &crate::clock::ClockSnapshot,
+        audio: &AudioFrame,
+    ) {
+        // 6b runs even while occluded: it is pure CPU state on the renderer, and
+        // skipping it would leave the wrong chain selected when the window comes
+        // back.
+        if let Some(r) = self.renderer.as_mut() {
+            r.set_active_chain(tick.chain);
+        }
+        if self.output_occluded {
+            return;
+        }
+        let (Some(g), Some(r)) = (self.graphics.as_ref(), self.renderer.as_mut()) else {
+            return;
+        };
+
+        // 6. Upload. A source-less cue (camera off-air, failed spawn) blanks the
+        // output once rather than leaving the previous cue's frame up.
+        if tick.blank {
+            let black = DecodedFrame {
+                pixels: PixelData::Rgba {
+                    data: vec![0; 16],
+                    stride: 8,
+                },
+                w: 2,
+                h: 2,
+                pts_sec: 0.0,
+            };
+            r.upload_frame(&g.device, &g.queue, &black);
+        }
+        if let Some(frame) = &tick.frame {
+            r.upload_frame(&g.device, &g.queue, frame);
+        }
+
+        // 7. Uniforms: the globals buffer and the audio texture.
+        let phrase = self.engine.sequencer.phrase_len();
+        let mut globals = Globals {
+            resolution: [g.output.config.width as f32, g.output.config.height as f32],
+            mouse: [0.0, 0.0],
+            time: self.start.elapsed().as_secs_f32(),
+            lvl: audio.level,
+            beat: snap.beat.rem_euclid(16384.0) as f32,
+            bar_phase: (snap.phase / snap.quantum) as f32,
+            phrase_phase: (snap.beat.rem_euclid(phrase) / phrase) as f32,
+            bpm: snap.bpm as f32,
+            video_mode: self.engine.video_mode,
+            _pad0: 0.0,
+            freqs: [[0.0; 4]; 6],
+        };
+        globals.set_bands(&audio.bands);
+        r.update_globals(&g.queue, &globals);
+        r.upload_audio(&g.queue, &audio.audio_tex);
+    }
+
     fn update(&mut self, event_loop: &ActiveEventLoop) {
         // 0. MIDI/gamepad input. The grammar claims token presses first;
         // everything else resolves through the mapper. Either way the
@@ -433,64 +502,10 @@ impl App {
         // each effective delay toward its target (slew, or snap on the grid).
         self.resolve_camera_delays(tick.boundary_crossed);
 
-        // 6. Upload. Skipped while occluded — nothing will ever present this
-        // texture, and the write_texture call leaks GPU-side staging memory when
-        // no frame is ever submitted to reclaim it.
-        //
-        // A source-less cue (camera off-air, failed spawn) blanks the output
-        // once rather than leaving the previous cue's frame up.
-        if !self.output_occluded {
-            if let (Some(g), Some(r)) = (self.graphics.as_ref(), self.renderer.as_mut()) {
-                if tick.blank {
-                    let black = DecodedFrame {
-                        pixels: PixelData::Rgba {
-                            data: vec![0; 16],
-                            stride: 8,
-                        },
-                        w: 2,
-                        h: 2,
-                        pts_sec: 0.0,
-                    };
-                    r.upload_frame(&g.device, &g.queue, &black);
-                }
-                if let Some(frame) = &tick.frame {
-                    r.upload_frame(&g.device, &g.queue, frame);
-                }
-            }
-        }
-
-        // 6b. Point the renderer at the playing cue's effect chain, or an empty
-        // chain (the live shader) when the cue has none.
-        if let Some(r) = self.renderer.as_mut() {
-            r.set_active_chain(tick.chain);
-        }
-
-        // 7. Uniforms. Skipped while occluded: these are two GPU queue writes
-        // (globals buffer + audio texture) that would otherwise fire on every
-        // Poll-loop tick with no frame ever submitted to reclaim them, leaking
-        // GPU-side staging memory.
+        // 6/6b/7. Everything GPU about this tick, in one place — see
+        // [`Self::render_tick`].
         let audio: AudioFrame = *self.audio_out.read();
-        if !self.output_occluded {
-            if let (Some(g), Some(r)) = (self.graphics.as_ref(), self.renderer.as_ref()) {
-                let phrase = self.engine.sequencer.phrase_len();
-                let mut globals = Globals {
-                    resolution: [g.output.config.width as f32, g.output.config.height as f32],
-                    mouse: [0.0, 0.0],
-                    time: self.start.elapsed().as_secs_f32(),
-                    lvl: audio.level,
-                    beat: snap.beat.rem_euclid(16384.0) as f32,
-                    bar_phase: (snap.phase / snap.quantum) as f32,
-                    phrase_phase: (snap.beat.rem_euclid(phrase) / phrase) as f32,
-                    bpm: snap.bpm as f32,
-                    video_mode: self.engine.video_mode,
-                    _pad0: 0.0,
-                    freqs: [[0.0; 4]; 6],
-                };
-                globals.set_bands(&audio.bands);
-                r.update_globals(&g.queue, &globals);
-                r.upload_audio(&g.queue, &audio.audio_tex);
-            }
-        }
+        self.render_tick(tick, &snap, &audio);
 
         // 8. Publish the mirror for the control window.
         self.build_mirror(&snap, &audio);

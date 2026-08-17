@@ -64,16 +64,13 @@ pub fn spawn(
     let (frame_tx, frames) = bounded::<DecodedFrame>(3);
     let (close_tx, close_rx) = bounded::<()>(1);
     let (restart_tx, restart_rx) = bounded::<()>(1);
+    let trim = Trim {
+        in_sec,
+        out_sec,
+        speed,
+    };
     let join = std::thread::spawn(move || {
-        if let Err(e) = run(
-            &path,
-            &frame_tx,
-            &close_rx,
-            &restart_rx,
-            in_sec,
-            out_sec,
-            speed,
-        ) {
+        if let Err(e) = run(&path, &frame_tx, &close_rx, &restart_rx, trim) {
             log::error!("decode worker for {}: {e:#}", path.display());
         }
     });
@@ -139,15 +136,93 @@ fn seek_secs(ictx: &mut ff::format::context::Input, secs: f64) -> anyhow::Result
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+/// What to play: the cue's trim and its playback rate. Travels together because
+/// every layer below takes all three or none of them.
+#[derive(Clone, Copy)]
+struct Trim {
+    in_sec: f64,
+    out_sec: Option<f64>,
+    speed: f64,
+}
+
+/// Everything a playthrough needs that does not change between playthroughs.
+///
+/// The two decode paths — HAP passthrough and software-decode-to-RGBA — differ
+/// only in what they do with a packet. Restart handling, the in/out trim
+/// comparisons, the timebase conversion and the send-or-stop dance are the same
+/// in both, and were written out twice (three times for the trim comparisons,
+/// which `run_software` repeats again in its EOF drain). This is the shared half,
+/// and it is also what took both functions past the argument count clippy
+/// complains about — they carried eleven and ten parameters, nine of them
+/// identical.
+struct LoopCtx<'a> {
+    tx: &'a Sender<DecodedFrame>,
+    close_rx: &'a Receiver<()>,
+    restart_rx: &'a Receiver<()>,
+    /// Index of the video stream in the container; packets from any other
+    /// stream are skipped.
+    vid_idx: usize,
+    /// Stream timebase, as seconds per tick.
+    tb: f64,
+    trim: Trim,
+}
+
+impl LoopCtx<'_> {
+    /// A container timestamp in seconds.
+    fn secs(&self, ts: Option<i64>) -> f64 {
+        ts.unwrap_or(0) as f64 * self.tb
+    }
+
+    /// Past the cue's out-point, so this playthrough is over.
+    fn past_out(&self, pts: f64) -> bool {
+        self.trim.out_sec.is_some_and(|o| pts >= o)
+    }
+
+    /// Before the in-point — a keyframe the seek landed on, to be dropped. The
+    /// epsilon absorbs the timebase rounding in `secs`.
+    fn before_in(&self, pts: f64) -> bool {
+        pts + 1e-6 < self.trim.in_sec
+    }
+
+    /// Position at the cue's in-point for a fresh playthrough (also the target
+    /// of an EOF loop, an out-point loop, or a musical re-loop restart), and
+    /// return the wall clock the pacing is relative to.
+    ///
+    /// Priming the restart signal is the subtle part: a request that arrived
+    /// during the seek would otherwise re-fire immediately and never play a frame.
+    fn begin(&self, ictx: &mut ff::format::context::Input) -> Instant {
+        let _ = seek_secs(ictx, self.trim.in_sec);
+        take_restart(self.restart_rx);
+        Instant::now()
+    }
+
+    fn should_stop(&self) -> bool {
+        should_stop(self.close_rx)
+    }
+
+    fn take_restart(&self) -> bool {
+        take_restart(self.restart_rx)
+    }
+
+    /// Sleep until this frame is due, then send it. True if the worker should exit.
+    fn pace_and_send(
+        &self,
+        base: Instant,
+        first_pts: &mut Option<f64>,
+        pts: f64,
+        frame: DecodedFrame,
+    ) -> bool {
+        pace(base, first_pts, pts, self.trim.speed);
+        send_or_stop(self.tx, self.close_rx, frame)
+    }
+}
+
 fn run(
     path: &Path,
     tx: &Sender<DecodedFrame>,
     close_rx: &Receiver<()>,
     restart_rx: &Receiver<()>,
-    in_sec: f64,
-    out_sec: Option<f64>,
-    speed: f64,
+    trim: Trim,
 ) -> anyhow::Result<()> {
     let mut ictx = ff::format::input(path)?;
 
@@ -170,7 +245,14 @@ fn run(
             (*p).height as u32,
         )
     };
-    let tb = time_base.numerator() as f64 / time_base.denominator() as f64;
+    let ctx = LoopCtx {
+        tx,
+        close_rx,
+        restart_rx,
+        vid_idx,
+        tb: time_base.numerator() as f64 / time_base.denominator() as f64,
+        trim,
+    };
 
     if is_hap {
         let texture_count = if &fourcc == b"HapM" { 2 } else { 1 };
@@ -179,29 +261,14 @@ fn run(
             path.display(),
             std::str::from_utf8(&fourcc).unwrap_or("?")
         );
-        run_hap(
-            &mut ictx,
-            tx,
-            close_rx,
-            restart_rx,
-            vid_idx,
-            tb,
-            width,
-            height,
-            texture_count,
-            in_sec,
-            out_sec,
-            speed,
-        )
+        run_hap(&mut ictx, &ctx, width, height, texture_count)
     } else {
         log::info!(
             "clip {}: software decode {width}x{height} ({:?})",
             path.display(),
             params.id()
         );
-        run_software(
-            &mut ictx, tx, close_rx, restart_rx, vid_idx, params, tb, in_sec, out_sec, speed,
-        )
+        run_software(&mut ictx, &ctx, params)
     }
 }
 
@@ -280,48 +347,34 @@ pub fn decode_still(path: &Path) -> anyhow::Result<DecodedFrame> {
     anyhow::bail!("no frame decoded from {}", path.display())
 }
 
-#[allow(clippy::too_many_arguments)]
+/// HAP: the packet *is* the texture, so this path never decodes — it parses the
+/// container's chunk tables and hands the compressed blocks to the uploader.
 fn run_hap(
     ictx: &mut ff::format::context::Input,
-    tx: &Sender<DecodedFrame>,
-    close_rx: &Receiver<()>,
-    restart_rx: &Receiver<()>,
-    vid_idx: usize,
-    tb: f64,
+    ctx: &LoopCtx<'_>,
     width: u32,
     height: u32,
     texture_count: u8,
-    in_sec: f64,
-    out_sec: Option<f64>,
-    speed: f64,
 ) -> anyhow::Result<()> {
     loop {
-        // Position at the cue's in-point for this playthrough (also the target
-        // of an EOF loop, out-point loop, or musical re-loop restart).
-        let _ = seek_secs(ictx, in_sec);
-        let base = Instant::now();
+        let base = ctx.begin(ictx);
         let mut first_pts = None;
         let mut sent_any = false;
-        // Prime the restart signal so a request that arrived during the seek
-        // doesn't immediately re-fire.
-        take_restart(restart_rx);
         for (stream, packet) in ictx.packets() {
-            if should_stop(close_rx) {
+            if ctx.should_stop() {
                 return Ok(());
             }
-            if take_restart(restart_rx) {
+            if ctx.take_restart() {
                 break; // musical re-loop: reseek at the top of the loop
             }
-            if stream.index() != vid_idx {
+            if stream.index() != ctx.vid_idx {
                 continue;
             }
-            let pts = packet.pts().unwrap_or(0) as f64 * tb;
-            // Loop back once we reach the out-point.
-            if out_sec.is_some_and(|o| pts >= o) {
+            let pts = ctx.secs(packet.pts());
+            if ctx.past_out(pts) {
                 break;
             }
-            // Skip anything the seek landed before the in-point.
-            if pts + 1e-6 < in_sec {
+            if ctx.before_in(pts) {
                 continue;
             }
             let Some(bytes) = packet.data() else { continue };
@@ -335,7 +388,6 @@ fn run_hap(
                     continue;
                 }
             };
-            pace(base, &mut first_pts, pts, speed);
 
             let frame = DecodedFrame {
                 pixels: PixelData::Bc {
@@ -349,7 +401,7 @@ fn run_hap(
                 pts_sec: pts,
             };
             sent_any = true;
-            if send_or_stop(tx, close_rx, frame) {
+            if ctx.pace_and_send(base, &mut first_pts, pts, frame) {
                 return Ok(());
             }
         }
@@ -357,18 +409,11 @@ fn run_hap(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Everything that is not HAP: ffmpeg decodes, swscale converts to RGBA.
 fn run_software(
     ictx: &mut ff::format::context::Input,
-    tx: &Sender<DecodedFrame>,
-    close_rx: &Receiver<()>,
-    restart_rx: &Receiver<()>,
-    vid_idx: usize,
+    ctx: &LoopCtx<'_>,
     params: ff::codec::Parameters,
-    tb: f64,
-    in_sec: f64,
-    out_sec: Option<f64>,
-    speed: f64,
 ) -> anyhow::Result<()> {
     use ff::format::Pixel;
     use ff::software::scaling;
@@ -391,12 +436,8 @@ fn run_software(
                      scaler: &mut scaling::Context,
                      base: Instant,
                      first_pts: &mut Option<f64>,
-                     pts: f64,
-                     pace_it: bool|
+                     pts: f64|
      -> anyhow::Result<bool> {
-        if pace_it {
-            pace(base, first_pts, pts, speed);
-        }
         let mut rgba = ff::frame::Video::empty();
         scaler.run(decoded, &mut rgba)?;
         let stride = rgba.stride(0) as u32;
@@ -409,30 +450,29 @@ fn run_software(
             h,
             pts_sec: pts,
         };
-        Ok(send_or_stop(tx, close_rx, frame))
+        Ok(ctx.pace_and_send(base, first_pts, pts, frame))
     };
 
     loop {
-        // Seek+flush to the in-point for this playthrough.
-        let _ = seek_secs(ictx, in_sec);
+        let base = ctx.begin(ictx);
+        // The one thing HAP's playthrough does not need: buffered frames from
+        // the previous pass would otherwise arrive before the seek's.
         decoder.flush();
-        let base = Instant::now();
         let mut first_pts = None;
         let mut decoded = ff::frame::Video::empty();
         let mut restarted = false;
         let mut hit_out = false;
         let mut sent_any = false;
-        take_restart(restart_rx);
 
         for (stream, packet) in ictx.packets() {
-            if should_stop(close_rx) {
+            if ctx.should_stop() {
                 return Ok(());
             }
-            if take_restart(restart_rx) {
+            if ctx.take_restart() {
                 restarted = true;
                 break; // musical re-loop: reseek at the top of the loop
             }
-            if stream.index() != vid_idx {
+            if stream.index() != ctx.vid_idx {
                 continue;
             }
             if let Err(e) = decoder.send_packet(&packet) {
@@ -440,16 +480,16 @@ fn run_software(
                 continue;
             }
             while decoder.receive_frame(&mut decoded).is_ok() {
-                let pts = decoded.pts().unwrap_or(0) as f64 * tb;
-                if out_sec.is_some_and(|o| pts >= o) {
+                let pts = ctx.secs(decoded.pts());
+                if ctx.past_out(pts) {
                     hit_out = true;
                     break;
                 }
-                if pts + 1e-6 < in_sec {
+                if ctx.before_in(pts) {
                     continue; // seek landed before the in-point; drop
                 }
                 sent_any = true;
-                if send_rgba(&decoded, &mut scaler, base, &mut first_pts, pts, true)? {
+                if send_rgba(&decoded, &mut scaler, base, &mut first_pts, pts)? {
                     return Ok(());
                 }
             }
@@ -461,15 +501,15 @@ fn run_software(
         if !restarted && !hit_out {
             decoder.send_eof()?;
             while decoder.receive_frame(&mut decoded).is_ok() {
-                let pts = decoded.pts().unwrap_or(0) as f64 * tb;
-                if out_sec.is_some_and(|o| pts >= o) {
+                let pts = ctx.secs(decoded.pts());
+                if ctx.past_out(pts) {
                     break;
                 }
-                if pts + 1e-6 < in_sec {
+                if ctx.before_in(pts) {
                     continue;
                 }
                 sent_any = true;
-                if send_rgba(&decoded, &mut scaler, base, &mut first_pts, pts, true)? {
+                if send_rgba(&decoded, &mut scaler, base, &mut first_pts, pts)? {
                     return Ok(());
                 }
             }

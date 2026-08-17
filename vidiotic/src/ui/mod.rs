@@ -187,71 +187,64 @@ pub(crate) enum PickKind {
 
 /// Open a native picker on a worker thread and deliver the choice as a Command.
 /// (`NSOpenPanel` is main-thread-only for blocking dialogs, so use the async API.)
+///
+/// Every kind is the same four steps — configure a dialog, await it off the main
+/// thread, wrap the path in a command, send it — so only the two parts that
+/// differ are written per kind: how the dialog is built, and which command the
+/// path becomes. Six copies of the thread-and-`block_on` scaffolding was six
+/// places to get the "user cancelled" case wrong.
 pub(crate) fn pick_file(tx: Sender<Command>, kind: PickKind) {
+    /// Await `fut` on a worker thread and send `to_command(path)` if the user
+    /// picked something. A cancelled dialog yields `None` and sends nothing.
+    fn deliver<F>(tx: Sender<Command>, fut: F, to_command: fn(PathBuf) -> Command)
+    where
+        F: std::future::Future<Output = Option<rfd::FileHandle>> + Send + 'static,
+    {
+        std::thread::spawn(move || {
+            if let Some(h) = pollster::block_on(fut) {
+                let _ = tx.send(to_command(h.path().to_path_buf()));
+            }
+        });
+    }
+
+    let dialog = rfd::AsyncFileDialog::new;
     match kind {
-        PickKind::ClipDir => {
-            let fut = rfd::AsyncFileDialog::new().pick_folder();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::SetClipDir(h.path().to_path_buf()));
-                }
-            });
-        }
-        PickKind::ClipBankDir => {
-            let fut = rfd::AsyncFileDialog::new().pick_folder();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::AddClipDirAsBank(h.path().to_path_buf()));
-                }
-            });
-        }
-        PickKind::Shader => {
-            let fut = rfd::AsyncFileDialog::new()
+        PickKind::ClipDir => deliver(tx, dialog().pick_folder(), Command::SetClipDir),
+        PickKind::ClipBankDir => deliver(tx, dialog().pick_folder(), Command::AddClipDirAsBank),
+        PickKind::Shader => deliver(
+            tx,
+            dialog()
                 .add_filter("shaders", &["frag", "fs", "glsl", "wgsl"])
-                .pick_file();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::SetShaderPath(h.path().to_path_buf()));
-                }
-            });
-        }
-        PickKind::Isf => {
-            let fut = rfd::AsyncFileDialog::new()
+                .pick_file(),
+            Command::SetShaderPath,
+        ),
+        PickKind::Isf => deliver(
+            tx,
+            dialog()
                 .add_filter("ISF shader", &["fs", "frag", "glsl"])
-                .pick_file();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::LoadIsf(h.path().to_path_buf()));
-                }
-            });
-        }
-        PickKind::OpenProject => {
-            let fut = rfd::AsyncFileDialog::new()
-                .add_filter("project", &["viproj"])
-                .pick_file();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::LoadProject(h.path().to_path_buf()));
-                }
-            });
-        }
+                .pick_file(),
+            Command::LoadIsf,
+        ),
+        PickKind::OpenProject => deliver(
+            tx,
+            dialog().add_filter("project", &["viproj"]).pick_file(),
+            Command::LoadProject,
+        ),
         PickKind::SaveProject(current) => {
-            let mut dialog = rfd::AsyncFileDialog::new().add_filter("project", &["viproj"]);
+            // The only kind whose dialog depends on session state: it opens on
+            // the loaded project's directory under its own name, so a plain
+            // save-as is one keystroke rather than a navigation.
+            let mut d = dialog().add_filter("project", &["viproj"]);
             let name = current
                 .as_ref()
                 .and_then(|p| p.file_name())
                 .and_then(|n| n.to_str())
                 .unwrap_or("session.viproj");
-            dialog = dialog.set_file_name(name);
+            d = d.set_file_name(name);
             if let Some(dir) = current.as_ref().and_then(|p| p.parent()) {
-                dialog = dialog.set_directory(dir);
+                d = d.set_directory(dir);
             }
-            let fut = dialog.save_file();
-            std::thread::spawn(move || {
-                if let Some(h) = pollster::block_on(fut) {
-                    let _ = tx.send(Command::SaveProjectTo(h.path().to_path_buf()));
-                }
-            });
+            deliver(tx, d.save_file(), Command::SaveProjectTo);
         }
     }
 }
