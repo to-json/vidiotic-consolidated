@@ -23,6 +23,48 @@ use crate::app::PrepApp;
 use crate::control_input::{Controls, LearnTarget};
 use vidiotic_chop::commands::Command;
 
+/// What the reveal button promises, per platform. macOS and Windows can select
+/// the file itself; a Linux desktop has no portable way to say "select this
+/// one", so it gets the containing folder and the hover text says so.
+#[cfg(target_os = "macos")]
+const REVEAL_HINT: &str = "show in Finder";
+#[cfg(target_os = "windows")]
+const REVEAL_HINT: &str = "show in Explorer";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const REVEAL_HINT: &str = "open the containing folder";
+
+/// Show the exported project in the platform's file manager.
+///
+/// This was `open -R` unconditionally, which is a macOS binary — so on the two
+/// other platforms this crate builds for, the button was there, looked live,
+/// and did nothing at all. A failure is logged rather than surfaced: the export
+/// itself succeeded, and the path is already on screen next to the button.
+fn reveal(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg("-R").arg(path);
+        c
+    };
+    // `/select,<path>` is one argument, comma and all, and explorer.exe wants it
+    // that way — a space after the comma makes it open Documents instead.
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("explorer");
+        c.arg(format!("/select,{}", path.display()));
+        c
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(path.parent().unwrap_or(path));
+        c
+    };
+    if let Err(e) = cmd.spawn() {
+        log::warn!("reveal {}: {e}", path.display());
+    }
+}
+
 /// The inspector's two binding tables, drawn into the portable panel's scroll
 /// area through the hook [`vidiotic_chop::ui::draw`] takes for exactly this.
 pub fn control_sections(c: &mut Controls, ui: &mut egui::Ui) {
@@ -227,13 +269,10 @@ pub fn export_dialog(app: &mut PrepApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         ui.colored_label(palette().phosphor, format!("wrote {}", path.display()));
                         if widgets::bracket_button(ui, "reveal", None, 0.0)
-                            .on_hover_text("show in Finder")
+                            .on_hover_text(REVEAL_HINT)
                             .clicked()
                         {
-                            let _ = std::process::Command::new("open")
-                                .arg("-R")
-                                .arg(path)
-                                .spawn();
+                            reveal(path);
                         }
                         let engine = app
                             .engine

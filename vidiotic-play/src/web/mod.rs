@@ -249,9 +249,15 @@ fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
     ))
 }
 
+/// Put a thumbnail the page decoded itself on a clip's tile, keyed by the id
+/// [`load_clip`] returned for it.
+///
+/// # Errors
+/// Returns a JS error if the buffer is not `width * height * 4` bytes, if
+/// either dimension is zero, or if no clip in the pool has that id.
 #[wasm_bindgen]
 pub fn deliver_thumbnail(
-    clip_name: &str,
+    clip_id: ClipId,
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -262,20 +268,21 @@ pub fn deliver_thumbnail(
         ));
     }
     with_shell(|s| {
-        let clip_id = s
-            .mirror
-            .clips
-            .iter()
-            .find(|c| c.name.as_ref() == clip_name)
-            .map(|c| c.id);
-        if let Some(id) = clip_id {
-            let img =
-                egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], rgba);
-            let handle =
-                s.egui_ctx
-                    .load_texture(format!("thumb:{id}"), img, egui::TextureOptions::LINEAR);
-            s.thumbs.insert(id, handle);
+        // By id, and not by display name: nothing stops a visitor dropping two
+        // files called `loop.mov`, and a by-name join would put the second one's
+        // thumbnail on the first one's tile. `load_clip` hands back the id for
+        // this. An id nobody knows is an error rather than a silent no-op —
+        // otherwise a page that gets it wrong just never sees a thumbnail.
+        if !s.mirror.clips.iter().any(|c| c.id == clip_id) {
+            return Err(JsValue::from_str(&format!("no clip with id {clip_id}")));
         }
+        let img = egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], rgba);
+        let handle = s.egui_ctx.load_texture(
+            format!("thumb:{clip_id}"),
+            img,
+            egui::TextureOptions::LINEAR,
+        );
+        s.thumbs.insert(clip_id, handle);
         Ok(())
     })
 }
@@ -725,7 +732,7 @@ impl Shell {
     /// owns the id space), put it in a clip bank so the pool cursor can reach
     /// it, and toggle it active so it becomes a full-length cue in the live
     /// bank. That last one is the same call `--clip` makes natively.
-    fn load_clip(&mut self, name: &str, bytes: Vec<u8>) -> Result<(), String> {
+    fn load_clip(&mut self, name: &str, bytes: Vec<u8>) -> Result<ClipId, String> {
         let bytes = Rc::new(bytes);
         let probe = Movie::open(Rc::clone(&bytes)).map_err(|e| format!("{name}: {e}"))?;
         let loaded = Loaded {
@@ -769,7 +776,7 @@ impl Shell {
         let effect = self.effect;
         self.set_effect(effect);
         self.status.clear();
-        Ok(())
+        Ok(id)
     }
 
     /// The running session as a `Project`.
@@ -1399,13 +1406,15 @@ fn with_shell<T>(f: impl FnOnce(&mut Shell) -> Result<T, JsValue>) -> Result<T, 
 ///
 /// The clip joins the pool and becomes a full-length cue in the live bank —
 /// which means a second call adds a *second* cue and the two now rotate on the
-/// phrase grid, rather than the first one being replaced.
+/// phrase grid, rather than the first one being replaced. That is also why the
+/// id comes back rather than nothing: two files may share a name, and the id is
+/// what tells the two cues apart afterwards — [`deliver_thumbnail`] takes it.
 ///
 /// # Errors
 /// Returns a JS error if the shell has not booted or the file is not a clip
 /// this player can decode.
 #[wasm_bindgen]
-pub fn load_clip(name: &str, bytes: Vec<u8>) -> Result<(), JsValue> {
+pub fn load_clip(name: &str, bytes: Vec<u8>) -> Result<ClipId, JsValue> {
     with_shell(|s| {
         s.load_clip(name, bytes).map_err(|msg| {
             s.status.clone_from(&msg);

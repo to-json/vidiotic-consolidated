@@ -17,11 +17,6 @@ use crate::shader::{self, ShaderError, ShaderLang};
 /// passes keep precision; the final (untargeted) pass writes `color_format`.
 const ISF_MID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
-/// Minimum alignment for a non-dynamic uniform buffer binding offset (wgpu's
-/// default `min_uniform_buffer_offset_alignment`), used to pack one parameter
-/// block per ISF pass into a single buffer.
-const ISF_UBO_ALIGN: u64 = 256;
-
 /// Shadertoy-style audio texture geometry: 512 texels wide, 2 rows.
 /// Row 0 = FFT spectrum (sampled at y=0.25), row 1 = waveform (y=0.75).
 ///
@@ -140,7 +135,8 @@ struct IsfEntry {
     /// Image bindings at set=3 after the targets (audio inputs, then IMPORTED
     /// images), in the order [`isf::IsfProgram::tex_inputs`] declared them.
     tex_bindings: Vec<IsfTexBinding>,
-    /// 256-aligned stride of one parameter block in `params_buf` (one per pass).
+    /// Stride of one parameter block in `params_buf` (one per pass), rounded up
+    /// to the device's `min_uniform_buffer_offset_alignment`.
     aligned: u64,
     params_buf: wgpu::Buffer,
     bgl: wgpu::BindGroupLayout,
@@ -728,7 +724,12 @@ impl Renderer {
         let pipeline_mid = (!prog.targets.is_empty())
             .then(|| build_pipeline(device, &layout, &self.vs_glsl, &fs, ISF_MID_FORMAT));
 
-        let aligned = round_up_u64(ubo_size, ISF_UBO_ALIGN);
+        // The device's own alignment, not the 256 that is only wgpu's *default*
+        // for it: a backend is free to ask for more, and a bind offset that is
+        // not a multiple of what it asks for is a validation error, not a slow
+        // path. The passes are bound at `pass_i * aligned` further down.
+        let align = u64::from(device.limits().min_uniform_buffer_offset_alignment);
+        let aligned = round_up_u64(ubo_size, align);
         let n_pass = prog.passes.len().max(1) as u64;
         let params_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("isf-params"),

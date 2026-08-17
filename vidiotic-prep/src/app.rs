@@ -14,6 +14,7 @@ use crate::session;
 use vidiotic_chop::commands::Command;
 use vidiotic_chop::editor::{Editor, MediaInfo, PendingOpen, DRAIN_BUDGET};
 use vidiotic_chop::mirror::PrepMirror;
+use vidiotic_chop::spans::Span;
 
 const PREVIEW_WIDTH: u32 = 960;
 /// Above this size, opening a video asks for confirmation first instead of
@@ -64,10 +65,15 @@ pub struct PrepApp {
     export_rx: Option<Receiver<ExportMsg>>,
     pub export_progress: Option<ExportProgress>,
     pub export_result: Option<Result<PathBuf, String>>,
-    /// Fingerprint (`format!("{:?}", spans)`) of the span list as of the last
-    /// successful export, so the exit prompt only fires when something
-    /// changed since then. `None` means nothing has ever been exported.
-    last_export_fingerprint: Option<String>,
+    /// The span list as of the last successful export, so the exit prompt only
+    /// fires when something changed since then. `None` means nothing has ever
+    /// been exported.
+    ///
+    /// The spans themselves, not a `format!("{:?}", …)` of them: a Debug string
+    /// as a comparison key makes `Span`'s Debug output a serialization format
+    /// that nobody knows they must not change, and a field added to `Span`
+    /// without a thought about this is exactly how the prompt stops firing.
+    last_export_spans: Option<Vec<Span>>,
 
     /// A reachable `vidiotic` engine, if one is listening.
     pub engine: Option<EngineLink>,
@@ -101,7 +107,7 @@ impl Default for PrepApp {
             export_rx: None,
             export_progress: None,
             export_result: None,
-            last_export_fingerprint: None,
+            last_export_spans: None,
             engine: EngineLink::discover(),
             launch_project: None,
             engine_rx: None,
@@ -505,7 +511,7 @@ impl PrepApp {
                 Ok(ExportMsg::Progress(p)) => self.export_progress = Some(p),
                 Ok(ExportMsg::Done(path)) => {
                     self.export_result = Some(Ok(path.clone()));
-                    self.last_export_fingerprint = Some(format!("{:?}", self.editor.spans.spans));
+                    self.last_export_spans = Some(self.editor.spans.spans.clone());
                     finished = true;
                     if self.is_launch_project(&path) {
                         hand_back = Some(path);
@@ -613,8 +619,7 @@ impl PrepApp {
     /// Whether the span list has changed since the last successful export
     /// (or nothing has ever been exported).
     fn spans_dirty_since_export(&self) -> bool {
-        self.last_export_fingerprint.as_deref()
-            != Some(format!("{:?}", self.editor.spans.spans).as_str())
+        self.last_export_spans.as_ref() != Some(&self.editor.spans.spans)
     }
 
     /// Veto the OS close request and show the quit-confirmation dialog if
