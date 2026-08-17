@@ -1,0 +1,155 @@
+# CI — run the gates this repo already has, on every push.
+#
+# The tooling long predates this file: `scripts/wasm-gate.sh` is a ratchet, the
+# smoke suites drive a real Chrome, and `serve-play.sh --check` was written as
+# "the CI-shaped form" of a release check. None of it ran automatically. This
+# runs it.
+#
+# Why the jobs split the way they do:
+#
+#   fmt      Needs no toolchain beyond rustfmt and no system libraries, so it is
+#            the fast answer on a formatting mistake — seconds, not minutes.
+#
+#   native   macOS, because the native build is macOS-first: camera capture is
+#            AVFoundation, packaging is `.app`/`.dmg`, and `ffmpeg-next 8.1`
+#            wants ffmpeg 8 headers, which Homebrew has and Ubuntu 24.04 does
+#            not. Linux and Windows dependency sets are declared in
+#            `vidiotic/Cargo.toml` but are not built here; that is a gap, not a
+#            claim.
+#
+#   wasm     Ubuntu, because nothing in the portable half is platform-specific
+#            and the runner is cheaper. This is the ratchet: it fails when a
+#            crate stops being portable *and* when one quietly becomes portable
+#            without the table admitting it.
+#
+#   smoke    Not run. It needs `clips/` — real video that is not in this
+#            repository — and every check in it is about a page loading media.
+#            See the comment on the disabled job at the bottom.
+
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Backtraces on a failing test, since a CI log is the only place anyone will
+  # read it from.
+  RUST_BACKTRACE: 1
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component rustfmt
+      - run: cargo fmt --all -- --check
+
+  native:
+    name: clippy + tests (macOS)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      # ffmpeg for the libav* headers `ffmpeg-sys-next` binds, pkg-config to
+      # find them, and llvm because the bindgen in that build script needs
+      # libclang — the Xcode one is not on the library path bindgen searches.
+      - name: Install ffmpeg
+        run: brew install ffmpeg pkg-config llvm
+
+      - run: rustup toolchain install stable --profile minimal --component clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: native
+
+      # The lint tier is declared per crate in `[lints.clippy]`, so no flags
+      # here select it. `-D warnings` is the point: the tree is clean, and a
+      # clippy step that only prints is a step nobody reads.
+      - name: Clippy
+        env:
+          LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # VIDIOTIC_NO_CLIPS: three tests in `vidiotic-bake/tests/mov_demux.rs`
+      # compare our demuxer against ffmpeg's on ffmpeg-muxed Hap1 files in
+      # `clips/`. Those files are not in the repository and cannot be generated
+      # from it — no stock ffmpeg build ships a HAP *encoder*. Without the
+      # variable those tests fail rather than pass vacuously, which is correct
+      # for a developer and wrong here; with it they print SKIPPED into this
+      # log. It is the one part of the suite CI does not cover.
+      - name: Tests
+        env:
+          LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
+          VIDIOTIC_NO_CLIPS: "1"
+        run: cargo test --workspace
+
+  wasm:
+    name: wasm ratchet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      # The runner must match the `wasm-bindgen` version in Cargo.lock or it
+      # rejects the module outright. Read it from the lockfile rather than
+      # pinning a second copy of the number here.
+      - name: Install wasm-bindgen-cli
+        run: |
+          version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock \
+            | sed -n 's/^version = "\(.*\)"/\1/p' | head -1)
+          echo "wasm-bindgen $version"
+          cargo install wasm-bindgen-cli --version "$version" --locked
+
+      # The gate's second half runs each portable crate's own test module under
+      # wasm32 in a real engine. No crate calls
+      # `wasm_bindgen_test_configure!(run_in_browser)`, so the runner executes
+      # them in Node's V8 — no browser, no chromedriver. The image has Node.
+      #
+      # -v so a regression row prints the cargo output that explains it; without
+      # it the log says only which row moved.
+      - name: wasm gate
+        run: bash scripts/wasm-gate.sh -v
+
+  # ---------------------------------------------------------------------------
+  # smoke — disabled, and this is the reason rather than an oversight.
+  #
+  # `scripts/play-smoke.mjs` and `scripts/chop-smoke.mjs` drive a real Chrome
+  # over CDP against a real release build, and nearly every assertion in them is
+  # about media: opening `clips/bun.mov`, baking `clips/probe.webm` into three
+  # clips, checking the archive that comes back. Those fixtures are somebody's
+  # actual video. They are gitignored, they are not derivable from the tree, and
+  # a runner has none of them — so the suites would abort in their prerequisite
+  # check, not run and pass.
+  #
+  # What is in place for whenever fixtures can be provided (a self-hosted runner,
+  # an artifact download, a generated stand-in): both scripts now take Chrome
+  # from `$CHROME` and fall back to the usual Linux paths, which was the one
+  # hardcoded-macOS-path blocker. The job below is what it would look like.
+  #
+  #  smoke:
+  #    name: browser smoke
+  #    runs-on: macos-14
+  #    steps:
+  #      - uses: actions/checkout@v4
+  #      - run: brew install --cask google-chrome
+  #      - run: rustup target add wasm32-unknown-unknown
+  #      - run: cargo install wasm-bindgen-cli --version "$(...)" --locked
+  #      - run: bash scripts/build-play.sh && bash scripts/build-chop.sh
+  #      - run: <provision clips/>
+  #      - run: node scripts/play-smoke.mjs
+  #      - run: node scripts/chop-smoke.mjs

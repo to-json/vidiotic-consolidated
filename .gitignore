@@ -2,3 +2,12 @@ target/
 dist/
 web/pkg/
 web/pkg-chop/
+
+# Local media fixtures. The smoke suites and the demuxer conformance tests read
+# these; they are not in the repository (they are somebody's actual video) and
+# they are not derivable from it. Untracked, they made `git status --porcelain`
+# dirty, which `stamp_of` faithfully recorded as a `-dirty` build stamp on every
+# release built from a working checkout.
+clips/
+
+.DS_Store

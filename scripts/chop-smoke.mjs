@@ -59,7 +59,15 @@ if (process.argv.includes('--url') && !EXTERNAL) {
 const PAGE = EXTERNAL ? `${EXTERNAL}/chop.html` : `http://127.0.0.1:${PORT}/web/chop.html`;
 const FIXTURES = EXTERNAL ? `${EXTERNAL}/` : '/';
 
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// Chrome, by env override or by platform default. `CHROME` exists because the
+// only reliable answer on a CI runner (or a Linux desktop) is "wherever the
+// image put it": the defaults below are the ordinary install paths, and a
+// hosted runner is free to disagree with all of them.
+const CHROME = process.env.CHROME || (process.platform === 'darwin'
+  ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+     '/usr/bin/chromium', '/usr/bin/chromium-browser',
+     '/opt/google/chrome/chrome'].find(existsSync) || '/usr/bin/google-chrome');
 
 let failures = 0;
 const ok = (msg) => console.log(`[ OK ] ${msg}`);
@@ -194,7 +202,7 @@ async function main() {
     }
   }
   if (!existsSync(CHROME)) {
-    console.error(`no Chrome at ${CHROME}`);
+    console.error(`no Chrome at ${CHROME} — set CHROME to its path`);
     process.exit(2);
   }
 

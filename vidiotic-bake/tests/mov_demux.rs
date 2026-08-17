@@ -39,6 +39,28 @@ const FRAME_MS: u32 = 40;
 /// The real clips, which no code of ours laid out.
 const REAL_CLIPS: [&str; 3] = ["../clips/brb.mov", "../clips/bun.mov", "../clips/eyes.mov"];
 
+/// A run over zero real clips proved nothing, and says so — unless
+/// `VIDIOTIC_NO_CLIPS` is set, which is CI declaring that it knows.
+///
+/// The fixtures are ffmpeg-muxed files that are not in the repository and cannot
+/// be regenerated from it: stock ffmpeg builds (Homebrew's, the runner images')
+/// carry no HAP *encoder*, so there is nothing to produce a Hap1 `.mov` laid out
+/// by libavformat. Failing loudly is right for a developer, who has `clips/` and
+/// whose empty run means a broken path. It is wrong for a hosted runner, where
+/// it only means the fixtures are absent — so CI sets the variable, the skip is
+/// printed in its log, and this stays the one part of the suite CI does not
+/// cover. Do not set it locally.
+fn require_clips(checked: usize) {
+    if checked > 0 {
+        return;
+    }
+    assert!(
+        std::env::var_os("VIDIOTIC_NO_CLIPS").is_some(),
+        "no clips found — this test proved nothing"
+    );
+    eprintln!("SKIPPED: clips/ fixtures are absent and VIDIOTIC_NO_CLIPS is set");
+}
+
 fn tmp(name: &str) -> PathBuf {
     let mut p = std::env::temp_dir();
     p.push(format!("vidiotic-demux-{name}-{}.mov", std::process::id()));
@@ -205,7 +227,7 @@ fn our_reader_and_ffmpegs_agree_on_files_ffmpeg_wrote() {
         }
         checked += 1;
     }
-    assert!(checked > 0, "no clips found — this test proved nothing");
+    require_clips(checked);
 }
 
 #[test]
@@ -258,7 +280,7 @@ fn the_zero_duration_tail_frame_is_real() {
 
         checked += 1;
     }
-    assert!(checked > 0, "no clips found — this test proved nothing");
+    require_clips(checked);
 }
 
 #[test]
@@ -318,7 +340,7 @@ fn every_located_sample_decodes_as_hap() {
         }
         checked += 1;
     }
-    assert!(checked > 0, "no clips found — this test proved nothing");
+    require_clips(checked);
 }
 
 #[test]
