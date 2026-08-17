@@ -22,6 +22,7 @@ pub mod bundle;
 pub mod chain;
 pub mod clippool;
 pub mod isf;
+pub mod json;
 pub mod project;
 pub mod time;
 pub mod undo;

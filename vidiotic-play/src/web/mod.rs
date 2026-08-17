@@ -1738,133 +1738,92 @@ pub fn effect_names() -> Vec<String> {
 #[wasm_bindgen]
 pub fn engine_state() -> Result<String, JsValue> {
     with_shell(|s| {
+        use vidiotic_core::json;
+
         let snap = s.engine.clock.snapshot();
         let g = s.grammar_view();
         let opts: Vec<&str> = g.options.iter().map(|(k, _)| *k).collect();
-        let pending = g
-            .pending
-            .map_or_else(|| "null".to_owned(), |p| format!("\"{p}\""));
-        let last_verb = g
-            .last_verb
-            .map_or_else(|| "null".to_owned(), |v| format!("\"{v}\""));
-        let effect = s
-            .effect
-            .map_or_else(|| "null".to_owned(), |i| i.to_string());
         // `clip` is what tells a restored session apart from a fresh one: the
         // page has no other way to ask whether the bytes it pulled out of OPFS
         // actually became a playing clip.
-        //
-        // Every other string here comes from a fixed table; this one is a
-        // filename, so it is the only field that can carry a quote or a
-        // backslash and turn the readout into a parse error.
         let library = s.library.borrow();
         let playing_clip = s
             .engine
             .current
             .and_then(|c| s.engine.live_cue(c))
             .map(|cue| cue.clip);
-        let clip = match playing_clip.and_then(|id| {
+        let clip = playing_clip.and_then(|id| {
             let pool = s.engine.clips.iter().find(|c| c.id == id)?;
-            Some((pool.name.clone(), library.get(&id).map_or(0, |l| l.frames)))
-        }) {
-            Some((name, frames)) => {
-                format!(r#"{{"name":"{}","frames":{frames}}}"#, json_escape(&name))
-            }
-            None => "null".to_owned(),
-        };
-        let current = s
-            .engine
-            .current
-            .map_or_else(|| "null".to_owned(), |c| c.to_string());
-        // The armed cue as well as the playing one: a rotation that never arms
-        // and a rotation that arms but never fires are different faults, and
-        // `current` alone cannot tell them apart.
-        let armed = s
-            .engine
-            .sequencer
-            .armed()
-            .map_or_else(|| "null".to_owned(), |c| c.to_string());
+            let frames = library.get(&id).map_or(0, |l| l.frames);
+            let mut o = json::Obj::new();
+            o.str("name", &pool.name).int("frames", frames as i64);
+            Some(o.finish())
+        });
         // The non-built-in half of the shader pool, by name. A shader the page
         // handed us either compiled and joined the pool or it did not, and
         // nothing else the page can see distinguishes those — the output looks
         // the same until something puts the shader on a cue.
-        let shaders = s
-            .renderer
-            .pool_view()
-            .iter()
-            .filter(|p| !p.builtin)
-            .map(|p| format!(r#""{}""#, json_escape(&p.name)))
-            .collect::<Vec<_>>()
-            .join(",");
+        let shaders = json::arr(
+            s.renderer
+                .pool_view()
+                .iter()
+                .filter(|p| !p.builtin)
+                .map(|p| json::string(&p.name)),
+        );
         // The pool by name, not just its size. A restored session's whole claim
         // is that *these* clips came back — a count cannot tell one clip
         // restored twice from two clips restored once, and the by-name join a
         // `.viproj` resolves through is exactly what a lossy store would break.
-        let clips = s
-            .engine
-            .clips
-            .iter()
-            .map(|c| format!(r#""{}""#, json_escape(&c.name)))
-            .collect::<Vec<_>>()
-            .join(",");
+        let clips = json::arr(s.engine.clips.iter().map(|c| json::string(&c.name)));
         // The camera rows, as the panel has them. Not drawn from `engine.clips`
         // like the pool above: a device is not a session concept, so whether
         // one is *on air* and what size it is arriving at exist only here.
-        let cams = s
-            .mirror
-            .cameras
-            .iter()
-            .map(|c| {
-                format!(
-                    r#"{{"uid":"{}","name":"{}","on_air":{},"status":"{}","missing":{}}}"#,
-                    json_escape(&c.uid),
-                    json_escape(&c.name),
-                    c.on_air,
-                    json_escape(&c.status),
-                    c.missing
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(",");
+        let cams = json::arr(s.mirror.cameras.iter().map(|c| {
+            let mut o = json::Obj::new();
+            o.str("uid", &c.uid)
+                .str("name", &c.name)
+                .bool("on_air", c.on_air)
+                .str("status", &c.status)
+                .bool("missing", c.missing);
+            o.finish()
+        }));
         // `face`/`cell` so the smoke test can check the §9a grid is the one
         // actually painting, rather than trusting that a `set_state` took.
         let m = phosphor::theme::metrics();
-        Ok(format!(
-            r#"{{"bpm":{},"beat":{},"pane":"{}","pending":{pending},"options":{},"last_verb":{last_verb},"effect":{effect},"playing":{},"bc":{},"soft":{},"clip":{clip},"cues":{},"banks":{},"pool":{},"clips":[{clips}],"cameras":[{cams}],"active":{},"current":{current},"armed":{armed},"lvl":{},"audio":{},"shaders":[{shaders}],"face":"{:?}","cell":{}}}"#,
-            snap.bpm,
-            snap.beat,
-            g.pane,
-            opts.len(),
-            s.playing(),
-            s.gfx.caps.bc,
-            s.soft.get(),
-            s.engine.banks[s.engine.live_bank].cues.len(),
-            s.engine.banks.len(),
-            s.pool_ids().len(),
-            s.engine.sequencer.active_len(),
-            s.analyzer.frame().level,
-            s.audio_live,
-            phosphor::theme::state(&s.egui_ctx).face,
-            m.cell,
-        ))
-    })
-}
 
-/// The JSON string escapes, for the one field of [`engine_state`] that is not
-/// drawn from a fixed table. Not a JSON library — this covers the two
-/// characters that break a string literal plus the control range, which is the
-/// whole of what a filename can contain that matters here.
-fn json_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out
+        let mut o = json::Obj::new();
+        o.num("bpm", snap.bpm)
+            .num("beat", snap.beat)
+            .str("pane", g.pane)
+            .opt("pending", g.pending.map(json::string))
+            .int("options", opts.len() as i64)
+            .opt("last_verb", g.last_verb.map(json::string))
+            .opt("effect", s.effect.map(|i| i.to_string()))
+            .bool("playing", s.playing())
+            .bool("bc", s.gfx.caps.bc)
+            .bool("soft", s.soft.get())
+            .opt("clip", clip)
+            .int("cues", s.engine.banks[s.engine.live_bank].cues.len() as i64)
+            .int("banks", s.engine.banks.len() as i64)
+            .int("pool", s.pool_ids().len() as i64)
+            .raw("clips", &clips)
+            .raw("cameras", &cams)
+            .int("active", s.engine.sequencer.active_len() as i64)
+            .opt("current", s.engine.current.map(|c| c.to_string()))
+            // The armed cue as well as the playing one: a rotation that never
+            // arms and a rotation that arms but never fires are different
+            // faults, and `current` alone cannot tell them apart.
+            .opt("armed", s.engine.sequencer.armed().map(|c| c.to_string()))
+            .num("lvl", f64::from(s.analyzer.frame().level))
+            .bool("audio", s.audio_live)
+            .raw("shaders", &shaders)
+            .str(
+                "face",
+                &format!("{:?}", phosphor::theme::state(&s.egui_ctx).face),
+            )
+            .num("cell", f64::from(m.cell));
+        Ok(o.finish())
+    })
 }
 
 /// Resize a head's swapchain after its canvas changed size.

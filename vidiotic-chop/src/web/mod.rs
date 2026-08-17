@@ -41,6 +41,8 @@ use std::rc::Rc;
 
 use wasm_bindgen::prelude::*;
 
+use vidiotic_core::json;
+
 use crate::commands::Command;
 use crate::editor::{Editor, MediaInfo, ReopenedProject};
 use crate::export::{self, BakedClip};
@@ -620,18 +622,24 @@ impl ChopApp {
             .iter()
             .enumerate()
             .map(|(i, sp)| {
-                let crop_json = sp.crop.map_or_else(
-                    || "null".to_string(),
-                    |c| format!(r#"{{"x":{},"y":{},"w":{},"h":{}}}"#, c.x, c.y, c.w, c.h),
-                );
-                format!(
-                    r#"{{"index":{i},"name":"{}","file":"clips/{}","source":"{}","in_sec":{},"out_sec":{},"crop":{crop_json}}}"#,
-                    json_escape(&sp.name),
-                    json_escape(&export::clip_file_name(i, sp)),
-                    json_escape(&source_label),
-                    sp.in_frame as f64 / fps,
-                    sp.out_frame as f64 / fps,
-                )
+                let crop = sp.crop.map(|c| {
+                    let mut o = json::Obj::new();
+                    o.num("x", c.x).num("y", c.y).num("w", c.w).num("h", c.h);
+                    o.finish()
+                });
+                let mut o = json::Obj::new();
+                o.int("index", i as i64)
+                    .str("name", &sp.name)
+                    .str("file", &format!("clips/{}", export::clip_file_name(i, sp)))
+                    .str("source", &source_label)
+                    // `num` rather than an interpolation: fps comes from the
+                    // source, and a source that reports none makes these
+                    // infinite — which is not JSON, and would fail as "the page
+                    // could not parse the plan" rather than as a bad frame rate.
+                    .num("in_sec", sp.in_frame as f64 / fps)
+                    .num("out_sec", sp.out_frame as f64 / fps)
+                    .opt("crop", crop);
+                o.finish()
             })
             .collect();
 
@@ -652,10 +660,11 @@ impl ChopApp {
             });
             (if render == 1 { "high" } else { "draft" }, st.dest)
         };
-        let plan = format!(
-            r#"{{"quality":"{quality}","dest":{dest},"spans":[{}]}}"#,
-            spans.join(",")
-        );
+        let mut plan = json::Obj::new();
+        plan.str("quality", quality)
+            .int("dest", dest as i64)
+            .raw("spans", &json::arr(spans));
+        let plan = plan.finish();
         dispatch("vidiotic-chop-export", &JsValue::from_str(&plan));
     }
 
@@ -817,44 +826,36 @@ impl ChopApp {
     /// This is how it sees anything at all — the same reason `/play` has
     /// `engine_state`.
     fn state_json(&self) -> String {
-        let spans: Vec<String> = self
-            .editor
-            .spans
-            .spans
-            .iter()
-            .map(|s| {
-                format!(
-                    r#"{{"name":"{}","in":{},"out":{},"bank":{},"source":"{}"}}"#,
-                    json_escape(&s.name),
-                    s.in_frame,
-                    s.out_frame,
-                    s.clip_bank,
-                    json_escape(&s.source.display().to_string())
-                )
-            })
-            .collect();
+        let spans = json::arr(self.editor.spans.spans.iter().map(|s| {
+            let mut o = json::Obj::new();
+            o.str("name", &s.name)
+                .int("in", s.in_frame as i64)
+                .int("out", s.out_frame as i64)
+                .int("bank", s.clip_bank as i64)
+                .str("source", &s.source.display().to_string());
+            o.finish()
+        }));
         let source = self
             .editor
             .source_path
             .as_ref()
-            .map_or_else(String::new, |p| json_escape(&p.display().to_string()));
+            .map_or_else(String::new, |p| p.display().to_string());
         let (frames, fps) = self.editor.media.map_or((0, 0.0), |m| (m.frames, m.fps));
-        format!(
-            r#"{{"source":"{source}","frames":{frames},"fps":{fps},"cur":{},"in":{},"out":{},"playing":{},"spans":[{}],"banks":{},"status":"{}","error":{},"preview":{},"awaiting":{}}}"#,
-            self.editor.cur_frame,
-            self.editor.pending_in,
-            self.editor.pending_out,
-            self.editor.playing(),
-            spans.join(","),
-            self.editor.bank_names.len(),
-            self.editor
-                .status
-                .as_deref()
-                .map_or_else(String::new, json_escape),
-            self.editor.status_is_error,
-            self.mirror.preview.is_some(),
-            self.awaiting.is_some(),
-        )
+        let mut o = json::Obj::new();
+        o.str("source", &source)
+            .int("frames", frames as i64)
+            .num("fps", fps)
+            .int("cur", self.editor.cur_frame as i64)
+            .int("in", self.editor.pending_in as i64)
+            .int("out", self.editor.pending_out as i64)
+            .bool("playing", self.editor.playing())
+            .raw("spans", &spans)
+            .int("banks", self.editor.bank_names.len() as i64)
+            .str("status", self.editor.status.as_deref().unwrap_or(""))
+            .bool("error", self.editor.status_is_error)
+            .bool("preview", self.mirror.preview.is_some())
+            .bool("awaiting", self.awaiting.is_some());
+        o.finish()
     }
 }
 
@@ -964,22 +965,6 @@ fn deliver_file(event: &str, name: &str, bytes: &[u8]) {
 
 fn request_file(kind: &str) {
     dispatch("vidiotic-chop-pick", &JsValue::from_str(kind));
-}
-
-fn json_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out
 }
 
 struct ConsoleLog;
