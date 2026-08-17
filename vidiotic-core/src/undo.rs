@@ -131,3 +131,140 @@ where
         self.last = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    /// The shape both session editors instantiate: a `String` document, a `&str`
+    /// edit tag, and the `f64` elapsed-seconds clock.
+    type H = SnapshotHistory<String, &'static str, f64>;
+
+    fn doc(s: &str) -> String {
+        s.to_string()
+    }
+
+    #[test]
+    fn undo_then_redo_walks_back_and_forward() {
+        let mut h = H::default();
+        h.push(doc("a"), None, 0.0);
+        h.push(doc("b"), None, 1.0);
+        // Document is now "c"; undo restores "b", banking "c" for redo.
+        assert_eq!(h.undo(doc("c")), Some(doc("b")));
+        assert_eq!(h.undo(doc("b")), Some(doc("a")));
+        assert_eq!(h.undo(doc("a")), None, "empty stack yields nothing");
+        assert_eq!(h.redo(doc("a")), Some(doc("b")));
+        assert_eq!(h.redo(doc("b")), Some(doc("c")));
+        assert_eq!(h.redo(doc("c")), None);
+    }
+
+    #[test]
+    fn a_streaming_edit_coalesces_inside_the_window() {
+        let mut h = H::default();
+        // The first edit always pushes: there is nothing to fold into.
+        assert!(h.should_push(Some("dwell"), 0.0));
+        h.push(doc("a"), Some("dwell"), 0.0);
+        // Same knob, still inside the gesture — fold.
+        assert!(!h.should_push(Some("dwell"), 0.0 + COALESCE_SECS - 0.01));
+        // Same knob, gesture expired — a new step.
+        assert!(h.should_push(Some("dwell"), COALESCE_SECS + 0.01));
+        // A different knob is a different gesture however fast it follows.
+        assert!(h.should_push(Some("loop"), 0.01));
+        // An untagged edit never coalesces.
+        assert!(h.should_push(None, 0.01));
+    }
+
+    #[test]
+    fn touch_extends_the_gesture_rather_than_restarting_it() {
+        let mut h = H::default();
+        h.push(doc("a"), Some("dwell"), 0.0);
+        // Held knob: repeated touches keep the window open past its own length
+        // from the original push, which is the whole point of a gesture.
+        h.touch(0.5);
+        assert!(!h.should_push(Some("dwell"), 1.0));
+        h.touch(1.0);
+        assert!(!h.should_push(Some("dwell"), 1.5));
+        // Let go, and the next one is its own step.
+        assert!(h.should_push(Some("dwell"), 1.0 + COALESCE_SECS + 0.01));
+    }
+
+    #[test]
+    fn a_fresh_edit_invalidates_the_redo_branch() {
+        let mut h = H::default();
+        h.push(doc("a"), None, 0.0);
+        assert_eq!(h.undo(doc("b")), Some(doc("a")));
+        // "b" is sitting in redo. Editing from here abandons that future.
+        h.push(doc("a"), None, 1.0);
+        assert_eq!(h.redo(doc("z")), None, "redo does not survive a new edit");
+    }
+
+    /// The coalescing path has to invalidate redo too. It pushes no snapshot, so
+    /// it would be easy to leave the redo branch intact — and then redo would
+    /// reinstate a document that predates the coalesced edit.
+    #[test]
+    fn a_coalesced_edit_also_invalidates_redo() {
+        let mut h = H::default();
+        h.push(doc("a"), Some("dwell"), 0.0);
+        assert_eq!(h.undo(doc("b")), Some(doc("a")));
+        h.touch(0.1);
+        assert_eq!(h.redo(doc("z")), None);
+    }
+
+    #[test]
+    fn depth_is_capped_by_dropping_the_oldest() {
+        let mut h = H::default();
+        for i in 0..DEPTH_CAP + 10 {
+            h.push(doc(&i.to_string()), None, i as f64);
+        }
+        // The cap holds, and it is the *oldest* steps that went: undoing all the
+        // way back lands on step 10, not step 0.
+        let mut last = None;
+        while let Some(prev) = h.undo(doc("cur")) {
+            last = Some(prev);
+        }
+        assert_eq!(last, Some(doc("10")));
+    }
+
+    /// Stepping through history ends the gesture. Otherwise the next turn of the
+    /// same knob would fold into a step the user has just walked out of, and the
+    /// edit would silently overwrite it.
+    #[test]
+    fn undo_and_redo_clear_the_gesture() {
+        let mut h = H::default();
+        h.push(doc("a"), Some("dwell"), 0.0);
+        h.push(doc("b"), Some("dwell"), 5.0);
+        // Same tag, same instant as the top-of-stack edit — it would coalesce if
+        // the undo had not cleared the gesture. The stack is still non-empty, so
+        // this is not the trivially-true first-edit case.
+        h.undo(doc("c"));
+        assert!(h.should_push(Some("dwell"), 5.0));
+        h.redo(doc("b"));
+        assert!(h.should_push(Some("dwell"), 5.0));
+    }
+
+    #[test]
+    fn reset_drops_both_directions() {
+        let mut h = H::default();
+        h.push(doc("a"), Some("dwell"), 0.0);
+        h.undo(doc("b"));
+        h.reset();
+        assert_eq!(h.undo(doc("x")), None);
+        assert_eq!(h.redo(doc("x")), None);
+        assert!(h.should_push(Some("dwell"), 0.0));
+    }
+
+    /// `web_time::Instant` is the other clock a session editor passes.
+    #[test]
+    fn the_instant_clock_measures_the_same_window() {
+        let t0 = web_time::Instant::now();
+        let mut h: SnapshotHistory<String, &str, web_time::Instant> = SnapshotHistory::default();
+        h.push(doc("a"), Some("dwell"), t0);
+        let inside = t0 + std::time::Duration::from_millis(100);
+        let outside = t0 + std::time::Duration::from_millis(1_000);
+        assert!(!h.should_push(Some("dwell"), inside));
+        assert!(h.should_push(Some("dwell"), outside));
+    }
+}

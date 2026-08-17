@@ -75,8 +75,17 @@ impl Mapper {
 
         if action.is_continuous() {
             return match ev.value {
-                EventValue::Pressed => Some((action, 1.0)),
-                EventValue::Released => None,
+                // A press carries no position, so there is nothing for a
+                // continuous action to be set *to*. This used to answer 1.0 —
+                // the top of the range — so a key bound to `SetBpm` snapped the
+                // session tempo to its maximum on every press, and `Scrub` on a
+                // pad button jumped to the end of the clip. The module contract
+                // above always said `Pressed`/`Released` do not fire here; the
+                // code disagreed with it.
+                //
+                // Nothing is lost: continuous actions are driven by MIDI CCs and
+                // gamepad axes, which arrive as `Continuous`.
+                EventValue::Pressed | EventValue::Released => None,
                 EventValue::Continuous(v) => {
                     self.last.insert(key, v);
                     Some((action, v))
@@ -100,6 +109,26 @@ impl Mapper {
             }
         }
     }
+}
+
+/// Whether a binding on `over` would take an event that a binding on `under`
+/// also matches — i.e. whether `under` is shadowed by the layer above.
+///
+/// Exists so the read-only binding list in [`crate::ui`] marks the same bindings
+/// dead that [`Mapper::resolve`] actually skips. That list used to test whole-
+/// `ControlSource` equality, which misses every near-miss device name the
+/// resolver's fuzzy tier accepts: a global binding on "Launchkey Mini MK3" is
+/// genuinely shadowed by a project binding on "Launchkey Mini MK3 1", and was
+/// shown as live with a "mask" button that would have changed nothing.
+///
+/// Still an approximation, unavoidably: the resolver compares each binding
+/// against a *live* event's device, and there is no event here. `under`'s own
+/// device string stands in for it, so an any-device (`""`) binding under a
+/// device-specific one reads as fully shadowed when in truth it is shadowed only
+/// for that device.
+#[must_use]
+pub fn shadows(over: &ControlSource, under: &ControlSource) -> bool {
+    shape_eq(over, under) && device_tier(device_of(over), device_of(under)).is_some()
 }
 
 /// The non-device "shape" of a source: two bindings with the same shape but
@@ -426,6 +455,76 @@ mod tests {
             value: EventValue::Pressed,
         };
         assert_eq!(mapper.resolve(&ev), None);
+    }
+
+    /// The combination nothing covered, and the one the module contract is most
+    /// explicit about: a *continuous* action reached by a *button*.
+    ///
+    /// A press has no position in it, so there is nothing to set the value to.
+    /// `resolve` used to answer 1.0 — the top of the range — which meant a key
+    /// bound to `SetBpm` snapped the session tempo to its maximum, and `Scrub`
+    /// on a pad button jumped to the end of the clip.
+    #[test]
+    fn a_continuous_action_ignores_button_edges() {
+        const BPM: Action = Action::SetBpm {
+            min: 60.0,
+            max: 180.0,
+        };
+        assert!(BPM.is_continuous());
+        let mut mapper = Mapper::new(
+            ControlMap::default(),
+            ControlMap {
+                bindings: vec![binding(key("b"), BPM), binding(cc("", 1, 21), BPM)],
+            },
+        );
+        for value in [EventValue::Pressed, EventValue::Released] {
+            let ev = ControlEvent {
+                source: key("b"),
+                value,
+            };
+            assert_eq!(mapper.resolve(&ev), None, "{value:?} must not set a value");
+        }
+        // The sources that *can* express one still do, unchanged — and unlike a
+        // trigger, every value passes through rather than only a rising edge.
+        for v in [0.0, 0.2, 0.2, 1.0] {
+            let ev = ControlEvent {
+                source: cc("", 1, 21),
+                value: EventValue::Continuous(v),
+            };
+            assert_eq!(mapper.resolve(&ev), Some((BPM, v)));
+        }
+    }
+
+    /// The predicate the read-only listing marks "(shadowed)" with has to agree
+    /// with what `resolve` actually does — including the fuzzy device tier.
+    #[test]
+    fn shadows_agrees_with_the_resolvers_device_matching() {
+        // Exact, and the case the old whole-value equality already caught.
+        assert!(shadows(
+            &cc("Launchkey Mini MK3", 1, 21),
+            &cc("Launchkey Mini MK3", 1, 21)
+        ));
+        // Fuzzy: the trailing port number is what CoreMIDI adds, and the
+        // resolver ignores it. This is the case that read as live.
+        assert!(shadows(
+            &cc("Launchkey Mini MK3 1", 1, 21),
+            &cc("Launchkey Mini MK3", 1, 21)
+        ));
+        // Any-device over a specific one.
+        assert!(shadows(&cc("", 1, 21), &cc("Launchkey Mini MK3", 1, 21)));
+        // Different shape: same device, different CC.
+        assert!(!shadows(
+            &cc("Launchkey Mini MK3", 1, 21),
+            &cc("Launchkey Mini MK3", 1, 22)
+        ));
+        // Different device entirely.
+        assert!(!shadows(
+            &cc("Push 2", 1, 21),
+            &cc("Launchkey Mini MK3", 1, 21)
+        ));
+        // Keys have no device, so shape is the whole question.
+        assert!(shadows(&key("t"), &key("t")));
+        assert!(!shadows(&key("t"), &key("y")));
     }
 
     #[test]

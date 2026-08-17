@@ -10,8 +10,14 @@ use std::time::Instant;
 #[ignore = "manual timing harness, needs a local video"]
 fn bake_timing() {
     let _ = env_logger::try_init();
-    let src = std::env::var("BAKE_SRC")
-        .unwrap_or_else(|_| "/Users/j/code/loot/vidiotic/clips/bun.mov".to_string());
+    // Relative to the crate, like every other test's fixture path. The default
+    // used to be an absolute path into one particular person's home directory,
+    // which is a default that works for exactly one checkout.
+    let src = std::env::var("BAKE_SRC").unwrap_or_else(|_| "../clips/bun.mov".to_string());
+    assert!(
+        std::path::Path::new(&src).exists(),
+        "no video at {src} — put one in clips/ or point BAKE_SRC at one"
+    );
     let out = std::env::temp_dir().join("bake_timing_out.mov");
     for quality in [
         vidiotic_bake::transcode::BakeQuality::Draft,

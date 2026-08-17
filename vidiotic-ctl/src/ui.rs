@@ -210,6 +210,11 @@ fn action_params(ui: &mut egui::Ui, action: &mut Action) -> bool {
 /// A read-only listing of `map`, dimming entries whose source is already bound
 /// in `covered_by` — those never fire, because a matching binding in the layer
 /// above wins outright. Returns a source the user asked to mask.
+///
+/// "Already bound" is [`crate::mapper::shadows`], the resolver's own question,
+/// rather than whole-`ControlSource` equality: the resolver matches a device
+/// name fuzzily, so equality marked genuinely-dead bindings live and offered a
+/// "mask" button for something already masked.
 pub fn readonly_map(
     ui: &mut egui::Ui,
     map: &ControlMap,
@@ -218,7 +223,9 @@ pub fn readonly_map(
     let p = palette();
     let mut mask = None;
     for binding in &map.bindings {
-        let shadowed = covered_by.contains(&binding.source);
+        let shadowed = covered_by
+            .iter()
+            .any(|c| crate::mapper::shadows(c, &binding.source));
         ui.horizontal_wrapped(|ui| {
             let color = if shadowed { p.fg_muted } else { p.fg_secondary };
             ui.label(
