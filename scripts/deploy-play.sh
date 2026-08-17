@@ -63,9 +63,18 @@ fi
 
 [ -f "$OUT/index.html" ] || { echo "no $OUT — run scripts/release-web.sh" >&2; exit 2; }
 
-PKG_DIR=$(find "$OUT" -maxdepth 1 -type d -name 'pkg-*' | head -1)
-[ -n "$PKG_DIR" ] || { echo "no bundle directory in $OUT — rebuild it" >&2; exit 2; }
-PKG=$(basename "$PKG_DIR")
+# Every bundle directory in this artifact. The dist/web layout ships two — one
+# per page (pkg-play-<hash>, pkg-chop-<hash>) — and the legacy dist/play layout
+# ships one (pkg-<hash>). All of them are live.
+#
+# This used to be a single `find … | head -1`, which predates the two-bundle
+# release: --prune then kept whichever bundle the filesystem happened to list
+# first and deleted the *other* live page's bundle off the server.
+PKGS=()
+while IFS= read -r dir; do
+  PKGS+=("$(basename "$dir")")
+done < <(find "$OUT" -maxdepth 1 -type d -name 'pkg-*' | sort)
+[ "${#PKGS[@]}" -gt 0 ] || { echo "no bundle directory in $OUT — rebuild it" >&2; exit 2; }
 
 # Check stamp in boot.js or chop.js inside any bundle directory
 BOOT_FILE=$(find "$OUT" -name "boot.js" -o -name "chop.js" | head -1)
@@ -149,20 +158,28 @@ fi
 
 if [ "$PRUNE" = 1 ]; then
   echo
-  echo "--- prune: bundle directories other than $PKG"
+  echo "--- prune: bundle directories other than ${PKGS[*]}"
   # Done over ssh rather than with rsync --delete, because --delete would also
   # remove anything else the server keeps in that directory, and because the
   # thing being deleted is 6 MB of somebody's possibly-still-loading page.
+  #
+  # Exclude every bundle this artifact ships, not just one of them.
+  KEEP_ARGS=()
+  KEEP_EXPR=""
+  for pkg in "${PKGS[@]}"; do
+    KEEP_ARGS+=(! -name "$pkg")
+    KEEP_EXPR="$KEEP_EXPR ! -name '$pkg'"
+  done
   case "$TARGET" in
     *:*)
       host=${TARGET%%:*}
       path=${TARGET#*:}
-      cmd="find '$path' -maxdepth 1 -type d -name 'pkg-*' ! -name '$PKG' -print"
+      cmd="find '$path' -maxdepth 1 -type d -name 'pkg-*'$KEEP_EXPR -print"
       [ "$GO" = 1 ] && cmd="$cmd -exec rm -rf {} +"
       ssh "$host" "$cmd" || exit 1
       ;;
     *)
-      find "$TARGET" -maxdepth 1 -type d -name 'pkg-*' ! -name "$PKG" -print \
+      find "$TARGET" -maxdepth 1 -type d -name 'pkg-*' "${KEEP_ARGS[@]}" -print \
         $([ "$GO" = 1 ] && echo "-exec rm -rf {} +") || exit 1
       ;;
   esac
