@@ -433,8 +433,8 @@ mod tests {
         assert_eq!(sanitize(""), "span");
     }
 
-    /// A well-known CRC-32 check value, so an arithmetic slip in the bitwise
-    /// loop shows up here rather than as an archive every unzip refuses.
+    /// The provenance an offsets project carries: which source a span came out
+    /// of, and at what rate, so the player can seek it.
     fn source_ref() -> SourceRef {
         SourceRef {
             clip_name: "v.mov".to_string(),

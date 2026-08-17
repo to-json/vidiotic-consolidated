@@ -615,7 +615,20 @@ impl ApplicationHandler for App {
         self.graphics = Some(graphics);
         self.renderer = Some(renderer);
         self.egui = Some(egui);
-        self.watcher = ShaderWatcher::new(&self.shader_path).ok();
+        // A watcher that cannot start means no hot reload — the shader still
+        // loads and the app still runs, so this is a warning rather than a
+        // failure. Said out loud because the symptom otherwise is "editing the
+        // shader does nothing", with nothing anywhere to explain it.
+        self.watcher = match ShaderWatcher::new(&self.shader_path) {
+            Ok(w) => Some(w),
+            Err(e) => {
+                log::warn!(
+                    "no shader hot-reload for {}: {e:#}",
+                    self.shader_path.display()
+                );
+                None
+            }
+        };
         self.load_shader();
         self.load_referenced_isf();
     }

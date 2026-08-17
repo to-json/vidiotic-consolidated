@@ -98,8 +98,7 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
         );
         ui.add_space(SP_MD);
         delay_section(ui, m, cue, tx);
-    }
-    if !cue.camera {
+    } else {
         egui::Grid::new("cue_trim")
             .num_columns(2)
             .spacing(egui::vec2(SP_SM, SP_SM))
@@ -175,6 +174,12 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
 
     ui.add_space(SP_LG);
     // Preserve is meaningless once restart is a no-op (camera): greyed, inert.
+    //
+    // The `add_enabled_ui` is the whole guard. Its closure still runs when
+    // disabled — that is how the row gets drawn greyed — but a disabled widget
+    // reports no interaction, so nothing inside can fire a command. An inner
+    // `if !cue.camera` used to re-ask the same question and read as though one of
+    // the two was load-bearing.
     ui.add_enabled_ui(!cue.camera, |ui| {
         widgets::section_label(ui, "preserve playhead").on_hover_text(
             "On a cut, carry the playhead into this cue. Inherit follows the global toggle.",
@@ -195,9 +200,7 @@ fn cue_fields(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Command>) {
                 1 => Some(true),
                 _ => Some(false),
             };
-            if !cue.camera {
-                let _ = tx.send(Command::SetCuePreserve(cue.id, val));
-            }
+            let _ = tx.send(Command::SetCuePreserve(cue.id, val));
         }
     });
 
@@ -621,7 +624,8 @@ fn advanced_sections(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Comma
             CueParam::LoopPhase(Toggle { on, val }),
         ));
     }
-    // Nudge shifts the in-point — meaningless without a timeline.
+    // Nudge shifts the in-point — meaningless without a timeline. The
+    // `add_enabled_ui` is the whole guard; see `cue_fields`.
     ui.add_enabled_ui(!cue.camera, |ui| {
         if let Some((on, v)) = param_row(
             ui,
@@ -634,12 +638,10 @@ fn advanced_sections(ui: &mut Ui, m: &UiMirror, cue: &CueView, tx: &Sender<Comma
             " s",
             2,
         ) {
-            if !cue.camera {
-                let _ = tx.send(Command::SetCueParam(
-                    cue.id,
-                    CueParam::StartNudge(Toggle { on, val: v }),
-                ));
-            }
+            let _ = tx.send(Command::SetCueParam(
+                cue.id,
+                CueParam::StartNudge(Toggle { on, val: v }),
+            ));
         }
     });
     if let Some((on, v)) = param_row(

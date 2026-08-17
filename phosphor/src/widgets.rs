@@ -216,7 +216,7 @@ pub fn section_label(ui: &mut Ui, text: &str) -> Response {
         ui,
         egui::RichText::new(text.to_lowercase())
             .monospace()
-            .size(10.0)
+            .size(theme::metrics().small)
             .color(palette().fg_muted),
     )
 }
@@ -333,15 +333,23 @@ pub struct TileResponse {
 /// phosphor pulse border while playing.
 pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
     let p = palette();
+    let m = theme::metrics();
+    // Fractions of the cell, not point literals — `Metrics`' own invariant, and
+    // this widget was the tree's only violation of it. At the Classic 18-point
+    // cell these are the numbers that were hardcoded (14, 10, 3); on the grid's
+    // 16 they scale with it instead of leaving a 16-point row with 3 points of
+    // padding on it, which is a widget that has left the grid.
+    let name_h = m.cell * (7.0 / 9.0);
+    let inset = m.cell / 6.0;
+    let label = FontId::monospace(m.small);
     let (rect, resp) = ui.allocate_exact_size(spec.size, Sense::click());
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::ZERO, p.bg_inset);
 
     // Art sits inset with a reserved name row along the bottom.
-    let name_h = 14.0;
     let art = Rect::from_min_max(
-        rect.min + Vec2::splat(3.0),
-        egui::pos2(rect.max.x - 3.0, rect.max.y - name_h),
+        rect.min + Vec2::splat(inset),
+        egui::pos2(rect.max.x - inset, rect.max.y - name_h),
     );
     if let Some(tex) = spec.tex {
         egui::Image::new((tex.id(), art.size())).paint_at(ui, art);
@@ -357,7 +365,7 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
             art.center(),
             Align2::CENTER_CENTER,
             "decoding…",
-            FontId::monospace(10.0),
+            label.clone(),
             p.fg_muted,
         );
     }
@@ -375,13 +383,13 @@ pub fn media_tile(ui: &mut Ui, spec: &TileSpec) -> TileResponse {
     };
     let mut job = LayoutJob::single_section(
         format!("{glyph}{}", spec.name),
-        TextFormat::simple(FontId::monospace(10.0), name_color),
+        TextFormat::simple(label, name_color),
     );
-    job.wrap = TextWrapping::truncate_at_width((spec.size.x - 6.0).max(0.0));
+    job.wrap = TextWrapping::truncate_at_width((spec.size.x - inset * 2.0).max(0.0));
     let galley = painter.layout_job(job);
     painter.galley(
         egui::pos2(
-            rect.min.x + 3.0,
+            rect.min.x + inset,
             rect.max.y - name_h * 0.5 - galley.size().y * 0.5,
         ),
         galley,

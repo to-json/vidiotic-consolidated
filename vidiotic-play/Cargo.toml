@@ -131,6 +131,10 @@ web-sys = { version = "0.3", default-features = false, features = [
     "ImageData",
     "KeyboardEvent",
     "MouseEvent",
+    # `navigator.platform`, for whether the command palette prints Cmd or Ctrl:
+    # a tab has no `target_os`. Enabled transitively by `Window` today; named
+    # here so a web-sys reshuffle cannot quietly take it away.
+    "Navigator",
     "Performance",
     "PointerEvent",
     "WheelEvent",
