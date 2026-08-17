@@ -105,6 +105,17 @@ pub struct HapMeta {
     pub video_mode: i32,
 }
 
+/// `a + b`, or [`HapErr::Truncated`] on overflow.
+///
+/// Section lengths here are `u32` words read straight out of the container, so
+/// on wasm32 — a first-class target for this crate — `header + length` overflows
+/// 32-bit `usize` for a length near `u32::MAX`: debug panics, release wraps to a
+/// small number and the `get()` below then happily returns the *wrong* window
+/// instead of rejecting the packet. `mov.rs` guards its sample table the same way.
+fn add(a: usize, b: usize) -> Result<usize, HapErr> {
+    a.checked_add(b).ok_or(HapErr::Truncated)
+}
+
 /// Parse a section header at the start of `b`.
 /// Returns (`payload_len`, `type_byte`, `header_len`).
 fn read_section(b: &[u8]) -> Result<(usize, u8, usize), HapErr> {
@@ -127,7 +138,7 @@ fn read_section(b: &[u8]) -> Result<(usize, u8, usize), HapErr> {
 /// Returns the texture format from the section's low nibble.
 fn decode_texture_section(b: &[u8], out: &mut Vec<u8>) -> Result<HapTextureFormat, HapErr> {
     let (len, ty, hdr) = read_section(b)?;
-    let payload = b.get(hdr..hdr + len).ok_or(HapErr::Truncated)?;
+    let payload = b.get(hdr..add(hdr, len)?).ok_or(HapErr::Truncated)?;
     let format = HapTextureFormat::from_nibble(ty & 0x0F)?;
 
     out.clear();
@@ -158,8 +169,9 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
     if di_ty != ST_DECODE_INSTRUCTIONS {
         return Err(HapErr::BadChunkTables);
     }
-    let di = body.get(di_hdr..di_hdr + di_len).ok_or(HapErr::Truncated)?;
-    let frame_data = body.get(di_hdr + di_len..).ok_or(HapErr::Truncated)?;
+    let di_end = add(di_hdr, di_len)?;
+    let di = body.get(di_hdr..di_end).ok_or(HapErr::Truncated)?;
+    let frame_data = body.get(di_end..).ok_or(HapErr::Truncated)?;
 
     let mut compressors: Option<&[u8]> = None;
     let mut sizes: Option<&[u8]> = None;
@@ -169,16 +181,16 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
     let mut p = 0usize;
     while p < di.len() {
         let (len, ty, hdr) = read_section(&di[p..])?;
-        let seg = di
-            .get(p + hdr..p + hdr + len)
-            .ok_or(HapErr::Truncated)?;
+        let seg_start = add(p, hdr)?;
+        let seg_end = add(seg_start, len)?;
+        let seg = di.get(seg_start..seg_end).ok_or(HapErr::Truncated)?;
         match ty {
             ST_COMPRESSOR_TABLE => compressors = Some(seg),
             ST_SIZE_TABLE => sizes = Some(seg),
             ST_OFFSET_TABLE => offsets = Some(seg),
             _ => {} // ignore unknown instruction sections
         }
-        p += hdr + len;
+        p = seg_end;
     }
 
     let compressors = compressors.ok_or(HapErr::BadChunkTables)?;
@@ -188,6 +200,13 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
     }
     let chunk_count = sizes.len() / 4;
     if compressors.len() != chunk_count {
+        return Err(HapErr::BadChunkTables);
+    }
+    // The offset table, when present, is indexed by chunk, so it has to cover
+    // every chunk the size table declares. Without this a crafted packet with N
+    // chunks and a shorter offset table is an out-of-bounds slice index in
+    // `chunk_offset` — a panic on untrusted container data, in release too.
+    if offsets.is_some_and(|off| off.len() < chunk_count * 4) {
         return Err(HapErr::BadChunkTables);
     }
     let chunk_size = |i: usize| -> usize {
@@ -200,23 +219,25 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
     };
     // Chunk offsets within frame_data: from the offset table if present, else the
     // running sum of the (compressed) chunk sizes.
-    let chunk_offset = |i: usize| -> usize {
+    let chunk_offset = |i: usize| -> Result<usize, HapErr> {
         if let Some(off) = offsets {
-            u32::from_le_bytes([
+            Ok(u32::from_le_bytes([
                 off[i * 4],
                 off[i * 4 + 1],
                 off[i * 4 + 2],
                 off[i * 4 + 3],
-            ]) as usize
+            ]) as usize)
         } else {
-            (0..i).map(chunk_size).sum()
+            (0..i)
+                .try_fold(0usize, |acc, j| acc.checked_add(chunk_size(j)))
+                .ok_or(HapErr::Truncated)
         }
     };
 
     out.clear();
     for (i, &comp) in compressors.iter().enumerate() {
-        let start = chunk_offset(i);
-        let end = start + chunk_size(i);
+        let start = chunk_offset(i)?;
+        let end = add(start, chunk_size(i))?;
         let chunk = frame_data.get(start..end).ok_or(HapErr::Truncated)?;
         match comp {
             CHUNK_COMP_NONE => out.extend_from_slice(chunk),
@@ -252,7 +273,7 @@ pub fn decode_frame(
     if texture_count >= 2 {
         // Second complete section follows the first in the packet.
         let (len0, _ty0, hdr0) = read_section(packet)?;
-        let rest = packet.get(hdr0 + len0..).ok_or(HapErr::Truncated)?;
+        let rest = packet.get(add(hdr0, len0)?..).ok_or(HapErr::Truncated)?;
         let alpha_fmt = decode_texture_section(rest, alpha)?;
         // HapM: main is YCoCg BC3, alpha is BC4 → composite mode 2.
         if alpha_fmt != HapTextureFormat::Bc4 {
@@ -464,6 +485,54 @@ mod tests {
         assert_eq!(meta.video_mode, 2);
         assert_eq!(main, ycocg);
         assert_eq!(alpha, bc4_alpha);
+    }
+
+    #[test]
+    fn short_offset_table_is_error() {
+        // Two chunks declared by the size table, one entry in the offset table.
+        // Used to index off the end of the offset table and panic.
+        let c0: Vec<u8> = (0..16).collect();
+        let c1: Vec<u8> = (200..216).collect();
+
+        let compressor_table = section(ST_COMPRESSOR_TABLE, &[CHUNK_COMP_NONE, CHUNK_COMP_NONE]);
+        let mut size_bytes = Vec::new();
+        size_bytes.extend_from_slice(&(c0.len() as u32).to_le_bytes());
+        size_bytes.extend_from_slice(&(c1.len() as u32).to_le_bytes());
+        let size_table = section(ST_SIZE_TABLE, &size_bytes);
+        let offset_table = section(ST_OFFSET_TABLE, &0u32.to_le_bytes()); // only chunk 0
+
+        let mut di_body = Vec::new();
+        di_body.extend_from_slice(&compressor_table);
+        di_body.extend_from_slice(&size_table);
+        di_body.extend_from_slice(&offset_table);
+        let di = section(ST_DECODE_INSTRUCTIONS, &di_body);
+
+        let mut body = Vec::new();
+        body.extend_from_slice(&di);
+        body.extend_from_slice(&c0);
+        body.extend_from_slice(&c1);
+
+        let frame = section(COMP_COMPLEX | FMT_RGB_DXT1, &body);
+        let (mut main, mut alpha) = (Vec::new(), Vec::new());
+        assert_eq!(
+            decode_frame(&frame, 1, &mut main, &mut alpha).unwrap_err(),
+            HapErr::BadChunkTables
+        );
+    }
+
+    #[test]
+    fn huge_length_word_is_error_not_overflow() {
+        // A length word near `u32::MAX` in the long-header form. On wasm32 the
+        // `header + length` addition overflows 32-bit `usize`; the checked
+        // arithmetic must turn that into an error on every target.
+        let mut frame = vec![0, 0, 0, COMP_NONE | FMT_RGB_DXT1];
+        frame.extend_from_slice(&u32::MAX.to_le_bytes());
+        frame.extend_from_slice(&[0u8; 16]);
+        let (mut main, mut alpha) = (Vec::new(), Vec::new());
+        assert_eq!(
+            decode_frame(&frame, 1, &mut main, &mut alpha).unwrap_err(),
+            HapErr::Truncated
+        );
     }
 
     #[test]
