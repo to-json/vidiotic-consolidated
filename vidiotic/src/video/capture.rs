@@ -357,7 +357,13 @@ struct RingFrame {
     wall: Instant,
     /// Seconds since the service started, for display.
     pts_sec: f64,
-    frame: ff::frame::Video,
+    /// Behind an `Arc` so a tap can lift the frame out of the ring lock and
+    /// convert it afterwards: swscale on a 1080p frame is milliseconds, and
+    /// holding `Ring::state` across it stalls the capture worker's `push` and
+    /// every other tap on the same device. Nothing mutates a frame after it is
+    /// pushed, so sharing it read-only is sound, and the `Arc` keeps a frame
+    /// alive for a tap still converting it after eviction.
+    frame: Arc<ff::frame::Video>,
     bytes: usize,
 }
 
@@ -393,7 +399,7 @@ impl RingState {
         }
         let bytes = frame_bytes(&frame);
         self.bytes += bytes;
-        self.frames.push_back(RingFrame { wall, pts_sec, frame, bytes });
+        self.frames.push_back(RingFrame { wall, pts_sec, frame: Arc::new(frame), bytes });
         while self.frames.len() > 1 {
             let front = &self.frames[0];
             if self.bytes > self.byte_cap || wall.duration_since(front.wall) > self.window {
@@ -457,12 +463,18 @@ impl CameraTap {
     /// empty). Conversion touches only the emitted frame.
     pub fn poll(&mut self, now: Instant) -> Option<DecodedFrame> {
         let target = now.checked_sub(Duration::from_secs_f64(self.delay_eff.max(0.0)))?;
-        let state = lock_unpoisoned(&self.ring.state);
-        let picked = state.peek_at(target)?;
-        if self.last_wall == Some(picked.wall) {
-            return None;
-        }
-        let (w, h, fmt) = (picked.frame.width(), picked.frame.height(), picked.frame.format());
+        // Everything below the lock is per-tap work on a frame the ring no
+        // longer needs to protect, so the lock is released here rather than
+        // held across the conversion.
+        let (frame, wall, pts_sec) = {
+            let state = lock_unpoisoned(&self.ring.state);
+            let picked = state.peek_at(target)?;
+            if self.last_wall == Some(picked.wall) {
+                return None;
+            }
+            (Arc::clone(&picked.frame), picked.wall, picked.pts_sec)
+        };
+        let (w, h, fmt) = (frame.width(), frame.height(), frame.format());
         if self.scaler.as_ref().is_none_or(|(_, key)| *key != (w, h, fmt)) {
             let ctx = ff::software::scaling::Context::get(
                 fmt,
@@ -478,13 +490,11 @@ impl CameraTap {
         }
         let mut rgba = ff::frame::Video::empty();
         let (scaler, _) = self.scaler.as_mut()?;
-        if let Err(e) = scaler.run(&picked.frame, &mut rgba) {
+        if let Err(e) = scaler.run(&frame, &mut rgba) {
             log::warn!("camera tap convert failed: {e}");
             return None;
         }
-        self.last_wall = Some(picked.wall);
-        let pts_sec = picked.pts_sec;
-        drop(state);
+        self.last_wall = Some(wall);
         Some(DecodedFrame {
             pixels: PixelData::Rgba {
                 data: rgba.data(0).to_vec(),
