@@ -907,7 +907,14 @@ impl Shell {
         let name = vidiotic_core::bundle::sanitize(&stem);
         let entries = self.bundle_entries(&name);
         let clips = entries.len() - 1;
-        let archive = vidiotic_core::bundle::zip(&entries);
+        let archive = match vidiotic_core::bundle::zip(&entries) {
+            Ok(archive) => archive,
+            Err(e) => {
+                self.status = format!("could not save {name}.zip: {e}");
+                log::error!("{}", self.status);
+                return;
+            }
+        };
         self.status =
             format!("saved {name}.zip — {clips} clip(s), {} KiB", archive.len() / 1024);
         log::info!("{}", self.status);
@@ -1233,10 +1240,25 @@ fn spawn_frame_loop() {
     request_frame(seed.borrow().as_ref().expect("loop closure"));
 }
 
+/// Schedule the next frame. A rejected `requestAnimationFrame` falls back to a
+/// timer rather than panicking: this runs once per frame, the panic hook takes
+/// the whole page down with it, and one transient failure is not worth losing a
+/// running set over. The timer keeps the loop alive at roughly frame rate even
+/// if rAF stays unavailable.
 fn request_frame(cb: &Closure<dyn FnMut()>) {
-    window()
+    if window()
         .request_animation_frame(cb.as_ref().unchecked_ref())
-        .expect("requestAnimationFrame");
+        .is_ok()
+    {
+        return;
+    }
+    log::warn!("requestAnimationFrame was refused; falling back to a timer for this frame");
+    if let Err(e) = window().set_timeout_with_callback_and_timeout_and_arguments_0(
+        cb.as_ref().unchecked_ref(),
+        16,
+    ) {
+        log::error!("could not schedule the next frame at all: {e:?}");
+    }
 }
 
 /// The `detail` values [`request_file`] sends, and the page's `accept` keys.

@@ -30,23 +30,56 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
+/// Why a bundle could not be written.
+///
+/// Every one of these is a limit of the zip format's 32- and 16-bit header
+/// fields, not of this writer: the answer to any of them is zip64, not a wider
+/// cast. They exist as errors because the alternative — saturating the field
+/// and writing the archive anyway, which is what this used to do — hands
+/// somebody a file their zip reader rejects, at the end of a bake, with no
+/// indication that anything went wrong.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ZipErr {
+    /// An entry, or the archive itself, exceeded the 4 GiB a `u32` size field
+    /// can name.
+    TooLarge,
+    /// More than 65535 entries — more than the count field can name.
+    TooManyEntries,
+    /// An entry name longer than the 65535 bytes its length field can name.
+    NameTooLong,
+}
+
+impl std::fmt::Display for ZipErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooLarge => write!(f, "bundle exceeds the 4 GiB zip limit"),
+            Self::TooManyEntries => write!(f, "bundle has more than 65535 entries"),
+            Self::NameTooLong => write!(f, "an entry name exceeds 65535 bytes"),
+        }
+    }
+}
+impl std::error::Error for ZipErr {}
+
 /// Pack `entries` (name, bytes) into a **stored** — uncompressed — zip.
 ///
 /// Store rather than deflate, and that is not laziness: a `.mov` full of Hap1
 /// is snappy-compressed already, so deflating it costs CPU to produce a
 /// slightly larger file. The `.viproj` is a few KB of text and compresses well,
 /// but not enough to be worth carrying a deflate implementation for.
-#[must_use]
-pub fn zip(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
+///
+/// # Errors
+/// [`ZipErr`] when the archive would not fit the format's fixed-width header
+/// fields — see there for why that is an error rather than a truncation.
+pub fn zip(entries: &[(String, Vec<u8>)]) -> Result<Vec<u8>, ZipErr> {
     let mut out = Vec::new();
     let mut central = Vec::new();
 
     for (name, data) in entries {
-        let offset = u32::try_from(out.len()).unwrap_or(u32::MAX);
+        let offset = u32::try_from(out.len()).map_err(|_| ZipErr::TooLarge)?;
         let crc = crc32(data);
-        let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
+        let size = u32::try_from(data.len()).map_err(|_| ZipErr::TooLarge)?;
         let name_bytes = name.as_bytes();
-        let name_len = u16::try_from(name_bytes.len()).unwrap_or(u16::MAX);
+        let name_len = u16::try_from(name_bytes.len()).map_err(|_| ZipErr::NameTooLong)?;
 
         // Local file header. Version 2.0, no flags, method 0 (stored), and a
         // zeroed DOS timestamp: a bake is deterministic and a clock would be
@@ -85,9 +118,9 @@ pub fn zip(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
         central.extend_from_slice(name_bytes);
     }
 
-    let central_offset = u32::try_from(out.len()).unwrap_or(u32::MAX);
-    let central_size = u32::try_from(central.len()).unwrap_or(u32::MAX);
-    let count = u16::try_from(entries.len()).unwrap_or(u16::MAX);
+    let central_offset = u32::try_from(out.len()).map_err(|_| ZipErr::TooLarge)?;
+    let central_size = u32::try_from(central.len()).map_err(|_| ZipErr::TooLarge)?;
+    let count = u16::try_from(entries.len()).map_err(|_| ZipErr::TooManyEntries)?;
     out.extend_from_slice(&central);
     out.extend_from_slice(b"PK\x05\x06");
     out.extend_from_slice(&0u16.to_le_bytes()); // this disk
@@ -97,7 +130,7 @@ pub fn zip(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
     out.extend_from_slice(&central_size.to_le_bytes());
     out.extend_from_slice(&central_offset.to_le_bytes());
     out.extend_from_slice(&0u16.to_le_bytes()); // comment length
-    out
+    Ok(out)
 }
 
 /// A file name safe to put in an archive, or to name a project with.
@@ -140,7 +173,7 @@ mod tests {
             ("p.viproj".to_string(), b"(version: 3)".to_vec()),
             ("clips/a.mov".to_string(), vec![7u8; 300]),
         ];
-        let z = zip(&entries);
+        let z = zip(&entries).unwrap();
 
         let end = z.len() - 22;
         assert_eq!(&z[end..end + 4], b"PK\x05\x06");
@@ -169,9 +202,17 @@ mod tests {
 
     #[test]
     fn an_empty_archive_is_still_a_valid_one() {
-        let z = zip(&[]);
+        let z = zip(&[]).unwrap();
         assert_eq!(z.len(), 22);
         assert_eq!(&z[0..4], b"PK\x05\x06");
+    }
+
+    /// A name that cannot fit the header field is an error, not a truncated
+    /// name field pointing at the wrong bytes.
+    #[test]
+    fn an_overlong_entry_name_is_refused() {
+        let entries = vec![("n".repeat(70_000), b"x".to_vec())];
+        assert_eq!(zip(&entries), Err(ZipErr::NameTooLong));
     }
 
     #[test]

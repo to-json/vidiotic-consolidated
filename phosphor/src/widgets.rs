@@ -442,6 +442,11 @@ pub fn fader(
     let p = palette();
     let cw = cell_width(ui);
     let n = cells.max(4);
+    // A degenerate range has no position to map a value onto: `(v - min) /
+    // (max - min)` is NaN, `clamp` passes NaN through, and the cap lands
+    // nowhere. Widen it by an epsilon so the fader draws pinned at its floor
+    // and drags are inert, rather than painting garbage.
+    let max = if max > min { max } else { min + f32::EPSILON };
     let (rect, _) = ui.allocate_exact_size(egui::vec2(cw * (n as f32 + 2.0), row()), Sense::hover());
     let mut resp = ui.interact(rect, ui.make_persistent_id(id_salt), Sense::click_and_drag());
     if resp.dragged() || resp.clicked() {

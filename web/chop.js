@@ -256,7 +256,11 @@ async function serveFrame(index) {
   // A bake owns the <video> element while it runs: two seek loops on one
   // element resolve each other's `seeked` events and both get wrong frames.
   // The preview simply holds its last picture, which is what it does anyway.
-  if (exporting) return;
+  //
+  // Remembered rather than dropped: the shell keeps one preview request in
+  // flight and waits for it, so a request lost here freezes the preview for
+  // the rest of the session. The bake serves it on the way out.
+  if (exporting) { deferredFrame = index; return; }
   if (seeking) { queued = index; return; }
   seeking = true;
   try {
@@ -504,6 +508,12 @@ async function runExport(plan) {
     export_failed(String(e.message ?? e));
   } finally {
     exporting = false;
+    // Whatever the shell asked for while the bake owned the element.
+    if (deferredFrame !== null) {
+      const index = deferredFrame;
+      deferredFrame = null;
+      void serveFrame(index);
+    }
   }
 }
 
@@ -523,6 +533,8 @@ function download(bytes, name) {
 }
 
 let exporting = false;
+// A preview request that arrived while a bake owned the <video> element.
+let deferredFrame = null;
 let lastExport = null;
 // Kept so the smoke test can read back the archive the visitor was handed,
 // rather than a second one built for the test.

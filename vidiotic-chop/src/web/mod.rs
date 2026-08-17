@@ -352,9 +352,15 @@ impl ChopApp {
         height: u32,
         rgba: &[u8],
     ) {
-        if self.awaiting == Some(index) {
-            self.awaiting = None;
+        // Only the frame that was asked for. A delivery for any other index is
+        // stale — a request outstanding when the media changed, say — and
+        // painting it would record a frame of the wrong video in `shown` while
+        // leaving `awaiting` set, so `request_preview` (which gates on
+        // `awaiting`) would never ask for anything again.
+        if self.awaiting != Some(index) {
+            return;
         }
+        self.awaiting = None;
         let expected = width as usize * height as usize * 4;
         if rgba.len() != expected {
             log::error!("frame {index}: {} bytes for {width}x{height}", rgba.len());
@@ -1169,11 +1175,12 @@ pub fn export_failed(msg: &str) {
 /// *plus* a `clips/` directory whose relative paths it references.
 ///
 /// # Errors
-/// If nothing was baked, or if the clips do not line up with the spans.
+/// If nothing was baked, if the clips do not line up with the spans, or if the
+/// result does not fit the zip format's 32-bit fields.
 #[wasm_bindgen]
 pub fn export_finish() -> Result<Vec<u8>, JsValue> {
     let (name, entries) = finish_entries()?;
-    let archive = export::zip(&entries);
+    let archive = export::zip(&entries).map_err(|e| JsValue::from_str(&e.to_string()))?;
     post(FromPage::Exported(format!(
         "exported {name}.zip — {} clip(s), {} KiB",
         entries.len() - 1,
