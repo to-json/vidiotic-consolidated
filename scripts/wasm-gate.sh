@@ -36,8 +36,15 @@ VERBOSE=0
 #
 # Keep the note current: for FAIL rows it is the actual blocker, and it is the
 # closest thing this repo has to a work list for the port.
+#
+# No apostrophes in the notes. Both tables are heredocs inside `$( )`, and
+# bash 3.2 — which is what macOS ships as /bin/bash — mis-parses that
+# combination: it applies quoting rules to the heredoc body while scanning for
+# the closing paren, so one `'` swallows the rest of the file and the whole
+# script dies with "unexpected EOF while looking for matching `''". Newer bash
+# is fine, which is exactly why this is easy to reintroduce.
 TABLE=$(cat <<'EOF'
-vidiotic-wire|--no-default-features|PASS|protocol types are nanoserde over vidiotic-core's ISF model; core pulls ctl, so midir/gilrs build but do not block
+vidiotic-wire|--no-default-features|PASS|protocol types are nanoserde over the vidiotic-core ISF model; core pulls ctl, so midir/gilrs build but do not block
 phosphor|--no-default-features|PASS|egui theme + widgets, no shell feature
 vidiotic-ctl|--no-default-features|PASS|binding tables; midir/gilrs/dirs do not block
 vidiotic-core|--no-default-features|PASS|thumbnail decode is behind the ffmpeg feature
