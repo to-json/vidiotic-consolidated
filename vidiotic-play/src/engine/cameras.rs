@@ -67,9 +67,16 @@ impl Engine {
         // A camera clip whose device isn't connected still gets a row: its cues
         // render black, and without the row there is nothing to relink it onto
         // a device that is.
+        // One row per *device*, not per clip: `intern_clip` dedupes camera clips
+        // by uid, but `project::assemble` maps saved specs 1:1, so a project file
+        // carrying two camera clips with the same uid would otherwise show the
+        // same absent device twice.
         for c in &self.clips {
             let Some(uid) = c.camera_uid() else { continue };
             if devices.iter().any(|&(d_uid, _)| d_uid == uid) {
+                continue;
+            }
+            if rows.iter().any(|e| &*e.uid == uid) {
                 continue;
             }
             rows.push(CameraEntry {

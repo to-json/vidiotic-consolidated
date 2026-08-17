@@ -207,7 +207,7 @@ fn camera_row(ui: &mut Ui, m: &UiMirror, cam: &CameraEntry, tx: &Sender<Command>
     });
 }
 
-/// A saved camera whose device isn't connected: name, "missing device" tag,
+/// A saved camera whose device isn't connected: name, "not connected" tag,
 /// and a combo listing the connected devices to relink onto.
 fn missing_camera_row(ui: &mut Ui, m: &UiMirror, cam: &CameraEntry, tx: &Sender<Command>) {
     let p = palette();

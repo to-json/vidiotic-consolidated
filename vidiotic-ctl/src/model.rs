@@ -408,7 +408,38 @@ mod tests {
                 Action::Prep(PrepVerb::ZoomView { .. }) => {
                     Action::Prep(PrepVerb::ZoomView { factor: 0.5 })
                 }
-                other => *other,
+                // Parameterless variants are their own representative. Listed
+                // rather than caught by `_` so that a new variant genuinely
+                // fails to compile here, as this test's doc comment promises —
+                // a catch-all let `ToggleCommandPalette` slip past in d4d08f9.
+                a @ (Action::Nothing
+                | Action::TapDownbeat
+                | Action::TapTempo
+                | Action::SoftReset
+                | Action::HardReset
+                | Action::CaptureShader
+                | Action::ToggleFullscreen
+                | Action::SaveProject
+                | Action::ToggleCommandPalette
+                | Action::Quit
+                | Action::BpmCommit
+                | Action::BpmClear) => *a,
+                Action::Prep(
+                    v @ (PrepVerb::TogglePlay
+                    | PrepVerb::Pause
+                    | PrepVerb::PlayFromIn
+                    | PrepVerb::SeekStart
+                    | PrepVerb::SeekEnd
+                    | PrepVerb::JumpToIn
+                    | PrepVerb::JumpToOut
+                    | PrepVerb::SetIn
+                    | PrepVerb::SetOut
+                    | PrepVerb::SnapOut
+                    | PrepVerb::AddSpan
+                    | PrepVerb::ZoomFit
+                    | PrepVerb::ZoomToMarks
+                    | PrepVerb::Scrub),
+                ) => Action::Prep(*v),
             }
         }
         // Every variant a caller could construct, listed exhaustively.
