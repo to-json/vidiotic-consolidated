@@ -10,8 +10,7 @@ use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use vidiotic_ctl::{
-    Action, Binding, ControlEvent, ControlMap, ControlSource, EventValue, Learn, Mapper, MidiHub,
-    PadPoller,
+    Action, Binding, ControlEvent, ControlMap, ControlSource, Learn, Mapper, MidiHub, PadPoller,
 };
 
 use vidiotic_chop::commands::Command;
@@ -136,27 +135,13 @@ impl Controls {
     /// carry — so keys are handed here inline rather than round-tripping.
     pub fn observe(&mut self, ev: ControlEvent, repeat: bool) -> Option<Command> {
         // Undo/redo are reserved accelerator chords, resolved ahead of the
-        // mapper (and of learn, so they can't be captured as a binding).
-        // Cmd+Z on mac, Ctrl+Z elsewhere; Shift or `y` for redo. Only on the
-        // press edge, and only when a text field isn't eating keys — the caller
-        // already gates that, and egui's TextEdit keeps its own inline undo.
-        if !repeat && matches!(ev.value, EventValue::Pressed) {
-            if let ControlSource::Key {
-                key,
-                ctrl,
-                alt,
-                shift,
-                cmd,
-            } = &ev.source
-            {
-                let accel = (*ctrl || *cmd) && !*alt;
-                if accel && key == "z" {
-                    return Some(if *shift { Command::Redo } else { Command::Undo });
-                }
-                if accel && !*shift && key == "y" {
-                    return Some(Command::Redo);
-                }
-            }
+        // mapper (and of learn, so they can't be captured as a binding). Only
+        // when a text field isn't eating keys — the caller already gates that,
+        // and egui's TextEdit keeps its own inline undo.
+        match vidiotic_ctl::egui_keys::history_chord(&ev, repeat) {
+            Some(vidiotic_ctl::egui_keys::History::Undo) => return Some(Command::Undo),
+            Some(vidiotic_ctl::egui_keys::History::Redo) => return Some(Command::Redo),
+            None => {}
         }
         // Key-repeat is an artifact of holding a key down, not a new
         // actuation: it must not be captured as a binding or clutter the

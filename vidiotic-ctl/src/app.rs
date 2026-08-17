@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender};
 use vidiotic_ctl::{
-    Action, Binding, ControlEvent, ControlMap, ControlSource, EventValue, Learn, MidiHub, PadPoller,
+    egui_keys, Action, Binding, ControlEvent, ControlMap, ControlSource, Learn, MidiHub, PadPoller,
 };
 
 /// How often [`MidiHub::rescan`] runs — `midir` exposes no `CoreMIDI` hotplug
@@ -207,75 +207,37 @@ impl CtlApp {
         }
     }
 
-    /// Undo/redo accelerator chords: Cmd+Z on mac, Ctrl+Z elsewhere; Shift or
-    /// `y` for redo. The caller gates this off during a learn session — there,
-    /// a keypress is the binding being captured, not a command.
-    fn handle_history_keys(&mut self, ctx: &egui::Context) {
+    /// This frame's keys: the undo/redo chord acted on directly, everything
+    /// else offered to the monitor and the learn session through the same
+    /// channel device input arrives on.
+    ///
+    /// `history` is false during a learn session — there a keypress is the
+    /// binding being captured, so Cmd+Z should be learnable rather than undo.
+    /// Key-repeats are dropped: this window has no frame-steppers, and a held
+    /// key is not a new actuation to learn or to log.
+    fn pump_keys(&mut self, ctx: &egui::Context, history: bool) {
         let (mut undo, mut redo) = (false, false);
-        ctx.input(|input| {
-            for event in &input.events {
-                let egui::Event::Key {
-                    key,
-                    pressed: true,
-                    repeat: false,
-                    modifiers,
-                    ..
-                } = event
-                else {
-                    continue;
-                };
-                if !((modifiers.ctrl || modifiers.mac_cmd) && !modifiers.alt) {
-                    continue;
-                }
-                match key {
-                    egui::Key::Z if modifiers.shift => redo = true,
-                    egui::Key::Z => undo = true,
-                    egui::Key::Y => redo = true,
-                    _ => {}
+        for (ev, repeat) in egui_keys::key_events(ctx) {
+            if history {
+                match egui_keys::history_chord(&ev, repeat) {
+                    Some(egui_keys::History::Undo) => undo = true,
+                    Some(egui_keys::History::Redo) => redo = true,
+                    None => {}
                 }
             }
-        });
+            // Offered to the monitor either way, chord included: this window's
+            // live monitor is a debugging surface, and a chord that fired is
+            // exactly the sort of thing somebody is looking for in it.
+            if !repeat {
+                let _ = self.tx.send(ev);
+            }
+        }
+        // Undo wins a frame that somehow contained both.
         if undo {
             self.undo();
         } else if redo {
             self.redo();
         }
-    }
-
-    fn offer_keys(&mut self, ctx: &egui::Context) {
-        ctx.input(|input| {
-            for event in &input.events {
-                let egui::Event::Key {
-                    key,
-                    pressed,
-                    repeat,
-                    modifiers,
-                    ..
-                } = event
-                else {
-                    continue;
-                };
-                if *repeat {
-                    continue;
-                }
-                let source = ControlSource::Key {
-                    // egui names every key, punctuation and digits included
-                    // (`OpenBracket`, `Num1`) — `from_named` is what folds
-                    // those onto winit's spelling of the same physical key.
-                    key: vidiotic_ctl::keys::from_named(&format!("{key:?}")),
-                    ctrl: modifiers.ctrl,
-                    alt: modifiers.alt,
-                    shift: modifiers.shift,
-                    cmd: modifiers.mac_cmd,
-                };
-                let value = if *pressed {
-                    EventValue::Pressed
-                } else {
-                    EventValue::Released
-                };
-                let _ = self.tx.send(ControlEvent { source, value });
-            }
-        });
     }
 
     fn ingest(&mut self, ev: ControlEvent) {
@@ -316,10 +278,7 @@ impl eframe::App for CtlApp {
         if !ctx.egui_wants_keyboard_input() {
             // Not while learning: there, a keypress is the binding being
             // captured, so Cmd+Z should be learnable rather than undo.
-            if self.learn.is_none() {
-                self.handle_history_keys(&ctx);
-            }
-            self.offer_keys(&ctx);
+            self.pump_keys(&ctx, self.learn.is_none());
         }
 
         while let Ok(ev) = self.rx.try_recv() {

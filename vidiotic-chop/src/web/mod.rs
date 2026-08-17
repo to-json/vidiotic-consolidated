@@ -408,63 +408,17 @@ impl ChopApp {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
-        let events: Vec<(vidiotic_ctl::ControlSource, vidiotic_ctl::EventValue, bool)> =
-            ctx.input(|input| {
-                input
-                    .events
-                    .iter()
-                    .filter_map(|event| {
-                        let egui::Event::Key {
-                            key,
-                            pressed,
-                            repeat,
-                            modifiers,
-                            ..
-                        } = event
-                        else {
-                            return None;
-                        };
-                        let source = vidiotic_ctl::ControlSource::Key {
-                            // `egui::Key`'s Debug name, canonicalized into the
-                            // toolkit-free space `vidiotic-ctl` binds against.
-                            key: vidiotic_ctl::keys::from_named(&format!("{key:?}")),
-                            ctrl: modifiers.ctrl,
-                            alt: modifiers.alt,
-                            shift: modifiers.shift,
-                            cmd: modifiers.mac_cmd,
-                        };
-                        let value = if *pressed {
-                            vidiotic_ctl::EventValue::Pressed
-                        } else {
-                            vidiotic_ctl::EventValue::Released
-                        };
-                        Some((source, value, *repeat))
-                    })
-                    .collect()
-            });
-
-        for (source, value, repeat) in events {
+        for (ev, repeat) in vidiotic_ctl::egui_keys::key_events(ctx) {
             // Undo/redo are reserved chords resolved ahead of the table, as in
-            // `Controls::observe`. Cmd+Z on mac, Ctrl+Z elsewhere.
-            if !repeat && matches!(value, vidiotic_ctl::EventValue::Pressed) {
-                if let vidiotic_ctl::ControlSource::Key {
-                    key,
-                    ctrl,
-                    alt,
-                    shift,
-                    cmd,
-                } = &source
-                {
-                    let accel = (*ctrl || *cmd) && !*alt;
-                    if accel && (key == "z" || key == "y") {
-                        let redo = key == "y" || *shift;
-                        self.editor
-                            .post(if redo { Command::Redo } else { Command::Undo });
-                        continue;
-                    }
-                }
+            // `Controls::observe`.
+            if let Some(history) = vidiotic_ctl::egui_keys::history_chord(&ev, repeat) {
+                self.editor.post(match history {
+                    vidiotic_ctl::egui_keys::History::Undo => Command::Undo,
+                    vidiotic_ctl::egui_keys::History::Redo => Command::Redo,
+                });
+                continue;
             }
-            if let Some(cmd) = crate::keymap::resolve(&mut self.keys, source, value, repeat) {
+            if let Some(cmd) = crate::keymap::resolve(&mut self.keys, ev.source, ev.value, repeat) {
                 self.editor.post(cmd);
             }
         }

@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use crossbeam_channel::Receiver;
 use nanoserde::SerRon;
-use vidiotic_ctl::{ControlEvent, ControlSource, EventValue};
 
 use crate::control_input::Controls;
 use crate::engine::EngineLink;
@@ -652,7 +651,7 @@ impl PrepApp {
         // name doesn't scrub. MIDI and gamepads aren't gated — a pad press
         // still fires while a name is being typed.
         if !ctx.egui_wants_keyboard_input() {
-            for (ev, repeat) in self.key_events(ctx) {
+            for (ev, repeat) in vidiotic_ctl::egui_keys::key_events(ctx) {
                 if let Some(cmd) = self.ctl.observe(ev, repeat) {
                     self.editor.post(cmd);
                 }
@@ -663,45 +662,6 @@ impl PrepApp {
                 self.editor.post(cmd);
             }
         }
-    }
-
-    /// This window's key events as control events, paired with the OS's
-    /// key-repeat flag — which the channel can't carry, so keys are handled
-    /// inline rather than round-tripping through `ctl_tx` like device input.
-    fn key_events(&self, ctx: &egui::Context) -> Vec<(ControlEvent, bool)> {
-        ctx.input(|input| {
-            input
-                .events
-                .iter()
-                .filter_map(|event| {
-                    let egui::Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        modifiers,
-                        ..
-                    } = event
-                    else {
-                        return None;
-                    };
-                    let source = ControlSource::Key {
-                        // `egui::Key`'s Debug name, canonicalized into the
-                        // toolkit-free space `vidiotic-ctl` binds against.
-                        key: vidiotic_ctl::keys::from_named(&format!("{key:?}")),
-                        ctrl: modifiers.ctrl,
-                        alt: modifiers.alt,
-                        shift: modifiers.shift,
-                        cmd: modifiers.mac_cmd,
-                    };
-                    let value = if *pressed {
-                        EventValue::Pressed
-                    } else {
-                        EventValue::Released
-                    };
-                    Some((ControlEvent { source, value }, *repeat))
-                })
-                .collect()
-        })
     }
 
     /// Persist prep's own bindings if they changed, surfacing a write failure

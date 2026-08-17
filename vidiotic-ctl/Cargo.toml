@@ -17,7 +17,11 @@ default = ["ui"]
 ui = ["egui-ui", "phosphor/shell", "phosphor/logging", "dep:eframe", "dep:rfd"]
 # Just the shared binding-table widgets, for embedding in another egui app
 # (`vidiotic-prep`) without dragging in eframe/rfd/the logging stack.
-egui-ui = ["dep:phosphor", "dep:egui"]
+egui-ui = ["egui-keys", "dep:phosphor", "dep:egui"]
+# Narrower still: the `egui::Event::Key` adapter and the undo/redo chord, with
+# no widgets and no phosphor. What a shell wants when it resolves keys but draws
+# no rebinding UI — `vidiotic-chop`'s browser shell, which counts wasm bytes.
+egui-keys = ["dep:egui"]
 
 [dependencies]
 nanoserde = "0.2"

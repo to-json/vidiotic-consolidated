@@ -7,6 +7,11 @@
 //! each app owns its own `Action -> Command` translation and rejects the
 //! other's half of the vocabulary.
 
+/// The egui key adapter and the undo/redo chord, shared by every egui shell.
+/// Behind its own `egui-keys` feature so a shell that draws no rebinding UI
+/// (the browser one) can take the adapter without the widgets.
+#[cfg(feature = "egui-keys")]
+pub mod egui_keys;
 pub mod event;
 pub mod keys;
 pub mod learn;

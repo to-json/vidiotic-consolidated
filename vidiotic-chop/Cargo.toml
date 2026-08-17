@@ -27,7 +27,9 @@ crate-type = ["cdylib", "rlib"]
 vidiotic-core = { path = "../vidiotic-core", default-features = false }
 # For `ControlMap` alone, which a reopened project carries. Not the binding
 # tables — those are the shell's (see `vidiotic-prep/src/shell_ui.rs`).
-vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false }
+vidiotic-ctl = { path = "../vidiotic-ctl", default-features = false, features = [
+    "egui-keys",
+] }
 # The theme, the icon set, and the bracket-button/glyph widget vocabulary the
 # panels are written in. No `shell` or `logging` feature: both pull eframe and
 # env_logger, and neither belongs on this side.
