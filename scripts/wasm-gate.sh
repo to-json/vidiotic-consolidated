@@ -120,8 +120,18 @@ printf '%.0s-' {1..92}; printf '\n'
 echo "$pass_ok portable, $fail_ok still blocked, $fail need attention"
 
 echo
+# `cargo install` puts the runner in ~/.cargo/bin, which is not on PATH when
+# rustup came from a package manager rather than rustup-init — so look there
+# before believing it is missing. Exported, because it is `cargo test` that has
+# to find it, via the runner key in .cargo/config.toml.
+if ! command -v wasm-bindgen-test-runner >/dev/null 2>&1 \
+  && [ -x "${CARGO_HOME:-$HOME/.cargo}/bin/wasm-bindgen-test-runner" ]; then
+  export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+fi
+
 if ! command -v wasm-bindgen-test-runner >/dev/null 2>&1; then
-  echo "SKIPPING the wasm test run: wasm-bindgen-test-runner is not installed."
+  echo "SKIPPING the wasm test run: wasm-bindgen-test-runner is not installed,"
+  echo "and is not in ${CARGO_HOME:-$HOME/.cargo}/bin either."
   echo "  cargo install wasm-bindgen-cli --version \$(grep -A1 '^name = \"wasm-bindgen\"\$' Cargo.lock | sed -n 's/version = \"\\(.*\\)\"/\\1/p' | head -1) --locked"
   echo "  (the version must match Cargo.lock, or the runner rejects the module)"
   echo
