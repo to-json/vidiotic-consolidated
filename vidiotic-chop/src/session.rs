@@ -307,6 +307,30 @@ mod tests {
         assert!(file.controls.bindings.is_empty());
     }
 
+    /// The other direction. Every field of `SessionFile` is `#[nserde(default)]`,
+    /// so a sidecar from a future build parses happily and comes back missing
+    /// whatever this build has no field for — which on screen is a session that
+    /// lost half its spans. Refusing it says so instead.
+    #[test]
+    fn a_newer_sidecar_is_refused_rather_than_half_loaded() {
+        let text = format!(
+            r"(
+            version: {},
+            spans: [],
+            bank_names: [],
+            defaults: (bpm: 120.0, quantum: 4.0, phrase_len: 16),
+        )",
+            SESSION_VERSION + 1
+        );
+        // Not `expect_err`: `SessionFile` is deliberately not `Debug`.
+        let Err(err) = parse(&text, "from-the-future") else {
+            panic!("a newer version must not parse");
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("from-the-future"), "{msg}");
+        assert!(msg.contains(&format!("v{}", SESSION_VERSION + 1)), "{msg}");
+    }
+
     /// An inverted range would make a zero-length span the editor then has to
     /// defend against everywhere downstream.
     #[test]
