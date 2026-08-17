@@ -16,10 +16,40 @@ use vidiotic_ctl::model::ControlSource;
 
 use crate::commands::CueParamKind;
 
-/// One of the 8 abstract grammar inputs, as an index `0..8`. Every edge
-/// source (keyboard, pad, MIDI) reduces to one of these before the state
-/// machine sees it.
-pub type Token = u8;
+/// How many abstract grammar inputs there are. Every table in this module is
+/// this wide, and [`Token`] indexes them.
+pub const TOKEN_COUNT: usize = 8;
+
+/// One of the [`TOKEN_COUNT`] abstract grammar inputs. Every edge source
+/// (keyboard, pad, MIDI) reduces to one of these before the state machine sees
+/// it.
+///
+/// A newtype rather than a bare `u8` because this type is public and the whole
+/// module indexes fixed-width arrays with it — roots, conjugations, sticky
+/// entries, [`KEY_TOKENS`]. As an alias, a caller outside the crate could hand
+/// `Grammar::step` a `9` and panic it on an out-of-bounds index; the range
+/// invariant is now established once, in [`Token::new`], and [`Token::index`]
+/// is in-bounds by construction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Token(u8);
+
+impl Token {
+    /// `i` as a token, or `None` if it isn't one of the [`TOKEN_COUNT`].
+    #[must_use]
+    pub const fn new(i: u8) -> Option<Self> {
+        if (i as usize) < TOKEN_COUNT {
+            Some(Self(i))
+        } else {
+            None
+        }
+    }
+
+    /// Index into a `TOKEN_COUNT`-wide grammar table. In range by construction.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+}
 
 /// A grammar-relevant input event: one of the 8 tokens, or the cancel key.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -115,7 +145,7 @@ pub enum Verb {
 /// Per-token verbs of a sticky mode. A populated slot fires its verb and
 /// stays in the mode; an empty slot exits the mode and replays the token as a
 /// fresh root press.
-pub type StickyTable = [Option<Verb>; 8];
+pub type StickyTable = [Option<Verb>; TOKEN_COUNT];
 
 /// One resolvable slot under a root. `verb` fires on selection (`None` for
 /// pure mode entry); `sticky` is a `(mode label, table)` the machine enters
@@ -134,13 +164,13 @@ pub struct Conjugation {
 #[derive(Clone, Copy, Debug)]
 pub struct RootEntry {
     pub label: &'static str,
-    pub conjugations: [Option<Conjugation>; 8],
+    pub conjugations: [Option<Conjugation>; TOKEN_COUNT],
 }
 
 /// A complete grammar: one root per token.
 #[derive(Clone, Copy, Debug)]
 pub struct GrammarTable {
-    pub roots: [RootEntry; 8],
+    pub roots: [RootEntry; TOKEN_COUNT],
 }
 
 /// Where the machine is between presses.
@@ -190,7 +220,7 @@ impl Grammar {
                 Step::Pending
             }
             (GrammarState::AwaitingConjugation { root }, Input::Token(t)) => {
-                match &table.roots[*root as usize].conjugations[t as usize] {
+                match &table.roots[root.index()].conjugations[t.index()] {
                     // Forgiving: an empty slot keeps the modal open.
                     None => Step::Pending,
                     Some(conj) => {
@@ -209,7 +239,7 @@ impl Grammar {
                 }
             }
             (GrammarState::Sticky { entries, .. }, Input::Token(t)) => {
-                if let Some(v) = entries[t as usize] {
+                if let Some(v) = entries[t.index()] {
                     Step::Verb(v)
                 } else {
                     // A token the mode doesn't own exits it and replays as a
@@ -229,7 +259,7 @@ impl Grammar {
 
 /// The canonical keyboard spelling of each token, in token order. These are
 /// the strings `control_input::canon_key` / `vidiotic_ctl::keys` produce.
-pub const KEY_TOKENS: [&str; 8] = ["g", "f", "m", "a", "d", "t", "b", ";"];
+pub const KEY_TOKENS: [&str; TOKEN_COUNT] = ["g", "f", "m", "a", "d", "t", "b", ";"];
 
 /// Map a canonical key name to a grammar input. `Escape` cancels.
 #[must_use]
@@ -240,7 +270,8 @@ pub fn token_of_key(canon: &str) -> Option<Input> {
     KEY_TOKENS
         .iter()
         .position(|k| *k == canon)
-        .map(|i| Input::Token(i as Token))
+        .and_then(|i| Token::new(i as u8))
+        .map(Input::Token)
 }
 
 /// Map a non-keyboard edge source to a grammar input: gamepad d-pad and face
@@ -251,19 +282,21 @@ pub fn token_of_key(canon: &str) -> Option<Input> {
 pub fn token_of_source(source: &ControlSource) -> Option<Input> {
     match source {
         ControlSource::PadButton { button, .. } => match button.as_str() {
-            "DPadUp" => Some(Input::Token(0)),
-            "DPadDown" => Some(Input::Token(1)),
-            "DPadLeft" => Some(Input::Token(2)),
-            "DPadRight" => Some(Input::Token(3)),
-            "North" => Some(Input::Token(4)),
-            "South" => Some(Input::Token(5)),
-            "East" => Some(Input::Token(6)),
-            "West" => Some(Input::Token(7)),
+            "DPadUp" => Some(Input::Token(Token(0))),
+            "DPadDown" => Some(Input::Token(Token(1))),
+            "DPadLeft" => Some(Input::Token(Token(2))),
+            "DPadRight" => Some(Input::Token(Token(3))),
+            "North" => Some(Input::Token(Token(4))),
+            "South" => Some(Input::Token(Token(5))),
+            "East" => Some(Input::Token(Token(6))),
+            "West" => Some(Input::Token(Token(7))),
             "Select" => Some(Input::Cancel),
             _ => None,
         },
         ControlSource::MidiNote { note: 35, .. } => Some(Input::Cancel),
-        ControlSource::MidiNote { note: n @ 36..=43, .. } => Some(Input::Token(n - 36)),
+        ControlSource::MidiNote { note: n @ 36..=43, .. } => {
+            Token::new(n - 36).map(Input::Token)
+        }
         _ => None,
     }
 }
@@ -288,7 +321,7 @@ const fn conj_mode(
 
 /// A ± sticky table: T1 fires `up`, T2 fires `down`.
 const fn pm_sticky(up: Verb, down: Verb) -> StickyTable {
-    let mut t = [NV; 8];
+    let mut t = [NV; TOKEN_COUNT];
     t[0] = Some(up);
     t[1] = Some(down);
     t
@@ -306,7 +339,7 @@ const fn knob(kind: CueParamKind) -> Option<Conjugation> {
 
 /// A root with no conjugations in this pane — the verb doesn't apply here.
 const fn empty_root(label: &'static str) -> RootEntry {
-    RootEntry { label, conjugations: [NC; 8] }
+    RootEntry { label, conjugations: [NC; TOKEN_COUNT] }
 }
 
 /// Cue-selection movement mode: T1 up, T2 down, entered from Go.
@@ -318,7 +351,7 @@ const CLIP_MOVE_STICKY: StickyTable =
 
 /// Tap mode: every further Fire press is a tap.
 const TAP_STICKY: StickyTable = {
-    let mut t = [NV; 8];
+    let mut t = [NV; TOKEN_COUNT];
     t[1] = Some(Verb::TapTempo);
     t
 };
@@ -585,13 +618,23 @@ mod tests {
         (g, steps)
     }
 
-    const G: Input = Input::Token(0);
-    const F: Input = Input::Token(1);
-    const M: Input = Input::Token(2);
-    const A: Input = Input::Token(3);
-    const D: Input = Input::Token(4);
-    const T: Input = Input::Token(5);
-    const B: Input = Input::Token(6);
+    const G: Input = Input::Token(Token(0));
+    const F: Input = Input::Token(Token(1));
+    const M: Input = Input::Token(Token(2));
+    const A: Input = Input::Token(Token(3));
+    const D: Input = Input::Token(Token(4));
+    const T: Input = Input::Token(Token(5));
+    const B: Input = Input::Token(Token(6));
+
+    #[test]
+    fn token_new_rejects_out_of_range() {
+        assert_eq!(Token::new(0).map(Token::index), Some(0));
+        assert_eq!(Token::new(7).map(Token::index), Some(7));
+        // The whole point of the newtype: nothing out of range can be handed to
+        // `step` and indexed into an 8-wide table.
+        assert_eq!(Token::new(TOKEN_COUNT as u8), None);
+        assert_eq!(Token::new(u8::MAX), None);
+    }
 
     #[test]
     fn root_then_conjugation_emits_verb() {
@@ -626,7 +669,7 @@ mod tests {
         let (g, steps) = seq(&BANK_TABLE, &[F, T]);
         assert_eq!(steps[1], Step::Pending, "unassigned slot is forgiving");
         assert!(
-            matches!(g.state, GrammarState::AwaitingConjugation { root: 1 }),
+            matches!(g.state, GrammarState::AwaitingConjugation { root } if root == Token(1)),
             "the Fire modal stays open"
         );
     }
@@ -658,7 +701,7 @@ mod tests {
         let (g, steps) = seq(&CLOCK_TABLE, &[F, F, G]);
         assert_eq!(steps[2], Step::Pending, "leaving tap mode emits nothing");
         assert!(
-            matches!(g.state, GrammarState::AwaitingConjugation { root: 0 }),
+            matches!(g.state, GrammarState::AwaitingConjugation { root } if root == Token(0)),
             "the exiting token replays as a fresh Go root"
         );
     }
@@ -728,9 +771,9 @@ mod tests {
     #[test]
     fn meta_reaches_the_project_verbs_from_any_pane() {
         for pane in PANES {
-            let (_, steps) = seq(pane_table(pane), &[Input::Token(7), A]);
+            let (_, steps) = seq(pane_table(pane), &[Input::Token(Token(7)), A]);
             assert_eq!(steps[1], Step::Verb(Verb::OpenProjectEditor), "{pane:?} ;a");
-            let (_, steps) = seq(pane_table(pane), &[Input::Token(7), D]);
+            let (_, steps) = seq(pane_table(pane), &[Input::Token(Token(7)), D]);
             assert_eq!(steps[1], Step::Verb(Verb::OpenProject), "{pane:?} ;d");
         }
     }
@@ -738,7 +781,7 @@ mod tests {
     #[test]
     fn key_tokens_round_trip() {
         for (i, k) in KEY_TOKENS.iter().enumerate() {
-            assert_eq!(token_of_key(k), Some(Input::Token(i as Token)), "key {k:?}");
+            assert_eq!(token_of_key(k), Some(Input::Token(Token(i as u8))), "key {k:?}");
         }
         assert_eq!(token_of_key("Escape"), Some(Input::Cancel));
         assert_eq!(token_of_key("z"), None);
@@ -750,7 +793,7 @@ mod tests {
         let names = ["DPadUp", "DPadDown", "DPadLeft", "DPadRight", "North", "South", "East", "West"];
         for (i, name) in names.iter().enumerate() {
             let src = ControlSource::PadButton { device: String::new(), button: (*name).into() };
-            assert_eq!(token_of_source(&src), Some(Input::Token(i as Token)), "{name}");
+            assert_eq!(token_of_source(&src), Some(Input::Token(Token(i as u8))), "{name}");
         }
         let select = ControlSource::PadButton { device: String::new(), button: "Select".into() };
         assert_eq!(token_of_source(&select), Some(Input::Cancel));
@@ -762,7 +805,7 @@ mod tests {
     fn midi_notes_map_tokens_and_cancel() {
         for (i, note) in (36..=43).enumerate() {
             let src = ControlSource::MidiNote { device: String::new(), channel: 1, note };
-            assert_eq!(token_of_source(&src), Some(Input::Token(i as Token)), "note {note}");
+            assert_eq!(token_of_source(&src), Some(Input::Token(Token(i as u8))), "note {note}");
         }
         let cancel = ControlSource::MidiNote { device: String::new(), channel: 1, note: 35 };
         assert_eq!(token_of_source(&cancel), Some(Input::Cancel));

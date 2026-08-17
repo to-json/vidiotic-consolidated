@@ -585,7 +585,7 @@ impl Shell {
                     .collect(),
             ),
             GrammarState::AwaitingConjugation { root } => {
-                let entry = &table.roots[root as usize];
+                let entry = &table.roots[root.index()];
                 (
                     Some(entry.label),
                     entry

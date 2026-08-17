@@ -27,7 +27,7 @@ impl Engine {
         match self.grammar.state {
             GrammarState::Idle => None,
             GrammarState::AwaitingConjugation { root } => {
-                let entry = &grammar::pane_table(self.focused_pane).roots[root as usize];
+                let entry = &grammar::pane_table(self.focused_pane).roots[root.index()];
                 let options = entry
                     .conjugations
                     .iter()
@@ -35,7 +35,7 @@ impl Engine {
                     .filter_map(|(i, c)| c.as_ref().map(|c| (grammar::KEY_TOKENS[i], c.label)))
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}", grammar::KEY_TOKENS[root as usize]),
+                    trail: format!("{pane}·{}", grammar::KEY_TOKENS[root.index()]),
                     title: entry.label,
                     options,
                 })
@@ -65,7 +65,7 @@ impl Engine {
                     })
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}·{label}", grammar::KEY_TOKENS[trail_root as usize]),
+                    trail: format!("{pane}·{}·{label}", grammar::KEY_TOKENS[trail_root.index()]),
                     title: label,
                     options,
                 })
