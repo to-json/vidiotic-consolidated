@@ -208,7 +208,6 @@ fn vic_ii(dark: bool) -> Palette {
 }
 
 /// The palette last applied by [`sync`], readable from anywhere in the UI.
-/// The palette [`sync`] last installed.
 ///
 /// **Process-wide, not per-context.** Two egui contexts in one process share it,
 /// so whichever called [`sync`] most recently decides what [`palette`] answers

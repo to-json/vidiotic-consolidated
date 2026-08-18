@@ -514,6 +514,26 @@ pub fn glyph_checkbox(ui: &mut Ui, checked: &mut bool, label: &str) -> Response 
 /// Fader: a solid cap sliding a tick-marked glyph track, one row tall:
 /// `├────┼────┤` with a `█` cap. Click or drag along the track. A bipolar
 /// range gets a bright center detent. The returned response reports `changed`.
+/// Where the cap sits along the track, in `0.0..=1.0`.
+///
+/// Split out of [`fader`] because the degenerate case is arithmetic, not
+/// drawing, and arithmetic can be tested: `min == max` makes `(v - min) /
+/// (max - min)` NaN, `clamp` passes NaN straight through, and the cap is then
+/// painted at a NaN offset. A range with no width has no position to map a
+/// value onto, so the honest answer is the floor.
+///
+/// Not `min + f32::EPSILON` on the range, which is what this used to do: that
+/// epsilon is the gap at 1.0, and `5.0f32 + f32::EPSILON` is `5.0` — the guard
+/// did nothing for any range whose floor was much past 1.
+fn fader_t(v: f32, min: f32, max: f32) -> f32 {
+    let span = max - min;
+    if span > 0.0 {
+        ((v - min) / span).clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
 pub fn fader(
     ui: &mut Ui,
     id_salt: impl std::hash::Hash + std::fmt::Debug,
@@ -525,11 +545,6 @@ pub fn fader(
     let p = palette();
     let cw = cell_width(ui);
     let n = cells.max(4);
-    // A degenerate range has no position to map a value onto: `(v - min) /
-    // (max - min)` is NaN, `clamp` passes NaN through, and the cap lands
-    // nowhere. Widen it by an epsilon so the fader draws pinned at its floor
-    // and drags are inert, rather than painting garbage.
-    let max = if max > min { max } else { min + f32::EPSILON };
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(cw * (n as f32 + 2.0), row()), Sense::hover());
     let mut resp = ui.interact(
@@ -540,7 +555,9 @@ pub fn fader(
     if resp.dragged() || resp.clicked() {
         if let Some(pos) = resp.interact_pointer_pos() {
             let t = ((pos.x - rect.min.x - cw) / (cw * n as f32)).clamp(0.0, 1.0);
-            let next = min + t * (max - min);
+            // Degenerate range: every position on the track means `min`, so the
+            // drag is inert rather than wrong.
+            let next = min + t * (max - min).max(0.0);
             if next != *v {
                 *v = next;
                 resp.mark_changed();
@@ -548,7 +565,7 @@ pub fn fader(
         }
     }
     let bipolar = min < 0.0 && max > 0.0;
-    let t = ((*v - min) / (max - min)).clamp(0.0, 1.0);
+    let t = fader_t(*v, min, max);
     let mut track = String::with_capacity(n + 2);
     track.push('├');
     for k in 0..n {
@@ -1179,6 +1196,32 @@ mod tests {
     /// A degenerate range has no position to map onto, and `(v - min) / (max - min)`
     /// is NaN — which `clamp` passes straight through, so the cap was painted at
     /// a NaN offset.
+    ///
+    /// Asserted on the mapping rather than on `v`, which is where this was
+    /// tested before and is not where the bug ever was: `v` comes back finite
+    /// whether or not the range is degenerate, so that assertion passed against
+    /// the broken code too.
+    #[test]
+    fn a_degenerate_range_maps_to_the_floor_rather_than_nan() {
+        assert_eq!(fader_t(5.0, 5.0, 5.0), 0.0);
+        // The case the old `min + f32::EPSILON` guard silently failed: the
+        // epsilon is the gap at 1.0 and vanishes into any larger float.
+        assert_eq!(5.0_f32 + f32::EPSILON, 5.0, "the guard this replaced");
+        // Inverted, too — a caller that swapped its bounds.
+        assert_eq!(fader_t(5.0, 10.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn fader_t_maps_the_ends_and_the_middle() {
+        assert_eq!(fader_t(0.0, 0.0, 10.0), 0.0);
+        assert_eq!(fader_t(5.0, 0.0, 10.0), 0.5);
+        assert_eq!(fader_t(10.0, 0.0, 10.0), 1.0);
+        // Out of range is clamped, not extrapolated off the end of the track.
+        assert_eq!(fader_t(-4.0, 0.0, 10.0), 0.0);
+        assert_eq!(fader_t(40.0, 0.0, 10.0), 1.0);
+    }
+
+    /// And the widget itself still draws and leaves the value alone.
     #[test]
     fn fader_survives_a_degenerate_range() {
         // Widget geometry is measured in theme cells, which live in a
@@ -1190,7 +1233,7 @@ mod tests {
         with_pointer(egui::pos2(300.0, 8.0), |ui| {
             fader(ui, "f", 5.0, 5.0, &mut v, 16);
         });
-        assert!(v.is_finite(), "value went non-finite: {v}");
+        assert_eq!(v, 5.0, "a drag on a range with no width must be inert");
     }
 
     #[test]

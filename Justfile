@@ -20,16 +20,23 @@ fmt:
 fmt-check:
     cargo fmt --all -- --check
 
-# Lint at the workspace lint tier, tests and examples included
+# Lint at the workspace lint tier, tests and examples included.
+# `-D warnings` because that is what CI does — a lint that passes here and
+# fails there is worse than no lint.
 lint:
-    cargo clippy --workspace --all-targets
+    cargo clippy --workspace --all-targets -- -D warnings
 
-# The native test suite
+# The native test suite, in full. Three `vidiotic-bake` tests demux real
+# `clips/*.mov`, which are your own video and not in the repo; without them this
+# fails loudly rather than reporting a pass it did not earn.
 test:
     cargo test --workspace
 
-# fmt, lint, test, and the wasm ratchet — the whole gate, locally
-check: fmt-check lint test gate
+# fmt, lint, test, and the wasm ratchet — the whole gate, locally.
+# `VIDIOTIC_NO_CLIPS=1` skips the three fixture-dependent tests, which is what
+# CI does, so this passes on a fresh clone. `just test` is the stricter one.
+check: fmt-check lint gate
+    VIDIOTIC_NO_CLIPS=1 cargo test --workspace
 
 # Drop build artifacts (cargo's, and the web/native release trees)
 clean:

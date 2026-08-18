@@ -133,8 +133,14 @@ if [ ! -f "$DIST/index.html" ]; then
   exit 2
 fi
 
-PKG=$(find "$DIST" -maxdepth 1 -type d -name 'pkg-*' | head -1)
-[ -n "$PKG" ] || { echo "no pkg-* bundle in $DIST" >&2; exit 2; }
+# The play bundle, by prefix — `pkg-play-<hash>` in a dist/web release, plain
+# `pkg-<hash>` in dist/play. Not "the first pkg-* found": everything staged
+# below reads `vidiotic_play_bg.wasm` out of this directory, and under dist/web
+# the first match is as likely to be the chop bundle, which does not contain
+# that file. `serve-play.sh` resolves it the same way.
+PKG=$(find "$DIST" -maxdepth 1 -type d -name 'pkg-play-*' | sort | head -1)
+[ -n "$PKG" ] || PKG=$(find "$DIST" -maxdepth 1 -type d -name 'pkg-*' ! -name 'pkg-*-*' | sort | head -1)
+[ -n "$PKG" ] || { echo "no play bundle in $DIST" >&2; exit 2; }
 PKG=$(basename "$PKG")
 BUILD_STAMP=$(sed -n 's/.*"build": "\(.*\)".*/\1/p' "$DIST/version.json" 2>/dev/null)
 
