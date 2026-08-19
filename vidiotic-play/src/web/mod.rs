@@ -665,7 +665,7 @@ impl Shell {
                 entries
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, v)| v.map(|_| (KEY_TOKENS[i], "•")))
+                    .filter_map(|(i, e)| e.map(|e| (KEY_TOKENS[i], e.label)))
                     .collect(),
             ),
         };

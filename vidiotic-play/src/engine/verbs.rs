@@ -48,29 +48,7 @@ impl Engine {
                 let options = entries
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, v)| {
-                        v.as_ref().map(|v| {
-                            (
-                                grammar::KEY_TOKENS[i],
-                                match v {
-                                    Verb::NudgeParam(_, d) if *d > 0 => "step +",
-                                    Verb::NudgeParam(_, d) if *d < 0 => "step -",
-                                    Verb::BpmDelta(d) if *d > 0.0 => "step +",
-                                    Verb::BpmDelta(_) => "step -",
-                                    Verb::NudgeBpm(r) if *r > 0.0 => "step +",
-                                    Verb::NudgeBpm(_) => "step -",
-                                    Verb::SelectCueDelta(d) | Verb::SelectClipDelta(d)
-                                        if *d < 0 =>
-                                    {
-                                        "up"
-                                    }
-                                    Verb::SelectCueDelta(_) | Verb::SelectClipDelta(_) => "down",
-                                    Verb::TapTempo => "tap",
-                                    _ => "again",
-                                },
-                            )
-                        })
-                    })
+                    .filter_map(|(i, e)| e.map(|e| (grammar::KEY_TOKENS[i], e.label)))
                     .collect();
                 Some(GrammarModalView {
                     trail: format!("{pane}·{}·{label}", grammar::KEY_TOKENS[trail_root.index()]),

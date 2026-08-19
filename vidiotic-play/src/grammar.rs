@@ -142,11 +142,21 @@ pub enum Verb {
     GrammarOff,
 }
 
-/// Per-token verbs of a sticky mode. A populated slot fires its verb and
+/// One repeat slot of a sticky mode: what it fires, and what the overlay
+/// calls it. Carries its own label for the same reason [`Conjugation`] does —
+/// inferring one from the verb payload can only ever be right for the verbs
+/// that were thought of at the time.
+#[derive(Clone, Copy, Debug)]
+pub struct StickyEntry {
+    pub label: &'static str,
+    pub verb: Verb,
+}
+
+/// Per-token entries of a sticky mode. A populated slot fires its verb and
 /// stays in the mode; a token the mode does not own is swallowed, exactly as
 /// under an open root — one stray-token rule for both pending states. Leaving
 /// a mode is Escape.
-pub type StickyTable = [Option<Verb>; TOKEN_COUNT];
+pub type StickyTable = [Option<StickyEntry>; TOKEN_COUNT];
 
 /// One resolvable slot under a root. `verb` fires on selection (`None` for
 /// pure mode entry); `sticky` is a `(mode label, table)` the machine enters
@@ -266,7 +276,7 @@ impl Grammar {
                 // stray press silently change what the *next* press means,
                 // live; on a second screen "did nothing" is the safer failure.
                 match entries[t.index()] {
-                    Some(v) => Step::Verb(v),
+                    Some(e) => Step::Verb(e.verb),
                     None => Step::Pending,
                 }
             }
@@ -324,7 +334,7 @@ pub fn token_of_source(source: &ControlSource) -> Option<Input> {
 }
 
 const NC: Option<Conjugation> = None;
-const NV: Option<Verb> = None;
+const NE: Option<StickyEntry> = None;
 
 /// A plain conjugation: emit and return to idle.
 const fn conj(label: &'static str, verb: Verb) -> Option<Conjugation> {
@@ -349,17 +359,32 @@ const fn conj_mode(
     })
 }
 
+/// One repeat slot: the verb, and what the overlay calls it.
+const fn repeat(label: &'static str, verb: Verb) -> Option<StickyEntry> {
+    Some(StickyEntry { label, verb })
+}
+
 /// A ± sticky table: T1 fires `up`, T2 fires `down`.
-const fn pm_sticky(up: Verb, down: Verb) -> StickyTable {
-    let mut t = [NV; TOKEN_COUNT];
-    t[0] = Some(up);
-    t[1] = Some(down);
+const fn pm_sticky(
+    up_label: &'static str,
+    up: Verb,
+    down_label: &'static str,
+    down: Verb,
+) -> StickyTable {
+    let mut t = [NE; TOKEN_COUNT];
+    t[0] = repeat(up_label, up);
+    t[1] = repeat(down_label, down);
     t
 }
 
 /// The ± sticky table for one advanced cue knob: T1 steps up, T2 down.
 const fn knob_sticky(kind: CueParamKind) -> StickyTable {
-    pm_sticky(Verb::NudgeParam(kind, 1), Verb::NudgeParam(kind, -1))
+    pm_sticky(
+        "step +",
+        Verb::NudgeParam(kind, 1),
+        "step -",
+        Verb::NudgeParam(kind, -1),
+    )
 }
 
 /// A Tune conjugation: select the knob, then ± in sticky mode.
@@ -376,22 +401,41 @@ const fn empty_root(label: &'static str) -> RootEntry {
 }
 
 /// Cue-selection movement mode: T1 up, T2 down, entered from Go.
-const MOVE_STICKY: StickyTable = pm_sticky(Verb::SelectCueDelta(-1), Verb::SelectCueDelta(1));
+const MOVE_STICKY: StickyTable = pm_sticky(
+    "up",
+    Verb::SelectCueDelta(-1),
+    "down",
+    Verb::SelectCueDelta(1),
+);
 
 /// Clip-cursor movement mode in the pool pane: T1 up, T2 down.
-const CLIP_MOVE_STICKY: StickyTable =
-    pm_sticky(Verb::SelectClipDelta(-1), Verb::SelectClipDelta(1));
+const CLIP_MOVE_STICKY: StickyTable = pm_sticky(
+    "up",
+    Verb::SelectClipDelta(-1),
+    "down",
+    Verb::SelectClipDelta(1),
+);
 
 /// Tap mode: every further Fire press is a tap.
 const TAP_STICKY: StickyTable = {
-    let mut t = [NV; TOKEN_COUNT];
-    t[1] = Some(Verb::TapTempo);
+    let mut t = [NE; TOKEN_COUNT];
+    t[1] = repeat("tap", Verb::TapTempo);
     t
 };
 
 /// Session-tempo ± modes for the clock pane's Tune root.
-const BPM_STICKY: StickyTable = pm_sticky(Verb::BpmDelta(1.0), Verb::BpmDelta(-1.0));
-const NUDGE_STICKY: StickyTable = pm_sticky(Verb::NudgeBpm(0.001), Verb::NudgeBpm(-0.001));
+const BPM_STICKY: StickyTable = pm_sticky(
+    "step +",
+    Verb::BpmDelta(1.0),
+    "step -",
+    Verb::BpmDelta(-1.0),
+);
+const NUDGE_STICKY: StickyTable = pm_sticky(
+    "step +",
+    Verb::NudgeBpm(0.001),
+    "step -",
+    Verb::NudgeBpm(-0.001),
+);
 
 /// The Pane root, identical in every table: T1–T4 focus a pane, doubled (bb)
 /// bounces back to the previous one. A pane press while its own pane is
@@ -1015,6 +1059,31 @@ mod tests {
                 .count();
             assert_eq!(focus_slots, PANES.len(), "{pane:?} can focus every pane");
         }
+    }
+
+    #[test]
+    fn every_reachable_repeat_entry_is_labelled() {
+        // The overlay used to reverse-engineer these from the verb payload,
+        // ending in `_ => "again"` — so a new sticky verb got a *wrong* label
+        // rather than a missing one, and nothing failed. This is the check
+        // that inference is gone for good.
+        let mut checked = 0;
+        for pane in PANES {
+            for root in &pane_table(pane).roots {
+                for conj in root.conjugations.iter().flatten() {
+                    let Some((mode, entries)) = &conj.sticky else {
+                        continue;
+                    };
+                    assert!(!mode.is_empty(), "{pane:?} {} mode label", conj.label);
+                    for (i, e) in entries.iter().enumerate() {
+                        let Some(e) = e else { continue };
+                        assert!(!e.label.is_empty(), "{pane:?} {mode} slot {i}");
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(checked > 0, "the sweep found no repeat entries at all");
     }
 
     #[test]
