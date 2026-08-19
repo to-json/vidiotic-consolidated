@@ -972,6 +972,7 @@ mod tests {
         enum Class {
             Wired,
             ExcludedInteractive,
+            ExcludedSelectionRelative,
         }
         fn classify(cmd: &Command) -> Class {
             match cmd {
@@ -996,6 +997,12 @@ mod tests {
                 | Command::BpmDigit(_)
                 | Command::BpmCommit
                 | Command::BpmClear => Class::ExcludedInteractive,
+                // A local input surface reaching for a verb whose target is
+                // the session's *current* selection. A script has the cue id
+                // in hand and sends `RemoveCue(id)`; "the selected one" is a
+                // question only the machine in front of the operator can
+                // answer, and answering it over IPC would race the operator.
+                Command::Verb(_) => Class::ExcludedSelectionRelative,
                 Command::SetBpm(_)
                 | Command::BpmDelta(_)
                 | Command::NudgeBpm(_)

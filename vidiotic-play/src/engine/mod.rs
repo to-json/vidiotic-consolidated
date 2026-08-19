@@ -414,6 +414,10 @@ impl Engine {
             Command::NudgeBpm(r) => self.clock.nudge_bpm(r),
             Command::TapDownbeat => self.clock.tap_downbeat(),
             Command::TapTempo => self.tap_tempo(),
+            // A mapped binding reaching for a selection-relative verb. The
+            // resolution lives in one place, `apply_verb`, whether the caller
+            // was the grammar or the mapper.
+            Command::Verb(v) => self.apply_verb(v),
             Command::SoftReset => self.soft_reset(),
             Command::HardReset => self.hard_reset(),
             Command::SetTimeSig(ts) => {
@@ -1006,6 +1010,42 @@ mod tests {
                 bpm: None,
             },
         ]
+    }
+
+    /// The bridge a mapped binding crosses to reach a verb whose target is the
+    /// session's selection — the thing a `.vmap` cannot spell, because the
+    /// binding is authored long before there is a selection to point at.
+    #[test]
+    fn command_verb_resolves_the_selection_the_grammar_would() {
+        use crate::grammar::Verb;
+
+        let mut e = Engine::new(Boot {
+            clips: two_clips(),
+            ..Boot::default()
+        });
+        e.add_cue(0);
+        let id = e.selected_cue.expect("adding a cue selects it");
+
+        assert!(
+            e.apply_command(Command::Verb(Verb::RemoveSelectedCue))
+                .is_none(),
+            "the engine owns this one"
+        );
+        assert!(
+            matches!(e.next_pending(), Some(Command::RemoveCue(c)) if c == id),
+            "the verb resolves the selection and raises the concrete command, \
+             which is what carries the undo entry"
+        );
+
+        // And a verb with nothing selected is a no-op, not a panic.
+        e.selected_cue = None;
+        assert!(e
+            .apply_command(Command::Verb(Verb::MarkInToPlayhead))
+            .is_none());
+        assert!(
+            e.next_pending().is_none(),
+            "nothing selected, nothing raised"
+        );
     }
 
     /// The rotation, with no GPU and no shell: two cues, a phrase boundary, and

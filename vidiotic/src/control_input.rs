@@ -13,6 +13,7 @@ use vidiotic_ctl::{
 use winit::keyboard::Key;
 
 use crate::commands::Command;
+use crate::grammar::Verb;
 
 /// A key binding with no modifiers held.
 fn key(k: &str, action: Action) -> Binding {
@@ -240,6 +241,14 @@ fn to_command(action: &Action, value: f32) -> Option<Command> {
         Action::ToggleFullscreen => Some(Command::ToggleFullscreen),
         Action::SaveProject => Some(Command::SaveProject),
         Action::ToggleCommandPalette => Some(Command::ToggleCommandPalette),
+        // Selection-relative: no params to carry, and the target only exists
+        // at press time. The player resolves them exactly as the grammar's
+        // own `d d` / `m g` do — one resolution, two front doors.
+        Action::RemoveSelectedCue => Some(Command::Verb(Verb::RemoveSelectedCue)),
+        Action::AddCueAtSelectedClip => Some(Command::Verb(Verb::AddCueAtClip)),
+        Action::MarkInToPlayhead => Some(Command::Verb(Verb::MarkInToPlayhead)),
+        Action::MarkOutToPlayhead => Some(Command::Verb(Verb::MarkOutToPlayhead)),
+        Action::CyclePreserve => Some(Command::Verb(Verb::CyclePreserve)),
         Action::BpmDelta { amount } => Some(Command::BpmDelta(*amount)),
         Action::NudgeBpm { ratio } => Some(Command::NudgeBpm(*ratio)),
         Action::CycleLiveBank { delta } => Some(Command::CycleLiveBank(*delta)),
@@ -259,6 +268,43 @@ fn to_command(action: &Action, value: f32) -> Option<Command> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every action in the player's catalog must translate, or a binding the
+    /// editor happily offers silently does nothing. `Nothing` is the mask and
+    /// the prep half belongs to another app; everything else is this crate's
+    /// job.
+    #[test]
+    fn every_player_action_translates() {
+        for action in vidiotic_ctl::model::PLAYER_CATALOG {
+            if matches!(action, Action::Nothing) {
+                continue;
+            }
+            assert!(
+                to_command(action, 0.0).is_some(),
+                "{action:?} is offered by the editor but translates to nothing"
+            );
+        }
+    }
+
+    /// The selection-relative half of the catalog: no params to carry, and a
+    /// target that only exists at press time. These reach the engine as verbs
+    /// so the resolution lives in one place rather than two.
+    #[test]
+    fn selection_relative_actions_resolve_to_verbs() {
+        let pairs = [
+            (Action::RemoveSelectedCue, Verb::RemoveSelectedCue),
+            (Action::AddCueAtSelectedClip, Verb::AddCueAtClip),
+            (Action::MarkInToPlayhead, Verb::MarkInToPlayhead),
+            (Action::MarkOutToPlayhead, Verb::MarkOutToPlayhead),
+            (Action::CyclePreserve, Verb::CyclePreserve),
+        ];
+        for (action, verb) in pairs {
+            match to_command(&action, 0.0) {
+                Some(Command::Verb(v)) => assert_eq!(v, verb, "{action:?}"),
+                other => panic!("{action:?} resolved to {other:?}"),
+            }
+        }
+    }
 
     /// The key-name contract, tested against both real key enums — this crate
     /// is the only one that depends on winit *and* egui, so it is the only

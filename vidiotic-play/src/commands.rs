@@ -146,6 +146,22 @@ pub enum Command {
     BpmCommit,
     BpmClear,
 
+    // --- the grammar's vocabulary, as a command ---
+    /// Apply one grammar [`Verb`](crate::grammar::Verb) — the engine resolves
+    /// the selection and bank context the verb deliberately leaves open, then
+    /// raises whatever concrete commands it means.
+    ///
+    /// The bridge exists for the verbs that are *only* reachable this way:
+    /// "remove the selected cue" or "mark in at the playhead" name a target
+    /// the mapper cannot spell, because a binding is authored long before
+    /// there is a selection to point at. Without this a MIDI pad could not be
+    /// bound to them at all — they lived in the wrong enum.
+    ///
+    /// Undo bookkeeping happens on what the verb raises, not on this: the
+    /// shell drains the engine's pending queue in the same tick and dispatches
+    /// each concrete command normally.
+    Verb(crate::grammar::Verb),
+
     // --- history ---
     /// Undo the last cue/bank authoring edit. Intercepted in `App::update`
     /// before dispatch — it acts on the undo stack, not the document. Reserved

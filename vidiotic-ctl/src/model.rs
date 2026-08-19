@@ -163,6 +163,23 @@ pub enum Action {
         max: f64,
     },
     ToggleCommandPalette,
+    /// Remove the cue selected in the player.
+    ///
+    /// This and the four below name their target *relative to the session's
+    /// selection*, because a binding is authored long before there is a
+    /// selection to point at. Every other action here carries its own params;
+    /// these carry none by design, and the player resolves them the same way
+    /// its modal grammar does.
+    RemoveSelectedCue,
+    /// Add a cue for the pool's selected clip to the edit bank.
+    AddCueAtSelectedClip,
+    /// Snap the selected cue's in-point to the displayed playhead.
+    MarkInToPlayhead,
+    /// Snap the selected cue's out-point to the displayed playhead.
+    MarkOutToPlayhead,
+    /// Cycle the selected cue's preserve-playhead override: inherit → on →
+    /// off.
+    CyclePreserve,
     Quit,
     /// Append one digit to the player's pending BPM entry;
     /// [`Self::BpmCommit`] parses it into a tempo and [`Self::BpmClear`]
@@ -209,6 +226,11 @@ action_catalogs! {
     Action::ToggleFullscreen,
     Action::SaveProject,
     Action::ToggleCommandPalette,
+    Action::RemoveSelectedCue,
+    Action::AddCueAtSelectedClip,
+    Action::MarkInToPlayhead,
+    Action::MarkOutToPlayhead,
+    Action::CyclePreserve,
     Action::BpmDelta { amount: 1.0 },
     Action::NudgeBpm { ratio: 0.01 },
     Action::CycleLiveBank { delta: 1 },
@@ -304,6 +326,11 @@ impl Action {
             Self::ToggleFullscreen => "Toggle Fullscreen",
             Self::SaveProject => "Save Project",
             Self::ToggleCommandPalette => "Command Palette",
+            Self::RemoveSelectedCue => "Remove Selected Cue",
+            Self::AddCueAtSelectedClip => "Cue Selected Clip",
+            Self::MarkInToPlayhead => "Mark In @ Playhead",
+            Self::MarkOutToPlayhead => "Mark Out @ Playhead",
+            Self::CyclePreserve => "Cycle Preserve",
             Self::BpmDelta { .. } => "Bpm Delta",
             Self::NudgeBpm { .. } => "Nudge Bpm",
             Self::CycleLiveBank { .. } => "Cycle Live Bank",
@@ -493,6 +520,11 @@ mod tests {
                 | Action::ToggleFullscreen
                 | Action::SaveProject
                 | Action::ToggleCommandPalette
+                | Action::RemoveSelectedCue
+                | Action::AddCueAtSelectedClip
+                | Action::MarkInToPlayhead
+                | Action::MarkOutToPlayhead
+                | Action::CyclePreserve
                 | Action::Quit
                 | Action::BpmCommit
                 | Action::BpmClear) => *a,

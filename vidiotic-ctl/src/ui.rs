@@ -199,6 +199,11 @@ fn action_params(ui: &mut egui::Ui, action: &mut Action) -> bool {
         | Action::ToggleFullscreen
         | Action::SaveProject
         | Action::ToggleCommandPalette
+        | Action::RemoveSelectedCue
+        | Action::AddCueAtSelectedClip
+        | Action::MarkInToPlayhead
+        | Action::MarkOutToPlayhead
+        | Action::CyclePreserve
         | Action::Quit
         | Action::BpmCommit
         | Action::BpmClear
