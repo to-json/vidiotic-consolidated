@@ -220,6 +220,22 @@ pub enum CueParamKind {
 }
 
 impl CueParamKind {
+    /// Every knob, in the order the cue pane's Tune root binds them. Exactly
+    /// [`crate::grammar::TOKEN_COUNT`] of them, which is a coincidence the
+    /// grammar's reachability test exists to catch the moment it stops being
+    /// true — a ninth knob has nowhere to go under Tune and would otherwise
+    /// just be silently unreachable from the grammar.
+    pub const ALL: [Self; 8] = [
+        Self::Dwell,
+        Self::Loop,
+        Self::LoopPhase,
+        Self::StartNudge,
+        Self::TrigDelay,
+        Self::Bpm,
+        Self::BpmSync,
+        Self::SpeedMul,
+    ];
+
     #[must_use]
     pub const fn label(&self) -> &'static str {
         match self {

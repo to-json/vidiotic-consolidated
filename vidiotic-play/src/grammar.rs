@@ -1230,6 +1230,41 @@ mod tests {
     }
 
     #[test]
+    fn every_cue_knob_is_reachable_from_some_binding() {
+        // `CueParamKind` has exactly 8 variants and the cue pane's Tune root
+        // has exactly 8 slots. A ninth knob has nowhere to go, and without
+        // this nothing fails — it is simply unreachable from the grammar.
+        for kind in CueParamKind::ALL {
+            // Exhaustive on purpose: a new variant fails to compile here, and
+            // then fails at runtime until `ALL` grows to match.
+            let slot = match kind {
+                CueParamKind::Dwell => 0,
+                CueParamKind::Loop => 1,
+                CueParamKind::LoopPhase => 2,
+                CueParamKind::StartNudge => 3,
+                CueParamKind::TrigDelay => 4,
+                CueParamKind::Bpm => 5,
+                CueParamKind::BpmSync => 6,
+                CueParamKind::SpeedMul => 7,
+            };
+            assert_eq!(CueParamKind::ALL[slot], kind, "ALL is missing a knob");
+
+            let nudges = |v: Option<Verb>| matches!(v, Some(Verb::NudgeParam(k, _)) if k == kind);
+            let reachable = PANES.iter().any(|pane| {
+                pane_table(*pane).roots.iter().any(|root| {
+                    root.iter().flatten().any(|c| {
+                        nudges(c.verb)
+                            || c.sticky.is_some_and(|(_, entries)| {
+                                entries.iter().flatten().any(|e| nudges(Some(e.verb)))
+                            })
+                    })
+                })
+            });
+            assert!(reachable, "{} is bound nowhere", kind.label());
+        }
+    }
+
+    #[test]
     fn every_pane_is_reachable_from_every_other() {
         for from in PANES {
             let table = pane_table(from);
