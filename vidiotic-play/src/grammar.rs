@@ -168,16 +168,14 @@ pub struct Conjugation {
     pub sticky: Option<(&'static str, StickyTable)>,
 }
 
-/// One verb-root and its conjugation slots, indexed by [`Token`]. The root's
-/// own token slot holds its "doubled" hot verb — doubling needs no special
+/// One verb-root's conjugation slots, indexed by [`Token`]. The root's own
+/// token slot holds its "doubled" hot verb — doubling needs no special
 /// machinery. A root can be entirely empty in a pane its verb doesn't apply
 /// to; pressing it opens nothing at all ([`Step::Empty`]) rather than a modal
 /// with no way out.
-#[derive(Clone, Copy, Debug)]
-pub struct RootEntry {
-    pub label: &'static str,
-    pub conjugations: [Option<Conjugation>; TOKEN_COUNT],
-}
+///
+/// No label: a root's name is [`PREFIX_LABELS`], the same in every pane.
+pub type RootEntry = [Option<Conjugation>; TOKEN_COUNT];
 
 /// A complete grammar: one root per token.
 #[derive(Clone, Copy, Debug)]
@@ -242,16 +240,15 @@ impl Grammar {
             (GrammarState::Idle, Input::Token(t)) => {
                 // Never open a root with nothing under it: the modal would show
                 // no options and then swallow every press until Escape.
-                let root = &table.roots[t.index()];
-                if root.conjugations.iter().all(Option::is_none) {
-                    Step::Empty(root.label)
+                if table.roots[t.index()].iter().all(Option::is_none) {
+                    Step::Empty(PREFIX_LABELS[t.index()])
                 } else {
                     self.state = GrammarState::AwaitingConjugation { root: t };
                     Step::Pending
                 }
             }
             (GrammarState::AwaitingConjugation { root }, Input::Token(t)) => {
-                match &table.roots[root.index()].conjugations[t.index()] {
+                match &table.roots[root.index()][t.index()] {
                     // Forgiving: an empty slot keeps the modal open.
                     None => Step::Pending,
                     Some(conj) => {
@@ -288,6 +285,14 @@ impl Grammar {
         self.state = GrammarState::Idle;
     }
 }
+
+/// What each root is called, in token order — the verb keys first, then the
+/// two global nouns. One list, not one per pane: a verb keeps a fixed meaning
+/// wherever it applies and the focused pane supplies the object, so nothing in
+/// a table gets to disagree about what T1 is called. A pane the verb doesn't
+/// apply to leaves its slots empty; it does not rename it.
+pub const PREFIX_LABELS: [&str; TOKEN_COUNT] =
+    ["Go", "Fire", "Mark", "Make", "Cut", "Tune", "Pane", "Meta"];
 
 /// The canonical keyboard spelling of each token, in token order. These are
 /// the strings `control_input::canon_key` / `vidiotic_ctl::keys` produce.
@@ -392,13 +397,9 @@ const fn knob(kind: CueParamKind) -> Option<Conjugation> {
     conj_mode(kind.label(), None, kind.label(), knob_sticky(kind))
 }
 
-/// A root with no conjugations in this pane — the verb doesn't apply here.
-const fn empty_root(label: &'static str) -> RootEntry {
-    RootEntry {
-        label,
-        conjugations: [NC; TOKEN_COUNT],
-    }
-}
+/// A root the focused pane has no use for. Pressing it opens nothing — see
+/// [`Step::Empty`].
+const EMPTY_ROOT: RootEntry = [NC; TOKEN_COUNT];
 
 /// Cue-selection movement mode: T1 up, T2 down, entered from Go.
 const MOVE_STICKY: StickyTable = pm_sticky(
@@ -440,35 +441,29 @@ const NUDGE_STICKY: StickyTable = pm_sticky(
 /// The Pane root, identical in every table: T1–T4 focus a pane, doubled (bb)
 /// bounces back to the previous one. A pane press while its own pane is
 /// focused simply re-focuses it — harmless.
-const PANE_ROOT: RootEntry = RootEntry {
-    label: "Pane",
-    conjugations: [
-        conj("pool", Verb::FocusPane(Pane::Pool)),
-        conj("bank", Verb::FocusPane(Pane::Bank)),
-        conj("cue", Verb::FocusPane(Pane::Cue)),
-        conj("clock", Verb::FocusPane(Pane::Clock)),
-        NC,
-        NC,
-        conj("back", Verb::FocusPrevPane),
-        NC,
-    ],
-};
+const PANE_ROOT: RootEntry = [
+    conj("pool", Verb::FocusPane(Pane::Pool)),
+    conj("bank", Verb::FocusPane(Pane::Bank)),
+    conj("cue", Verb::FocusPane(Pane::Cue)),
+    conj("clock", Verb::FocusPane(Pane::Clock)),
+    NC,
+    NC,
+    conj("back", Verb::FocusPrevPane),
+    NC,
+];
 
 /// The Meta root, identical in every table: app-level nouns the pane never
 /// recolors.
-const META_ROOT: RootEntry = RootEntry {
-    label: "Meta",
-    conjugations: [
-        conj("save", Verb::SaveProject),
-        conj("fullscreen", Verb::ToggleFullscreen),
-        conj("advanced", Verb::ToggleAdvanced),
-        conj("edit proj", Verb::OpenProjectEditor),
-        conj("open proj", Verb::OpenProject),
-        conj("palette", Verb::ToggleCommandPalette),
-        NC,
-        conj("grammar off", Verb::GrammarOff),
-    ],
-};
+const META_ROOT: RootEntry = [
+    conj("save", Verb::SaveProject),
+    conj("fullscreen", Verb::ToggleFullscreen),
+    conj("advanced", Verb::ToggleAdvanced),
+    conj("edit proj", Verb::OpenProjectEditor),
+    conj("open proj", Verb::OpenProject),
+    conj("palette", Verb::ToggleCommandPalette),
+    NC,
+    conj("grammar off", Verb::GrammarOff),
+];
 
 /// Go through the edit bank's cue order: shared by the bank and cue panes.
 const GO_CUES: [Option<Conjugation>; 4] = [
@@ -479,64 +474,57 @@ const GO_CUES: [Option<Conjugation>; 4] = [
 ];
 
 /// Cut's shared "dd removes the selected cue" slot for the bank and cue panes.
-const CUT_CUE: RootEntry = RootEntry {
-    label: "Cut",
-    conjugations: [
-        NC,
-        NC,
-        NC,
-        NC,
-        conj("cue", Verb::RemoveSelectedCue),
-        NC,
-        NC,
-        NC,
-    ],
-};
+const CUT_CUE: RootEntry = [
+    NC,
+    NC,
+    NC,
+    NC,
+    conj("cue", Verb::RemoveSelectedCue),
+    NC,
+    NC,
+    NC,
+];
 
 /// The pool pane: the clip grid. Go moves the clip cursor (and clip banks);
 /// Make turns the cursored clip into a cue.
 static POOL_TABLE: GrammarTable = GrammarTable {
     roots: [
-        RootEntry {
-            label: "Go",
-            conjugations: [
-                conj_mode(
-                    "up",
-                    Some(Verb::SelectClipDelta(-1)),
-                    "move",
-                    CLIP_MOVE_STICKY,
-                ),
-                conj_mode(
-                    "down",
-                    Some(Verb::SelectClipDelta(1)),
-                    "move",
-                    CLIP_MOVE_STICKY,
-                ),
-                conj("first", Verb::SelectClipFirst),
-                conj("last", Verb::SelectClipLast),
-                conj("bank-", Verb::ClipBankDelta(-1)),
-                conj("bank+", Verb::ClipBankDelta(1)),
-                NC,
-                NC,
-            ],
-        },
-        empty_root("Fire"),
-        empty_root("Mark"),
-        RootEntry {
-            label: "Make",
-            conjugations: [
-                NC,
-                NC,
-                NC,
-                conj("cue @ clip", Verb::AddCueAtClip),
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
-        empty_root("Cut"),
-        empty_root("Tune"),
+        // Go
+        [
+            conj_mode(
+                "up",
+                Some(Verb::SelectClipDelta(-1)),
+                "move",
+                CLIP_MOVE_STICKY,
+            ),
+            conj_mode(
+                "down",
+                Some(Verb::SelectClipDelta(1)),
+                "move",
+                CLIP_MOVE_STICKY,
+            ),
+            conj("first", Verb::SelectClipFirst),
+            conj("last", Verb::SelectClipLast),
+            conj("bank-", Verb::ClipBankDelta(-1)),
+            conj("bank+", Verb::ClipBankDelta(1)),
+            NC,
+            NC,
+        ],
+        EMPTY_ROOT,
+        EMPTY_ROOT,
+        // Make
+        [
+            NC,
+            NC,
+            NC,
+            conj("cue @ clip", Verb::AddCueAtClip),
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
+        EMPTY_ROOT,
+        EMPTY_ROOT,
         PANE_ROOT,
         META_ROOT,
     ],
@@ -547,48 +535,42 @@ static POOL_TABLE: GrammarTable = GrammarTable {
 /// create and remove.
 static BANK_TABLE: GrammarTable = GrammarTable {
     roots: [
-        RootEntry {
-            label: "Go",
-            conjugations: [
-                GO_CUES[0],
-                GO_CUES[1],
-                GO_CUES[2],
-                GO_CUES[3],
-                conj("bank-", Verb::EditBankDelta(-1)),
-                conj("bank+", Verb::EditBankDelta(1)),
-                NC,
-                NC,
-            ],
-        },
-        RootEntry {
-            label: "Fire",
-            conjugations: [
-                conj("prev", Verb::CycleLiveBank(-1)),
-                conj("send live", Verb::SendEditBankLive),
-                conj("next", Verb::CycleLiveBank(1)),
-                NC,
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
-        empty_root("Mark"),
-        RootEntry {
-            label: "Make",
-            conjugations: [
-                NC,
-                NC,
-                NC,
-                conj("bank", Verb::AddBank),
-                conj("clone bank", Verb::CloneBank),
-                NC,
-                NC,
-                NC,
-            ],
-        },
+        // Go
+        [
+            GO_CUES[0],
+            GO_CUES[1],
+            GO_CUES[2],
+            GO_CUES[3],
+            conj("bank-", Verb::EditBankDelta(-1)),
+            conj("bank+", Verb::EditBankDelta(1)),
+            NC,
+            NC,
+        ],
+        // Fire
+        [
+            conj("prev", Verb::CycleLiveBank(-1)),
+            conj("send live", Verb::SendEditBankLive),
+            conj("next", Verb::CycleLiveBank(1)),
+            NC,
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
+        EMPTY_ROOT,
+        // Make
+        [
+            NC,
+            NC,
+            NC,
+            conj("bank", Verb::AddBank),
+            conj("clone bank", Verb::CloneBank),
+            NC,
+            NC,
+            NC,
+        ],
         CUT_CUE,
-        empty_root("Tune"),
+        EMPTY_ROOT,
         PANE_ROOT,
         META_ROOT,
     ],
@@ -598,41 +580,35 @@ static BANK_TABLE: GrammarTable = GrammarTable {
 /// advanced knobs; Go still moves selection so the pane is self-sufficient.
 static CUE_TABLE: GrammarTable = GrammarTable {
     roots: [
-        RootEntry {
-            label: "Go",
-            conjugations: [
-                GO_CUES[0], GO_CUES[1], GO_CUES[2], GO_CUES[3], NC, NC, NC, NC,
-            ],
-        },
-        empty_root("Fire"),
-        RootEntry {
-            label: "Mark",
-            conjugations: [
-                conj("in @ playhead", Verb::MarkInToPlayhead),
-                conj("out @ playhead", Verb::MarkOutToPlayhead),
-                conj("preserve", Verb::CyclePreserve),
-                NC,
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
-        empty_root("Make"),
+        // Go
+        [
+            GO_CUES[0], GO_CUES[1], GO_CUES[2], GO_CUES[3], NC, NC, NC, NC,
+        ],
+        EMPTY_ROOT,
+        // Mark
+        [
+            conj("in @ playhead", Verb::MarkInToPlayhead),
+            conj("out @ playhead", Verb::MarkOutToPlayhead),
+            conj("preserve", Verb::CyclePreserve),
+            NC,
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
+        EMPTY_ROOT,
         CUT_CUE,
-        RootEntry {
-            label: "Tune",
-            conjugations: [
-                knob(CueParamKind::Dwell),
-                knob(CueParamKind::Loop),
-                knob(CueParamKind::LoopPhase),
-                knob(CueParamKind::StartNudge),
-                knob(CueParamKind::TrigDelay),
-                knob(CueParamKind::Bpm),
-                knob(CueParamKind::BpmSync),
-                knob(CueParamKind::SpeedMul),
-            ],
-        },
+        // Tune
+        [
+            knob(CueParamKind::Dwell),
+            knob(CueParamKind::Loop),
+            knob(CueParamKind::LoopPhase),
+            knob(CueParamKind::StartNudge),
+            knob(CueParamKind::TrigDelay),
+            knob(CueParamKind::Bpm),
+            knob(CueParamKind::BpmSync),
+            knob(CueParamKind::SpeedMul),
+        ],
         PANE_ROOT,
         META_ROOT,
     ],
@@ -643,70 +619,62 @@ static CUE_TABLE: GrammarTable = GrammarTable {
 /// session tempo.
 static CLOCK_TABLE: GrammarTable = GrammarTable {
     roots: [
-        empty_root("Go"),
-        RootEntry {
-            label: "Fire",
-            conjugations: [
-                NC,
-                conj_mode("tap", Some(Verb::TapTempo), "tap", TAP_STICKY),
-                NC,
-                NC,
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
-        RootEntry {
-            label: "Mark",
-            conjugations: [
-                NC,
-                NC,
-                conj("downbeat", Verb::TapDownbeat),
-                NC,
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
-        empty_root("Make"),
-        RootEntry {
-            label: "Cut",
-            conjugations: [
-                NC,
-                NC,
-                NC,
-                NC,
-                conj("soft reset", Verb::SoftReset),
-                NC,
-                NC,
-                conj("hard reset", Verb::HardReset),
-            ],
-        },
-        RootEntry {
-            label: "Tune",
-            conjugations: [
-                conj_mode("bpm +1", Some(Verb::BpmDelta(1.0)), "bpm", BPM_STICKY),
-                conj_mode("bpm -1", Some(Verb::BpmDelta(-1.0)), "bpm", BPM_STICKY),
-                conj_mode(
-                    "nudge +",
-                    Some(Verb::NudgeBpm(0.001)),
-                    "nudge",
-                    NUDGE_STICKY,
-                ),
-                conj_mode(
-                    "nudge -",
-                    Some(Verb::NudgeBpm(-0.001)),
-                    "nudge",
-                    NUDGE_STICKY,
-                ),
-                NC,
-                NC,
-                NC,
-                NC,
-            ],
-        },
+        EMPTY_ROOT,
+        // Fire
+        [
+            NC,
+            conj_mode("tap", Some(Verb::TapTempo), "tap", TAP_STICKY),
+            NC,
+            NC,
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
+        // Mark
+        [
+            NC,
+            NC,
+            conj("downbeat", Verb::TapDownbeat),
+            NC,
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
+        EMPTY_ROOT,
+        // Cut
+        [
+            NC,
+            NC,
+            NC,
+            NC,
+            conj("soft reset", Verb::SoftReset),
+            NC,
+            NC,
+            conj("hard reset", Verb::HardReset),
+        ],
+        // Tune
+        [
+            conj_mode("bpm +1", Some(Verb::BpmDelta(1.0)), "bpm", BPM_STICKY),
+            conj_mode("bpm -1", Some(Verb::BpmDelta(-1.0)), "bpm", BPM_STICKY),
+            conj_mode(
+                "nudge +",
+                Some(Verb::NudgeBpm(0.001)),
+                "nudge",
+                NUDGE_STICKY,
+            ),
+            conj_mode(
+                "nudge -",
+                Some(Verb::NudgeBpm(-0.001)),
+                "nudge",
+                NUDGE_STICKY,
+            ),
+            NC,
+            NC,
+            NC,
+            NC,
+        ],
         PANE_ROOT,
         META_ROOT,
     ],
@@ -1041,18 +1009,26 @@ mod tests {
 
     #[test]
     fn every_pane_table_is_labelled_and_shares_the_global_roots() {
+        // The roots are named once, so "T1 is Go in every pane" is now a
+        // property of the module rather than four hand-copied lists.
+        for (i, label) in PREFIX_LABELS.iter().enumerate() {
+            assert!(!label.is_empty(), "root {i} has a label");
+        }
+        assert_eq!(PREFIX_LABELS[0], "Go");
+        assert_eq!(PREFIX_LABELS[6], "Pane", "the pane selector stays on T7");
+        assert_eq!(PREFIX_LABELS[7], "Meta", "Meta stays on T8");
         for pane in PANES {
             let table = pane_table(pane);
             for (i, root) in table.roots.iter().enumerate() {
-                assert!(!root.label.is_empty(), "{pane:?} root {i} has a label");
+                for conj in root.iter().flatten() {
+                    assert!(
+                        !conj.label.is_empty(),
+                        "{pane:?} {} slot has a label",
+                        PREFIX_LABELS[i]
+                    );
+                }
             }
-            assert_eq!(
-                table.roots[6].label, "Pane",
-                "{pane:?} keeps the pane selector on T7"
-            );
-            assert_eq!(table.roots[7].label, "Meta", "{pane:?} keeps Meta on T8");
             let focus_slots = table.roots[6]
-                .conjugations
                 .iter()
                 .flatten()
                 .filter(|c| matches!(c.verb, Some(Verb::FocusPane(_))))
@@ -1070,7 +1046,7 @@ mod tests {
         let mut checked = 0;
         for pane in PANES {
             for root in &pane_table(pane).roots {
-                for conj in root.conjugations.iter().flatten() {
+                for conj in root.iter().flatten() {
                     let Some((mode, entries)) = &conj.sticky else {
                         continue;
                     };
@@ -1092,7 +1068,6 @@ mod tests {
             let table = pane_table(from);
             for to in PANES {
                 let reachable = table.roots[6]
-                    .conjugations
                     .iter()
                     .flatten()
                     .any(|c| c.verb == Some(Verb::FocusPane(to)));

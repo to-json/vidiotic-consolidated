@@ -29,14 +29,13 @@ impl Engine {
             GrammarState::AwaitingConjugation { root } => {
                 let entry = &grammar::pane_table(self.focused_pane).roots[root.index()];
                 let options = entry
-                    .conjugations
                     .iter()
                     .enumerate()
                     .filter_map(|(i, c)| c.as_ref().map(|c| (grammar::KEY_TOKENS[i], c.label)))
                     .collect();
                 Some(GrammarModalView {
                     trail: format!("{pane}·{}", grammar::KEY_TOKENS[root.index()]),
-                    title: entry.label,
+                    title: grammar::PREFIX_LABELS[root.index()],
                     options,
                 })
             }

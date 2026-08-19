@@ -633,27 +633,28 @@ impl Shell {
     /// grammar has pixels on the output head, so reading it back is the only
     /// way to show it is running.
     fn grammar_view(&self) -> GrammarView<'_> {
-        use crate::grammar::{GrammarState, KEY_TOKENS};
+        use crate::grammar::{GrammarState, KEY_TOKENS, PREFIX_LABELS};
 
         let table = grammar::pane_table(self.engine.focused_pane);
         let (pending, options) = match self.engine.grammar.state {
             GrammarState::Idle => (
                 None,
-                // Idle, the reachable options are the roots themselves.
+                // Idle, the reachable options are the roots themselves — the
+                // ones this pane fills. An option-less root opens nothing, so
+                // listing it would be a lie.
                 table
                     .roots
                     .iter()
                     .enumerate()
-                    .filter(|(_, r)| !r.label.is_empty())
-                    .map(|(i, r)| (KEY_TOKENS[i], r.label))
+                    .filter(|(_, r)| r.iter().any(Option::is_some))
+                    .map(|(i, _)| (KEY_TOKENS[i], PREFIX_LABELS[i]))
                     .collect(),
             ),
             GrammarState::AwaitingConjugation { root } => {
                 let entry = &table.roots[root.index()];
                 (
-                    Some(entry.label),
+                    Some(PREFIX_LABELS[root.index()]),
                     entry
-                        .conjugations
                         .iter()
                         .enumerate()
                         .filter_map(|(i, c)| c.as_ref().map(|c| (KEY_TOKENS[i], c.label)))
