@@ -184,7 +184,12 @@ pub struct GrammarTable {
 }
 
 /// Where the machine is between presses.
+///
+/// 280 bytes, nearly all of it `Sticky`'s entries, and there is exactly one of
+/// these per app — boxing the variant would trade a `Copy` state and a
+/// borrow-free machine for a heap allocation on every mode entry.
 #[derive(Clone, Copy, Debug, Default)]
+#[allow(clippy::large_enum_variant)]
 pub enum GrammarState {
     #[default]
     Idle,
@@ -192,9 +197,15 @@ pub enum GrammarState {
     AwaitingConjugation { root: Token },
     /// A repeat-friendly terminal mode; `trail_root` is the root that led
     /// here, for the input-trail display.
+    ///
+    /// The entries are held *by value*. A `StickyTable` is `Copy` and eight
+    /// entries wide, so entering a mode costs one memcpy of a couple of
+    /// hundred bytes — and in exchange the machine borrows nothing from the
+    /// table it stepped against, which is what a table that is not compiled in
+    /// would need.
     Sticky {
         label: &'static str,
-        entries: &'static StickyTable,
+        entries: StickyTable,
         trail_root: Token,
     },
 }
@@ -228,9 +239,12 @@ pub struct Grammar {
 }
 
 impl Grammar {
-    /// Advance on one input. The table must be `'static` so sticky modes can
-    /// borrow their entry tables from it.
-    pub fn step(&mut self, table: &'static GrammarTable, input: Input) -> Step {
+    /// Advance on one input, resolving against the focused pane's table.
+    ///
+    /// The table is borrowed only for the call: nothing in the machine
+    /// outlives it (see [`GrammarState::Sticky`]), so a table built at runtime
+    /// works exactly as the compiled-in ones do.
+    pub fn step(&mut self, table: &GrammarTable, input: Input) -> Step {
         match (&self.state, input) {
             (GrammarState::Idle, Input::Cancel) => Step::Rejected,
             (_, Input::Cancel) => {
@@ -253,7 +267,7 @@ impl Grammar {
                     None => Step::Pending,
                     Some(conj) => {
                         let root = *root;
-                        self.state = match &conj.sticky {
+                        self.state = match conj.sticky {
                             Some((label, entries)) => GrammarState::Sticky {
                                 label,
                                 entries,
@@ -706,7 +720,7 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
-    fn seq(table: &'static GrammarTable, inputs: &[Input]) -> (Grammar, Vec<Step>) {
+    fn seq(table: &GrammarTable, inputs: &[Input]) -> (Grammar, Vec<Step>) {
         let mut g = Grammar::default();
         let steps = inputs.iter().map(|i| g.step(table, *i)).collect();
         (g, steps)
@@ -1035,6 +1049,42 @@ mod tests {
                 .count();
             assert_eq!(focus_slots, PANES.len(), "{pane:?} can focus every pane");
         }
+    }
+
+    #[test]
+    fn a_table_built_at_runtime_steps_like_a_compiled_one() {
+        // Nothing in the machine outlives the call, so the table need not be a
+        // module static — which is the precondition for keymaps the user edits
+        // (that is what `vidiotic-ctl` exists for), not the feature itself.
+        let mut roots = [EMPTY_ROOT; TOKEN_COUNT];
+        roots[0] = {
+            let mut r = EMPTY_ROOT;
+            r[0] = conj_mode(
+                "louder",
+                Some(Verb::BpmDelta(2.0)),
+                "gain",
+                pm_sticky("up", Verb::BpmDelta(2.0), "down", Verb::BpmDelta(-2.0)),
+            );
+            r
+        };
+        let table = GrammarTable { roots };
+
+        let (g, steps) = seq(&table, &[G, G, F]);
+        assert_eq!(
+            &steps[1..],
+            [
+                Step::Verb(Verb::BpmDelta(2.0)),
+                Step::Verb(Verb::BpmDelta(-2.0))
+            ],
+            "the runtime table's own sticky mode repeats"
+        );
+        assert!(matches!(
+            g.state,
+            GrammarState::Sticky { label: "gain", .. }
+        ));
+        // And its empty roots behave like the compiled ones.
+        let (_, steps) = seq(&table, &[F]);
+        assert_eq!(steps, [Step::Empty("Fire")]);
     }
 
     #[test]
