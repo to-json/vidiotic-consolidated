@@ -40,7 +40,11 @@ pub(super) fn show(ctx: &egui::Context, modal: &GrammarModalView) {
                             }
                         });
                     }
-                    ui.label(RichText::new("esc cancel").font(mono()).color(p.fg_muted));
+                    ui.label(
+                        RichText::new(format!("{} cancel", modal.cancel))
+                            .font(mono())
+                            .color(p.fg_muted),
+                    );
                 });
         });
 }

@@ -9,7 +9,7 @@
 
 use super::{Command, Engine};
 use crate::commands::GrammarModalView;
-use crate::grammar::{self, GrammarState, Pane, Verb};
+use crate::grammar::{self, GrammarState, Pane, Spelling, Verb};
 
 impl Engine {
     /// Focus a grammar pane, remembering the previous one for the bb bounce.
@@ -24,6 +24,7 @@ impl Engine {
     #[must_use]
     pub fn grammar_modal_view(&self) -> Option<GrammarModalView> {
         let pane = self.focused_pane.label();
+        let spell = self.grammar.spelling.tokens();
         match self.grammar.state {
             GrammarState::Idle => None,
             GrammarState::AwaitingConjugation { root } => {
@@ -31,12 +32,13 @@ impl Engine {
                 let options = entry
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, c)| c.as_ref().map(|c| (grammar::KEY_TOKENS[i], c.label)))
+                    .filter_map(|(i, c)| c.as_ref().map(|c| (spell[i], c.label)))
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}", grammar::KEY_TOKENS[root.index()]),
+                    trail: format!("{pane}·{}", spell[root.index()]),
                     title: grammar::PREFIX_LABELS[root.index()],
                     options,
+                    cancel: self.grammar.spelling.cancel(),
                 })
             }
             GrammarState::Sticky {
@@ -47,12 +49,13 @@ impl Engine {
                 let options = entries
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, e)| e.map(|e| (grammar::KEY_TOKENS[i], e.label)))
+                    .filter_map(|(i, e)| e.map(|e| (spell[i], e.label)))
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}·{label}", grammar::KEY_TOKENS[trail_root.index()]),
+                    trail: format!("{pane}·{}·{label}", spell[trail_root.index()]),
                     title: label,
                     options,
+                    cancel: self.grammar.spelling.cancel(),
                 })
             }
         }
@@ -61,10 +64,13 @@ impl Engine {
     /// Feed one grammar input; apply any completed verb. Returns whether the
     /// input was consumed — `false` only for cancel-while-idle, which falls
     /// through to the shell's own Escape handling.
-    pub fn grammar_step(&mut self, input: grammar::Input) -> bool {
+    ///
+    /// `from` is the surface the press came from, and it decides nothing about
+    /// resolution — only how the overlay spells the options it offers next.
+    pub fn grammar_step(&mut self, input: grammar::Input, from: Spelling) -> bool {
         match self
             .grammar
-            .step(grammar::pane_table(self.focused_pane), input)
+            .step(grammar::pane_table(self.focused_pane), input, from)
         {
             grammar::Step::Rejected => false,
             grammar::Step::Verb(v) => {

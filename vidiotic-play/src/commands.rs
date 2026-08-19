@@ -322,8 +322,12 @@ pub struct GrammarModalView {
     pub trail: String,
     /// The open root's label, or the sticky mode's.
     pub title: &'static str,
-    /// `(key label, conjugation label)` for each populated slot, in token order.
+    /// `(key label, conjugation label)` for each populated slot, in token
+    /// order. The key label is spelled for the surface driving the sequence —
+    /// `g` on a keyboard, `North` on a pad, `38` over MIDI.
     pub options: Vec<(&'static str, &'static str)>,
+    /// How this surface spells cancel, for the overlay's footer.
+    pub cancel: &'static str,
 }
 
 /// Read-only display state the engine republishes each tick for the control UI.

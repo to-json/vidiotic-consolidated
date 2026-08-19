@@ -52,7 +52,7 @@ impl App {
                     .as_deref()
                     .and_then(grammar::token_of_key)
                 {
-                    if self.engine.grammar_step(input) {
+                    if self.engine.grammar_step(input, grammar::Spelling::Key) {
                         return;
                     }
                 }

@@ -404,11 +404,13 @@ impl Shell {
     fn handle_key(&mut self, k: &input::KeyPress) {
         if k.plain() && !k.repeat {
             if let Some(input) = grammar::token_of_key(&k.canon) {
-                match self
-                    .engine
-                    .grammar
-                    .step(grammar::pane_table(self.engine.focused_pane), input)
-                {
+                match self.engine.grammar.step(
+                    grammar::pane_table(self.engine.focused_pane),
+                    input,
+                    // The page has no pads and no MIDI; every token here is a
+                    // key press.
+                    grammar::Spelling::Key,
+                ) {
                     Step::Verb(v) => {
                         self.engine.apply_verb(v);
                         return;

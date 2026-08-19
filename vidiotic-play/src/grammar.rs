@@ -236,6 +236,10 @@ pub enum Step {
 #[derive(Default)]
 pub struct Grammar {
     pub state: GrammarState,
+    /// How the surface driving the pending sequence spells its tokens. Set by
+    /// every [`Self::step`], so the overlay names the control under the
+    /// operator's hand rather than always naming a key.
+    pub spelling: Spelling,
 }
 
 impl Grammar {
@@ -244,7 +248,8 @@ impl Grammar {
     /// The table is borrowed only for the call: nothing in the machine
     /// outlives it (see [`GrammarState::Sticky`]), so a table built at runtime
     /// works exactly as the compiled-in ones do.
-    pub fn step(&mut self, table: &GrammarTable, input: Input) -> Step {
+    pub fn step(&mut self, table: &GrammarTable, input: Input, from: Spelling) -> Step {
+        self.spelling = from;
         match (&self.state, input) {
             (GrammarState::Idle, Input::Cancel) => Step::Rejected,
             (_, Input::Cancel) => {
@@ -311,6 +316,64 @@ pub const PREFIX_LABELS: [&str; TOKEN_COUNT] =
 /// The canonical keyboard spelling of each token, in token order. These are
 /// the strings `control_input::canon_key` / `vidiotic_ctl::keys` produce.
 pub const KEY_TOKENS: [&str; TOKEN_COUNT] = ["g", "f", "m", "a", "d", "t", "b", ";"];
+
+/// The gamepad spelling: the d-pad, then the face diamond. Same names the
+/// mapper's binding rows show, so the overlay and the map agree.
+pub const PAD_TOKENS: [&str; TOKEN_COUNT] = [
+    "Up", "Down", "Left", "Right", "North", "South", "East", "West",
+];
+
+/// The MIDI spelling: notes 36–43, on any device and any channel.
+pub const MIDI_TOKENS: [&str; TOKEN_COUNT] = ["36", "37", "38", "39", "40", "41", "42", "43"];
+
+/// Which surface a pending sequence is being driven from, and so how the
+/// which-key overlay spells its options.
+///
+/// The token abstraction is what lets one table serve a keyboard, a d-pad and
+/// eight drum pads — but the operator is holding exactly one of them, and an
+/// overlay that reads `g / f / m` while they press a d-pad is naming keys they
+/// are not touching. This is the one place the abstraction has to leak.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Spelling {
+    #[default]
+    Key,
+    Pad,
+    Midi,
+}
+
+impl Spelling {
+    /// How this surface spells the eight tokens, in token order.
+    #[must_use]
+    pub const fn tokens(self) -> &'static [&'static str; TOKEN_COUNT] {
+        match self {
+            Self::Key => &KEY_TOKENS,
+            Self::Pad => &PAD_TOKENS,
+            Self::Midi => &MIDI_TOKENS,
+        }
+    }
+
+    /// How this surface spells cancel — the one control every pending state
+    /// answers to.
+    #[must_use]
+    pub const fn cancel(self) -> &'static str {
+        match self {
+            Self::Key => "esc",
+            Self::Pad => "Select",
+            Self::Midi => "35",
+        }
+    }
+
+    /// The surface an event came from. Keyboard sources reach the grammar
+    /// through `handle_key`, not the event pump, so they never arrive here.
+    #[must_use]
+    pub fn of_source(source: &ControlSource) -> Self {
+        match source {
+            ControlSource::PadButton { .. } | ControlSource::PadAxis { .. } => Self::Pad,
+            ControlSource::MidiNote { .. } | ControlSource::MidiCc { .. } => Self::Midi,
+            ControlSource::Key { .. } => Self::Key,
+        }
+    }
+}
 
 /// Map a canonical key name to a grammar input. `Escape` cancels.
 #[must_use]
@@ -722,7 +785,10 @@ mod tests {
 
     fn seq(table: &GrammarTable, inputs: &[Input]) -> (Grammar, Vec<Step>) {
         let mut g = Grammar::default();
-        let steps = inputs.iter().map(|i| g.step(table, *i)).collect();
+        let steps = inputs
+            .iter()
+            .map(|i| g.step(table, *i, Spelling::Key))
+            .collect();
         (g, steps)
     }
 
@@ -849,7 +915,10 @@ mod tests {
         );
         // Escape is the way out, and it leaves the machine where a cancel does.
         let (mut g, _) = seq(&CLOCK_TABLE, &[F, F]);
-        assert_eq!(g.step(&CLOCK_TABLE, Input::Cancel), Step::Cancelled);
+        assert_eq!(
+            g.step(&CLOCK_TABLE, Input::Cancel, Spelling::Key),
+            Step::Cancelled
+        );
         assert!(matches!(g.state, GrammarState::Idle));
     }
 
@@ -941,6 +1010,54 @@ mod tests {
             assert_eq!(steps[1], Step::Verb(Verb::OpenProjectEditor), "{pane:?} ;a");
             let (_, steps) = seq(pane_table(pane), &[Input::Token(Token(7)), D]);
             assert_eq!(steps[1], Step::Verb(Verb::OpenProject), "{pane:?} ;d");
+        }
+    }
+
+    #[test]
+    fn every_surface_spells_all_eight_tokens_and_cancel() {
+        // The overlay used to read `g / f / m` no matter what was in the
+        // operator's hands. Each surface names its own controls, and its
+        // spelling has to line up with what `token_of_*` actually accepts.
+        for (spelling, cancel) in [
+            (Spelling::Key, "esc"),
+            (Spelling::Pad, "Select"),
+            (Spelling::Midi, "35"),
+        ] {
+            let tokens = spelling.tokens();
+            assert_eq!(spelling.cancel(), cancel);
+            for (i, t) in tokens.iter().enumerate() {
+                assert!(!t.is_empty(), "{spelling:?} token {i}");
+            }
+        }
+        for (i, name) in PAD_TOKENS.iter().enumerate() {
+            // The pad's d-pad names are abbreviated in the overlay; the face
+            // diamond's are the gilrs names the mapper shows.
+            let button = match *name {
+                "Up" => "DPadUp",
+                "Down" => "DPadDown",
+                "Left" => "DPadLeft",
+                "Right" => "DPadRight",
+                other => other,
+            };
+            let src = ControlSource::PadButton {
+                device: String::new(),
+                button: button.into(),
+            };
+            assert_eq!(
+                token_of_source(&src),
+                Some(Input::Token(Token(i as u8))),
+                "{name} is spelled but does not resolve"
+            );
+            assert_eq!(Spelling::of_source(&src), Spelling::Pad);
+        }
+        for (i, note) in MIDI_TOKENS.iter().enumerate() {
+            let src = ControlSource::MidiNote {
+                device: String::new(),
+                channel: 1,
+                note: note.parse().expect("a MIDI spelling is a note number"),
+            };
+            assert_eq!(token_of_source(&src), Some(Input::Token(Token(i as u8))));
+            assert_eq!(Spelling::of_source(&src), Spelling::Midi);
         }
     }
 

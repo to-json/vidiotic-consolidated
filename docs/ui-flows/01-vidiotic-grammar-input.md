@@ -53,7 +53,7 @@ The grammar machine has three states (grammar::GrammarState):
    - Title = entry.label (e.g., "Go")
    - Trail = "pane·key" (e.g., "bank·g")
    - Options = filled conjugation slots, in token order (key_label, conjugation_label)
-9. ui/whichkey.rs renders a floating panel: title, trail, options (up to 4 per row), "esc cancel" footer.
+9. ui/whichkey.rs renders a floating panel: title, trail, options (up to 4 per row), and a cancel footer. Options and footer are spelled for the surface driving the sequence (`grammar::Spelling`): `g` / `esc cancel` on a keyboard, `North` / `Select cancel` on a pad, `38` / `35 cancel` over MIDI.
 
 ### Conjugation (completing a simple sequence)
 
@@ -211,15 +211,15 @@ All verbs are context-free (just "remove selected cue"); app resolves which cue,
 ### Design strengths
 1. **Pure state machine:** Grammar has no app dependencies; it's testable in isolation (140+ test cases in grammar.rs). Verbs are context-free.
 2. **Pane-sensitive tables:** Each pane has a different verb table; tokens mean different things in different contexts (e.g., Go moves clips in Pool but cues in Bank).
-3. **Forgiving modals:** Empty slots keep the modal open and teach by silence. A typo doesn't crash or reset; you just see fewer options.
+3. **Forgiving modals:** Empty slots keep the modal open. A typo doesn't crash, reset, or reroute the next press; you just see fewer options.
 4. **Sticky modes for fluency:** Repeat-friendly actions (move, tap, knob tune) don't require re-entering the sequence each time.
 5. **Transparent which-key:** Modal shows exactly what's available; no hidden verbs.
 
 ### Potential confusion or rough edges
 1. **"Doubled root" hot verbs are buried in the conjugation table:** F-T1 (Fire's own slot) is SendEditBankLive, not explained as "ff hot verb" upfront. Trail shows "bank·f·send" on second press, which might confuse whether you're in a sticky mode (you're not).
-2. **Sticky modes have no uniform exit signal:** Must press an unmapped token or Escape; no dedicated "exit sticky" command. If all 8 tokens have entries in a sticky table, you can't escape except via Escape.
+2. **Sticky modes have one exit signal, and it is Escape:** there is no dedicated "exit sticky" verb, and every unowned token is swallowed. Uniform, but it means the way out is never one of the eight.
 3. **Trail format changes between states:** "bank·g" vs "bank·g·move" doesn't immediately signal state transition; user must read the modal title.
-4. **Empty root entries show a modal with no options:** E.g., Fire in POOL pane has no conjugations; pressing **f** opens Fire root with no options listed (only "esc cancel"), which teaches by silence but might feel stuck.
+4. **Empty root entries open nothing:** e.g. Fire in the POOL pane has no conjugations; pressing **f** leaves the machine idle and puts `Fire: nothing here` on the statusline for about a second. Nothing to get stuck in, but nothing on the overlay either — the note is the only feedback.
 5. **Sticky mode verb display is human-readable but lossy:** "step +" for both NudgeParam and BpmDelta hides the actual direction and magnitude; user must remember which knob/parameter they entered.
 6. **Focus-pane verbs bypass confirm/undo:** FocusPane switches the grammar table immediately; no visual feedback until the next pane-specific modal opens. If you mispress pane tokens, the entire verb context has shifted.
 7. **context resolution happens at apply_verb, not at sequence completion:** Verb is context-free ("remove selected cue"); the actual cue ID is resolved late in apply_verb. If selection changes during a long sticky mode, the final verb still fires on the *current* selection, not the one when the verb was emitted. (Probably intentional for liveness.)
