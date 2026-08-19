@@ -488,7 +488,7 @@ The library panel is a `CentralPanel`, so it expands to fill the gap left by the
    - Pane focus (LIBRARY / EDITOR / TRANSPORT / etc.) affects which verb table is active
    - Mode word in statusline shows focused pane only when grammar is on
    - User must infer that pane focus affects available commands; no other visual cue
-   - Verb tables are defined in `grammar.rs` (not shown in UI modules), so the mapping is invisible from the UI code
+   - Verb tables are defined in `keymap.rs` (not shown in UI modules), so the mapping is invisible from the UI code
 
 6. **Shader vs. ISF Distinction**
    - Effect chain shows "Live shader", builtin shaders, pinned shaders, and ISF slots

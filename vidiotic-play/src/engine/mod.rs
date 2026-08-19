@@ -50,7 +50,7 @@ use crate::commands::{
     BankView, Cadence, ClipBankView, ClipEntry, ClipRole, Command, CueView, SyncKind, TimeSig,
     UiMirror, LOOP_TICKS_PER_BEAT,
 };
-use crate::grammar::{Grammar, Pane};
+use crate::keymap::{Machine as Keymap, Pane};
 use crate::sequencer::{CueStep, Sequencer, SequencerEvent};
 use crate::undo::UndoStack;
 use crate::video::frame::DecodedFrame;
@@ -215,9 +215,13 @@ pub struct Engine {
     // --- input model ---
     /// Modal command grammar: when on, token keys/pads/notes drive verb
     /// sequences (and mask their direct bindings).
+    /// Spelled `grammar` because that is the wire's name for the mode
+    /// (`WireStatus.grammar_on`, serialised by field name under
+    /// `WIRE_VERSION` 1) and the UI's; the machine behind it is
+    /// [`crate::keymap`].
     pub grammar_on: bool,
     pub command_palette_open: bool,
-    pub grammar: Grammar,
+    pub keymap: Keymap,
     pub focused_pane: Pane,
     pub prev_pane: Pane,
 
@@ -233,7 +237,7 @@ pub struct Engine {
     /// The label of a root pressed with nothing bound under it, and when.
     ///
     /// Also a readout. An option-less root opens nothing (see
-    /// [`grammar::Step::Empty`]), and a press that silently does nothing reads
+    /// [`keymap::Step::Empty`]), and a press that silently does nothing reads
     /// as broken gear; this is what lets the statusline say "nothing here"
     /// instead. Cleared by time, in [`Self::build_mirror`].
     pub empty_prefix: Option<(&'static str, Instant)>,
@@ -296,7 +300,7 @@ impl Engine {
             tap: TapTempo::default(),
             grammar_on: false,
             command_palette_open: false,
-            grammar: Grammar::default(),
+            keymap: Keymap::default(),
             focused_pane: Pane::default(),
             prev_pane: Pane::default(),
             last_verb: None,
@@ -505,7 +509,7 @@ impl Engine {
             Command::SetAdvancedMode(on) => self.set_advanced(on),
             Command::SetGrammarMode(on) => {
                 self.grammar_on = on;
-                self.grammar.reset();
+                self.keymap.reset();
             }
             Command::ToggleCommandPalette => {
                 self.command_palette_open = !self.command_palette_open;
@@ -1017,7 +1021,7 @@ mod tests {
     /// binding is authored long before there is a selection to point at.
     #[test]
     fn command_verb_resolves_the_selection_the_grammar_would() {
-        use crate::grammar::Verb;
+        use crate::keymap::Verb;
 
         let mut e = Engine::new(Boot {
             clips: two_clips(),

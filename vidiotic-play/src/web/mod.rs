@@ -51,7 +51,7 @@ use crate::clippool::ClipSource;
 use crate::commands::Command;
 use crate::engine::{Boot, Engine};
 use crate::gfx::Graphics;
-use crate::grammar::{self, Step, Verb};
+use crate::keymap::{self, Step, Verb};
 use crate::render::{Globals, Renderer};
 use crate::video::frame::{DecodedFrame, PixelData};
 use sources::{Flag, Library, Loaded, SoftFlag, WebSources};
@@ -403,13 +403,13 @@ impl Shell {
     /// tokens *and* flat tap keys natively, and that ordering is why they can be.
     fn handle_key(&mut self, k: &input::KeyPress) {
         if k.plain() && !k.repeat {
-            if let Some(input) = grammar::token_of_key(&k.canon) {
-                match self.engine.grammar.step(
-                    grammar::pane_table(self.engine.focused_pane),
+            if let Some(input) = keymap::token_of_key(&k.canon) {
+                match self.engine.keymap.step(
+                    keymap::pane_keymap(self.engine.focused_pane),
                     input,
                     // The page has no pads and no MIDI; every token here is a
                     // key press.
-                    grammar::Spelling::Key,
+                    keymap::Spelling::Key,
                 ) {
                     Step::Verb(v) => {
                         self.engine.apply_verb(v);
@@ -635,27 +635,27 @@ impl Shell {
     /// grammar has pixels on the output head, so reading it back is the only
     /// way to show it is running.
     fn grammar_view(&self) -> GrammarView<'_> {
-        use crate::grammar::{GrammarState, KEY_TOKENS, PREFIX_LABELS};
+        use crate::keymap::{KEY_TOKENS, PREFIX_LABELS};
 
-        let table = grammar::pane_table(self.engine.focused_pane);
-        let (pending, options) = match self.engine.grammar.state {
-            GrammarState::Idle => (
+        let table = keymap::pane_keymap(self.engine.focused_pane);
+        let (pending, options) = match self.engine.keymap.state {
+            keymap::State::Idle => (
                 None,
                 // Idle, the reachable options are the roots themselves — the
                 // ones this pane fills. An option-less root opens nothing, so
                 // listing it would be a lie.
                 table
-                    .roots
+                    .submaps
                     .iter()
                     .enumerate()
                     .filter(|(_, r)| r.iter().any(Option::is_some))
                     .map(|(i, _)| (KEY_TOKENS[i], PREFIX_LABELS[i]))
                     .collect(),
             ),
-            GrammarState::AwaitingConjugation { root } => {
-                let entry = &table.roots[root.index()];
+            keymap::State::AwaitingBinding { prefix } => {
+                let entry = &table.submaps[prefix.index()];
                 (
-                    Some(PREFIX_LABELS[root.index()]),
+                    Some(PREFIX_LABELS[prefix.index()]),
                     entry
                         .iter()
                         .enumerate()
@@ -663,7 +663,7 @@ impl Shell {
                         .collect(),
                 )
             }
-            GrammarState::Sticky { label, entries, .. } => (
+            keymap::State::Repeat { label, entries, .. } => (
                 Some(label),
                 entries
                     .iter()

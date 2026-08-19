@@ -25,7 +25,7 @@ pub mod clock;
 pub mod commands;
 pub mod engine;
 pub mod gfx;
-pub mod grammar;
+pub mod keymap;
 pub mod render;
 pub mod sequencer;
 pub mod shader;

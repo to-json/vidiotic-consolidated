@@ -69,6 +69,9 @@ pub enum Command {
     MoveCue(CueId, usize), // reorder within the edit bank to a target index (drag / ◀▶)
     SetClipBpm(ClipId, Option<f64>), // source-clip tempo metadata; None clears it
     SetAdvancedMode(bool), // gate per-cue timing/speed resolution + the extended UI
+    // Spelled `Grammar` because that is the wire's name for the mode
+    // (`WireCommand::SetGrammarMode`, serialised by variant name under
+    // WIRE_VERSION 1) and the UI's. The machine behind it is `crate::keymap`.
     SetGrammarMode(bool), // modal command grammar: token keys/pads drive verb sequences
     AddBank,
     CloneBank,          // duplicate the edit bank (cues get fresh ids) and append it
@@ -146,8 +149,8 @@ pub enum Command {
     BpmCommit,
     BpmClear,
 
-    // --- the grammar's vocabulary, as a command ---
-    /// Apply one grammar [`Verb`](crate::grammar::Verb) — the engine resolves
+    // --- the keymap's vocabulary, as a command ---
+    /// Apply one [`Verb`](crate::keymap::Verb) — the engine resolves
     /// the selection and bank context the verb deliberately leaves open, then
     /// raises whatever concrete commands it means.
     ///
@@ -160,7 +163,7 @@ pub enum Command {
     /// Undo bookkeeping happens on what the verb raises, not on this: the
     /// shell drains the engine's pending queue in the same tick and dispatches
     /// each concrete command normally.
-    Verb(crate::grammar::Verb),
+    Verb(crate::keymap::Verb),
 
     // --- history ---
     /// Undo the last cue/bank authoring edit. Intercepted in `App::update`
@@ -206,7 +209,7 @@ pub enum CueParam {
 }
 
 /// The nudgeable [`CueParam`] knobs (all but the camera-only delay), for
-/// [`Command::NudgeCueParam`] and the grammar's Tune root.
+/// [`Command::NudgeCueParam`] and the keymap's Tune prefix.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CueParamKind {
     Dwell,
@@ -221,10 +224,10 @@ pub enum CueParamKind {
 
 impl CueParamKind {
     /// Every knob, in the order the cue pane's Tune root binds them. Exactly
-    /// [`crate::grammar::TOKEN_COUNT`] of them, which is a coincidence the
-    /// grammar's reachability test exists to catch the moment it stops being
+    /// [`crate::keymap::TOKEN_COUNT`] of them, which is a coincidence the
+    /// keymap's reachability test exists to catch the moment it stops being
     /// true — a ninth knob has nowhere to go under Tune and would otherwise
-    /// just be silently unreachable from the grammar.
+    /// just be silently unreachable from the keymap.
     pub const ALL: [Self; 8] = [
         Self::Dwell,
         Self::Loop,

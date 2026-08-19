@@ -1,4 +1,5 @@
-//! The modal grammar: pane focus, verb application, modal view.
+//! Grammar mode's engine half: pane focus, verb application, overlay view.
+//! The machine it drives is [`crate::keymap`].
 //!
 //! Every verb resolves into a [`Command`] rather than mutating anything
 //! directly, which is what puts verbs, clicks, MIDI and IPC on one apply path.
@@ -9,7 +10,7 @@
 
 use super::{Command, Engine};
 use crate::commands::GrammarModalView;
-use crate::grammar::{self, GrammarState, Pane, Spelling, Verb};
+use crate::keymap::{self, Pane, Spelling, Verb};
 
 impl Engine {
     /// Focus a grammar pane, remembering the previous one for the bb bounce.
@@ -24,27 +25,27 @@ impl Engine {
     #[must_use]
     pub fn grammar_modal_view(&self) -> Option<GrammarModalView> {
         let pane = self.focused_pane.label();
-        let spell = self.grammar.spelling.tokens();
-        match self.grammar.state {
-            GrammarState::Idle => None,
-            GrammarState::AwaitingConjugation { root } => {
-                let entry = &grammar::pane_table(self.focused_pane).roots[root.index()];
+        let spell = self.keymap.spelling.tokens();
+        match self.keymap.state {
+            keymap::State::Idle => None,
+            keymap::State::AwaitingBinding { prefix } => {
+                let entry = &keymap::pane_keymap(self.focused_pane).submaps[prefix.index()];
                 let options = entry
                     .iter()
                     .enumerate()
                     .filter_map(|(i, c)| c.as_ref().map(|c| (spell[i], c.label)))
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}", spell[root.index()]),
-                    title: grammar::PREFIX_LABELS[root.index()],
+                    trail: format!("{pane}·{}", spell[prefix.index()]),
+                    title: keymap::PREFIX_LABELS[prefix.index()],
                     options,
-                    cancel: self.grammar.spelling.cancel(),
+                    cancel: self.keymap.spelling.cancel(),
                 })
             }
-            GrammarState::Sticky {
+            keymap::State::Repeat {
                 label,
                 entries,
-                trail_root,
+                trail_prefix,
             } => {
                 let options = entries
                     .iter()
@@ -52,10 +53,10 @@ impl Engine {
                     .filter_map(|(i, e)| e.map(|e| (spell[i], e.label)))
                     .collect();
                 Some(GrammarModalView {
-                    trail: format!("{pane}·{}·{label}", spell[trail_root.index()]),
+                    trail: format!("{pane}·{}·{label}", spell[trail_prefix.index()]),
                     title: label,
                     options,
-                    cancel: self.grammar.spelling.cancel(),
+                    cancel: self.keymap.spelling.cancel(),
                 })
             }
         }
@@ -67,21 +68,21 @@ impl Engine {
     ///
     /// `from` is the surface the press came from, and it decides nothing about
     /// resolution — only how the overlay spells the options it offers next.
-    pub fn grammar_step(&mut self, input: grammar::Input, from: Spelling) -> bool {
+    pub fn grammar_step(&mut self, input: keymap::Input, from: Spelling) -> bool {
         match self
-            .grammar
-            .step(grammar::pane_table(self.focused_pane), input, from)
+            .keymap
+            .step(keymap::pane_keymap(self.focused_pane), input, from)
         {
-            grammar::Step::Rejected => false,
-            grammar::Step::Verb(v) => {
+            keymap::Step::Rejected => false,
+            keymap::Step::Verb(v) => {
                 self.apply_verb(v);
                 true
             }
-            grammar::Step::Empty(label) => {
+            keymap::Step::Empty(label) => {
                 self.empty_prefix = Some((label, web_time::Instant::now()));
                 true
             }
-            grammar::Step::Pending | grammar::Step::Cancelled => true,
+            keymap::Step::Pending | keymap::Step::Cancelled => true,
         }
     }
 

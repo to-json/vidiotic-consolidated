@@ -50,9 +50,9 @@ impl App {
             if !m.control_key() && !m.alt_key() && !m.super_key() {
                 if let Some(input) = crate::control_input::canon_key(&ev.logical_key)
                     .as_deref()
-                    .and_then(grammar::token_of_key)
+                    .and_then(keymap::token_of_key)
                 {
-                    if self.engine.grammar_step(input, grammar::Spelling::Key) {
+                    if self.engine.grammar_step(input, keymap::Spelling::Key) {
                         return;
                     }
                 }

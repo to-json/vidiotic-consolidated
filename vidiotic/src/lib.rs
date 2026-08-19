@@ -29,7 +29,7 @@ pub use vidiotic_bake::transcode;
 
 /// The portable player: the render core — wgpu setup ([`gfx`]), the composite
 /// pass ([`render`]), the GLSL/WGSL→naga compiler ([`shader`]) — and the engine
-/// that drives it: the [`commands`] vocabulary, the [`grammar`] that produces
+/// that drives it: the [`commands`] vocabulary, the [`keymap`] that produces
 /// them, the beat [`clock`], the [`sequencer`], and the [`undo`] history.
 ///
 /// Split out for the browser build (web-port.md §8 step 4). The line is the OS,
@@ -38,7 +38,7 @@ pub use vidiotic_bake::transcode;
 /// behind is the shell those things live in — the window loop, audio capture,
 /// IPC, camera capture, and disk hot-reload.
 ///
-/// Re-exported so `crate::render::…`, `crate::grammar::…` and the rest are
+/// Re-exported so `crate::render::…`, `crate::keymap::…` and the rest are
 /// unchanged here; `crate::video::frame` comes through `video/mod.rs` instead,
 /// because `decoder` and `capture` are still declared locally there.
-pub use vidiotic_play::{clock, commands, gfx, grammar, render, sequencer, shader, undo};
+pub use vidiotic_play::{clock, commands, gfx, keymap, render, sequencer, shader, undo};

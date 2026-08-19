@@ -13,7 +13,7 @@ use vidiotic_ctl::{
 use winit::keyboard::Key;
 
 use crate::commands::Command;
-use crate::grammar::Verb;
+use crate::keymap::Verb;
 
 /// A key binding with no modifiers held.
 fn key(k: &str, action: Action) -> Binding {

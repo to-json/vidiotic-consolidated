@@ -7,7 +7,7 @@
 //!
 //! Keys take the other road. They do not become `egui::Event`s at all — they
 //! become *canonical key names*, because their consumer is
-//! [`crate::grammar`] rather than the panel, and the grammar is defined over
+//! [`crate::keymap`] rather than the panel, and the grammar is defined over
 //! `vidiotic_ctl::keys` spellings. That module exists for exactly this: it is
 //! deliberately winit- and egui-free and canonicalizes both toolkits' spellings
 //! onto one name, so the browser is a third caller of an existing contract

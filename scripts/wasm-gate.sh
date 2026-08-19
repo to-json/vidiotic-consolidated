@@ -49,7 +49,7 @@ phosphor|--no-default-features|PASS|egui theme + widgets, no shell feature
 vidiotic-ctl|--no-default-features|PASS|binding tables; midir/gilrs/dirs do not block
 vidiotic-core|--no-default-features|PASS|thumbnail decode is behind the ffmpeg feature
 vidiotic-bake|--no-default-features|PASS|hap + frame are pure Rust; transcode is behind ffmpeg
-vidiotic-play|--no-default-features|PASS|portable player: the render core, the engine — grammar, clock, sequencer, undo — and the control panels; no fs, no ffmpeg, no sockets
+vidiotic-play|--no-default-features|PASS|portable player: the render core, the engine — keymap, clock, sequencer, undo — and the control panels; no fs, no ffmpeg, no sockets
 vidiotic-chop|--no-default-features|PASS|portable span editor: the marking session — spans, marks, playhead, jog window, undo — and every panel that draws it; no ffmpeg, no rfd, no fs
 vidiotic-wire|--features client|FAIL|std::os::unix in client.rs:11 — web transport is BroadcastChannel (web-port.md §10)
 vidiotic-core|--no-default-features --features ffmpeg|FAIL|ffmpeg-sys-next build script — this row is why the feature exists
@@ -74,7 +74,7 @@ vidiotic-bake|--no-default-features|bc1_golden|5|BC1 bytes identical to native �
 vidiotic-bake|--no-default-features|hap_conformance|6|Hap1 decode of real packets, in wasm
 vidiotic-bake|--no-default-features|--lib|39|frame + hap + mov (write AND read) unit tests, and the ingest tier
 vidiotic-core|--no-default-features|--lib|39|project/isf/time model, including load/save round-trip, the version refusal and clip relinking — the filesystem is behind the `Fs` trait now, so nothing here is native-only — plus the zip both browser shells write a bundle with
-vidiotic-play|--no-default-features|--lib|103|GLSL->naga compile, the clip timeline (demux->hap->frame), the software BC1/BC3/BC4 fallback, the audio analyser, the engine (grammar arpeggios, beat clock, sequencer, undo, cue rotation), AND the real control panels — 2,228 lines of egui that used to be native-only — plus the pool-as-filesystem a browser .viproj resolves against
+vidiotic-play|--no-default-features|--lib|103|GLSL->naga compile, the clip timeline (demux->hap->frame), the software BC1/BC3/BC4 fallback, the audio analyser, the engine (keymap sequences, beat clock, sequencer, undo, cue rotation), AND the real control panels — 2,228 lines of egui that used to be native-only — plus the pool-as-filesystem a browser .viproj resolves against
 vidiotic-chop|--no-default-features|--lib|48|undo coalescing, bank reindexing, wall-clock playback, span reconstruction from a reopened project, the key table both shells resolve against, the .viproj assembly both exporters share, the offsets render that turns spans into trimmed cues, the .vprep sidecar both shells store, and the shell boundary itself — that every file chooser leaves as a request and a mid-frame drain parks what it cannot run
 EOF
 )

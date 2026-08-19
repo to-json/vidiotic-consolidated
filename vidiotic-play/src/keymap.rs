@@ -1,33 +1,40 @@
-//! Modal command grammar: 6 pane-sensitive verb-roots plus two global nouns
-//! (Pane, Meta), each opening a which-key modal of up to 8 conjugations; a
+//! The player's prefix keymap — the machine behind what the UI calls grammar
+//! mode. Two levels: 6 pane-sensitive verb prefixes plus two global ones
+//! (Pane, Meta), each opening a which-key overlay of up to 8 bindings; a
 //! second token resolves to a [`Verb`]. Rising-edge only.
+//!
+//! This is Emacs' prefix-key/keymap model with `repeat-mode` on the end of it,
+//! and the names here are that vocabulary: a [`Keymap`] holds eight
+//! [`Submap`]s, a [`Binding`] is one resolvable slot in a submap, and a
+//! binding may enter a [`RepeatMap`] where its own token keeps firing.
 //!
 //! The verbs keep fixed meanings — Go moves, Cut deletes, Tune enters knob
 //! modes — and the focused [`Pane`] supplies the object: Fire in the clock
-//! pane taps tempo, Cut in the bank pane removes the selected cue. Pure state
-//! machine — no App or UI dependencies. Verbs are context-free ("remove the
-//! selected cue", not "remove cue #7"); the app resolves selection and bank
-//! context when a verb is emitted. All grammar *content* lives in the
-//! per-pane table statics (see [`pane_table`]) so the taxonomy can be
-//! reorganized without touching the machinery; [`Grammar::step`] takes the
-//! table as a parameter and the app passes the focused pane's each press.
+//! pane taps tempo, Cut in the bank pane removes the selected cue. Their names
+//! are [`PREFIX_LABELS`], one list for every pane. Pure state machine — no App
+//! or UI dependencies. Verbs are context-free ("remove the selected cue", not
+//! "remove cue #7"); the app resolves selection and bank context when a verb
+//! is emitted. All keymap *content* lives in the per-pane statics (see
+//! [`pane_keymap`]) so the taxonomy can be reorganized without touching the
+//! machinery; [`Machine::step`] takes the keymap as a parameter and the app
+//! passes the focused pane's on each press.
 
 use vidiotic_ctl::model::ControlSource;
 
 use crate::commands::CueParamKind;
 
-/// How many abstract grammar inputs there are. Every table in this module is
-/// this wide, and [`Token`] indexes them.
+/// How many abstract inputs there are. Every table in this module is this
+/// wide, and [`Token`] indexes them.
 pub const TOKEN_COUNT: usize = 8;
 
-/// One of the [`TOKEN_COUNT`] abstract grammar inputs. Every edge source
+/// One of the [`TOKEN_COUNT`] abstract inputs. Every edge source
 /// (keyboard, pad, MIDI) reduces to one of these before the state machine sees
 /// it.
 ///
 /// A newtype rather than a bare `u8` because this type is public and the whole
-/// module indexes fixed-width arrays with it — roots, conjugations, sticky
+/// module indexes fixed-width arrays with it — submaps, bindings, repeat
 /// entries, [`KEY_TOKENS`]. As an alias, a caller outside the crate could hand
-/// `Grammar::step` a `9` and panic it on an out-of-bounds index; the range
+/// [`Machine::step`] a `9` and panic it on an out-of-bounds index; the range
 /// invariant is now established once, in [`Token::new`], and [`Token::index`]
 /// is in-bounds by construction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,14 +51,14 @@ impl Token {
         }
     }
 
-    /// Index into a `TOKEN_COUNT`-wide grammar table. In range by construction.
+    /// Index into a `TOKEN_COUNT`-wide table. In range by construction.
     #[must_use]
     pub const fn index(self) -> usize {
         self.0 as usize
     }
 }
 
-/// A grammar-relevant input event: one of the 8 tokens, or the cancel key.
+/// An input the keymap answers to: one of the 8 tokens, or cancel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Input {
     Token(Token),
@@ -59,7 +66,7 @@ pub enum Input {
 }
 
 /// A focusable region of the app the verb keys act on. Selecting one (via the
-/// Pane root) swaps which [`GrammarTable`] the machine resolves against.
+/// Pane prefix) swaps which [`Keymap`] the machine resolves against.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Pane {
     /// The clip pool grid (and its clip banks).
@@ -142,71 +149,72 @@ pub enum Verb {
     GrammarOff,
 }
 
-/// One repeat slot of a sticky mode: what it fires, and what the overlay
-/// calls it. Carries its own label for the same reason [`Conjugation`] does —
+/// One slot of a repeat map: what it fires, and what the overlay
+/// calls it. Carries its own label for the same reason [`Binding`] does —
 /// inferring one from the verb payload can only ever be right for the verbs
 /// that were thought of at the time.
 #[derive(Clone, Copy, Debug)]
-pub struct StickyEntry {
+pub struct RepeatEntry {
     pub label: &'static str,
     pub verb: Verb,
 }
 
-/// Per-token entries of a sticky mode. A populated slot fires its verb and
-/// stays in the mode; a token the mode does not own is swallowed, exactly as
-/// under an open root — one stray-token rule for both pending states. Leaving
-/// a mode is Escape.
-pub type StickyTable = [Option<StickyEntry>; TOKEN_COUNT];
+/// Per-token entries of a repeat mode (Emacs' `repeat-mode` repeat-map). A
+/// populated slot fires its verb and stays in the mode; a token the mode does
+/// not own is swallowed, exactly as under an open prefix — one stray-token
+/// rule for both pending states. Leaving a mode is Escape.
+pub type RepeatMap = [Option<RepeatEntry>; TOKEN_COUNT];
 
-/// One resolvable slot under a root. `verb` fires on selection (`None` for
-/// pure mode entry); `sticky` is a `(mode label, table)` the machine enters
-/// afterwards, for repeat-friendly terminals (tap tempo, knob ±).
+/// One resolvable slot under a prefix — magit would call it a suffix.
+/// `verb` fires on selection (`None` for pure mode entry); `repeat` is a
+/// `(mode label, map)` the machine enters afterwards, for repeat-friendly
+/// terminals (tap tempo, knob ±).
 #[derive(Clone, Copy, Debug)]
-pub struct Conjugation {
+pub struct Binding {
     pub label: &'static str,
     pub verb: Option<Verb>,
-    pub sticky: Option<(&'static str, StickyTable)>,
+    pub repeat: Option<(&'static str, RepeatMap)>,
 }
 
-/// One verb-root's conjugation slots, indexed by [`Token`]. The root's own
-/// token slot holds its "doubled" hot verb — doubling needs no special
-/// machinery. A root can be entirely empty in a pane its verb doesn't apply
-/// to; pressing it opens nothing at all ([`Step::Empty`]) rather than a modal
-/// with no way out.
+/// What one prefix opens: its bindings, indexed by [`Token`]. The prefix's
+/// own token slot holds its "doubled" hot verb — doubling needs no special
+/// machinery. A submap can be entirely empty in a pane its verb doesn't apply
+/// to; pressing that prefix opens nothing at all ([`Step::Empty`]) rather than
+/// an overlay with no way out.
 ///
-/// No label: a root's name is [`PREFIX_LABELS`], the same in every pane.
-pub type RootEntry = [Option<Conjugation>; TOKEN_COUNT];
+/// No label: a prefix's name is [`PREFIX_LABELS`], the same in every pane.
+pub type Submap = [Option<Binding>; TOKEN_COUNT];
 
-/// A complete grammar: one root per token.
+/// A complete keymap for one pane: one submap per token.
 #[derive(Clone, Copy, Debug)]
-pub struct GrammarTable {
-    pub roots: [RootEntry; TOKEN_COUNT],
+pub struct Keymap {
+    pub submaps: [Submap; TOKEN_COUNT],
 }
 
 /// Where the machine is between presses.
 ///
-/// 280 bytes, nearly all of it `Sticky`'s entries, and there is exactly one of
+/// 280 bytes, nearly all of it `Repeat`'s entries, and there is exactly one of
 /// these per app — boxing the variant would trade a `Copy` state and a
 /// borrow-free machine for a heap allocation on every mode entry.
 #[derive(Clone, Copy, Debug, Default)]
 #[allow(clippy::large_enum_variant)]
-pub enum GrammarState {
+pub enum State {
     #[default]
     Idle,
-    /// A root is held open; the which-key modal shows its conjugations.
-    AwaitingConjugation { root: Token },
-    /// A repeat-friendly terminal mode; `trail_root` is the root that led
+    /// A prefix is held open; the which-key overlay shows its bindings.
+    AwaitingBinding { prefix: Token },
+    /// A repeat-friendly terminal mode; `trail_prefix` is the prefix that led
     /// here, for the input-trail display.
     ///
-    /// The entries are held *by value*. A `StickyTable` is `Copy` and eight
+    /// The entries are held *by value*. A `RepeatMap` is `Copy` and eight
     /// entries wide, so entering a mode costs one memcpy of a couple of
     /// hundred bytes — and in exchange the machine borrows nothing from the
     /// table it stepped against, which is what a table that is not compiled in
     /// would need.
-    Sticky {
+    Repeat {
         label: &'static str,
-        entries: StickyTable,
-        trail_root: Token,
+        entries: RepeatMap,
+        trail_prefix: Token,
     },
 }
 
@@ -221,75 +229,75 @@ pub enum Step {
     Cancelled,
     /// Not consumed (cancel while idle) — the caller's fallthrough applies.
     Rejected,
-    /// Consumed, but nothing opened: the pressed root has no slots filled in
-    /// this pane. Carries the root's label so the shell can say which one.
+    /// Consumed, but nothing opened: the pressed prefix has no slots filled
+    /// in this pane. Carries the prefix's label so the shell can say which.
     ///
     /// Distinct from [`Self::Rejected`], which means "not consumed, fall
-    /// through": this press *was* the grammar's, it just had nowhere to go.
-    /// The machine stays idle — an option-less modal is a trap, since under
+    /// through": this press *was* the keymap's, it just had nowhere to go.
+    /// The machine stays idle — an option-less prefix is a trap, since under
     /// the swallow rule nothing but Escape gets out of it.
     Empty(&'static str),
 }
 
-/// The grammar state machine. One per app; feed it [`Input`]s via
+/// The keymap state machine. One per app; feed it [`Input`]s via
 /// [`Self::step`].
 #[derive(Default)]
-pub struct Grammar {
-    pub state: GrammarState,
+pub struct Machine {
+    pub state: State,
     /// How the surface driving the pending sequence spells its tokens. Set by
     /// every [`Self::step`], so the overlay names the control under the
     /// operator's hand rather than always naming a key.
     pub spelling: Spelling,
 }
 
-impl Grammar {
+impl Machine {
     /// Advance on one input, resolving against the focused pane's table.
     ///
     /// The table is borrowed only for the call: nothing in the machine
-    /// outlives it (see [`GrammarState::Sticky`]), so a table built at runtime
+    /// outlives it (see [`State::Repeat`]), so a table built at runtime
     /// works exactly as the compiled-in ones do.
-    pub fn step(&mut self, table: &GrammarTable, input: Input, from: Spelling) -> Step {
+    pub fn step(&mut self, table: &Keymap, input: Input, from: Spelling) -> Step {
         self.spelling = from;
         match (&self.state, input) {
-            (GrammarState::Idle, Input::Cancel) => Step::Rejected,
+            (State::Idle, Input::Cancel) => Step::Rejected,
             (_, Input::Cancel) => {
-                self.state = GrammarState::Idle;
+                self.state = State::Idle;
                 Step::Cancelled
             }
-            (GrammarState::Idle, Input::Token(t)) => {
-                // Never open a root with nothing under it: the modal would show
-                // no options and then swallow every press until Escape.
-                if table.roots[t.index()].iter().all(Option::is_none) {
+            (State::Idle, Input::Token(t)) => {
+                // Never open a prefix with nothing under it: the overlay would
+                // show no options and then swallow every press until Escape.
+                if table.submaps[t.index()].iter().all(Option::is_none) {
                     Step::Empty(PREFIX_LABELS[t.index()])
                 } else {
-                    self.state = GrammarState::AwaitingConjugation { root: t };
+                    self.state = State::AwaitingBinding { prefix: t };
                     Step::Pending
                 }
             }
-            (GrammarState::AwaitingConjugation { root }, Input::Token(t)) => {
-                match &table.roots[root.index()][t.index()] {
-                    // Forgiving: an empty slot keeps the modal open.
+            (State::AwaitingBinding { prefix }, Input::Token(t)) => {
+                match &table.submaps[prefix.index()][t.index()] {
+                    // Swallowed: an empty slot keeps the submap open.
                     None => Step::Pending,
-                    Some(conj) => {
-                        let root = *root;
-                        self.state = match conj.sticky {
-                            Some((label, entries)) => GrammarState::Sticky {
+                    Some(bind) => {
+                        let prefix = *prefix;
+                        self.state = match bind.repeat {
+                            Some((label, entries)) => State::Repeat {
                                 label,
                                 entries,
-                                trail_root: root,
+                                trail_prefix: prefix,
                             },
-                            None => GrammarState::Idle,
+                            None => State::Idle,
                         };
-                        match conj.verb {
+                        match bind.verb {
                             Some(v) => Step::Verb(v),
                             None => Step::Pending,
                         }
                     }
                 }
             }
-            (GrammarState::Sticky { entries, .. }, Input::Token(t)) => {
-                // Swallowed, as under an open root. Re-rooting here would let a
-                // stray press silently change what the *next* press means,
+            (State::Repeat { entries, .. }, Input::Token(t)) => {
+                // Swallowed, as under an open prefix. Re-rooting here would
+                // let a stray press silently change what the *next* press means,
                 // live; on a second screen "did nothing" is the safer failure.
                 match entries[t.index()] {
                     Some(e) => Step::Verb(e.verb),
@@ -301,11 +309,11 @@ impl Grammar {
 
     /// Abandon any pending sequence.
     pub fn reset(&mut self) {
-        self.state = GrammarState::Idle;
+        self.state = State::Idle;
     }
 }
 
-/// What each root is called, in token order — the verb keys first, then the
+/// What each prefix is called, in token order — the verb keys first, then the
 /// two global nouns. One list, not one per pane: a verb keeps a fixed meaning
 /// wherever it applies and the focused pane supplies the object, so nothing in
 /// a table gets to disagree about what T1 is called. A pane the verb doesn't
@@ -363,7 +371,7 @@ impl Spelling {
         }
     }
 
-    /// The surface an event came from. Keyboard sources reach the grammar
+    /// The surface an event came from. Keyboard sources reach the keymap
     /// through `handle_key`, not the event pump, so they never arrive here.
     #[must_use]
     pub fn of_source(source: &ControlSource) -> Self {
@@ -375,7 +383,7 @@ impl Spelling {
     }
 }
 
-/// Map a canonical key name to a grammar input. `Escape` cancels.
+/// Map a canonical key name to a keymap input. `Escape` cancels.
 #[must_use]
 pub fn token_of_key(canon: &str) -> Option<Input> {
     if canon == "Escape" {
@@ -388,10 +396,10 @@ pub fn token_of_key(canon: &str) -> Option<Input> {
         .map(Input::Token)
 }
 
-/// Map a non-keyboard edge source to a grammar input: gamepad d-pad and face
+/// Map a non-keyboard edge source to a keymap input: gamepad d-pad and face
 /// diamond are the 8 tokens (`Select` cancels), and MIDI notes 36–43 are the
 /// 8 tokens (35 cancels) on any device or channel. Keyboard sources return
-/// `None` — keys reach the grammar through `handle_key`, not the event pump.
+/// `None` — keys reach the keymap through `handle_key`, not the event pump.
 #[must_use]
 pub fn token_of_source(source: &ControlSource) -> Option<Input> {
     match source {
@@ -415,53 +423,53 @@ pub fn token_of_source(source: &ControlSource) -> Option<Input> {
     }
 }
 
-const NC: Option<Conjugation> = None;
-const NE: Option<StickyEntry> = None;
+const NC: Option<Binding> = None;
+const NE: Option<RepeatEntry> = None;
 
-/// A plain conjugation: emit and return to idle.
-const fn conj(label: &'static str, verb: Verb) -> Option<Conjugation> {
-    Some(Conjugation {
+/// A plain binding: emit and return to idle.
+const fn bind(label: &'static str, verb: Verb) -> Option<Binding> {
+    Some(Binding {
         label,
         verb: Some(verb),
-        sticky: None,
+        repeat: None,
     })
 }
 
-/// A conjugation that (optionally) emits, then enters a sticky mode.
-const fn conj_mode(
+/// A binding that (optionally) emits, then enters a repeat mode.
+const fn bind_repeat(
     label: &'static str,
     verb: Option<Verb>,
     mode: &'static str,
-    entries: StickyTable,
-) -> Option<Conjugation> {
-    Some(Conjugation {
+    entries: RepeatMap,
+) -> Option<Binding> {
+    Some(Binding {
         label,
         verb,
-        sticky: Some((mode, entries)),
+        repeat: Some((mode, entries)),
     })
 }
 
 /// One repeat slot: the verb, and what the overlay calls it.
-const fn repeat(label: &'static str, verb: Verb) -> Option<StickyEntry> {
-    Some(StickyEntry { label, verb })
+const fn repeat(label: &'static str, verb: Verb) -> Option<RepeatEntry> {
+    Some(RepeatEntry { label, verb })
 }
 
-/// A ± sticky table: T1 fires `up`, T2 fires `down`.
-const fn pm_sticky(
+/// A ± repeat table: T1 fires `up`, T2 fires `down`.
+const fn pm_repeat(
     up_label: &'static str,
     up: Verb,
     down_label: &'static str,
     down: Verb,
-) -> StickyTable {
+) -> RepeatMap {
     let mut t = [NE; TOKEN_COUNT];
     t[0] = repeat(up_label, up);
     t[1] = repeat(down_label, down);
     t
 }
 
-/// The ± sticky table for one advanced cue knob: T1 steps up, T2 down.
-const fn knob_sticky(kind: CueParamKind) -> StickyTable {
-    pm_sticky(
+/// The ± repeat table for one advanced cue knob: T1 steps up, T2 down.
+const fn knob_repeat(kind: CueParamKind) -> RepeatMap {
+    pm_repeat(
         "step +",
         Verb::NudgeParam(kind, 1),
         "step -",
@@ -469,17 +477,17 @@ const fn knob_sticky(kind: CueParamKind) -> StickyTable {
     )
 }
 
-/// A Tune conjugation: select the knob, then ± in sticky mode.
-const fn knob(kind: CueParamKind) -> Option<Conjugation> {
-    conj_mode(kind.label(), None, kind.label(), knob_sticky(kind))
+/// A Tune binding: select the knob, then ± in repeat mode.
+const fn knob(kind: CueParamKind) -> Option<Binding> {
+    bind_repeat(kind.label(), None, kind.label(), knob_repeat(kind))
 }
 
-/// A root the focused pane has no use for. Pressing it opens nothing — see
+/// A prefix the focused pane has no use for. Pressing it opens nothing — see
 /// [`Step::Empty`].
-const EMPTY_ROOT: RootEntry = [NC; TOKEN_COUNT];
+const EMPTY_SUBMAP: Submap = [NC; TOKEN_COUNT];
 
 /// Cue-selection movement mode: T1 up, T2 down, entered from Go.
-const MOVE_STICKY: StickyTable = pm_sticky(
+const MOVE_REPEAT: RepeatMap = pm_repeat(
     "up",
     Verb::SelectCueDelta(-1),
     "down",
@@ -487,7 +495,7 @@ const MOVE_STICKY: StickyTable = pm_sticky(
 );
 
 /// Clip-cursor movement mode in the pool pane: T1 up, T2 down.
-const CLIP_MOVE_STICKY: StickyTable = pm_sticky(
+const CLIP_MOVE_REPEAT: RepeatMap = pm_repeat(
     "up",
     Verb::SelectClipDelta(-1),
     "down",
@@ -495,68 +503,68 @@ const CLIP_MOVE_STICKY: StickyTable = pm_sticky(
 );
 
 /// Tap mode: every further Fire press is a tap.
-const TAP_STICKY: StickyTable = {
+const TAP_REPEAT: RepeatMap = {
     let mut t = [NE; TOKEN_COUNT];
     t[1] = repeat("tap", Verb::TapTempo);
     t
 };
 
-/// Session-tempo ± modes for the clock pane's Tune root.
-const BPM_STICKY: StickyTable = pm_sticky(
+/// Session-tempo ± modes for the clock pane's Tune prefix.
+const BPM_REPEAT: RepeatMap = pm_repeat(
     "step +",
     Verb::BpmDelta(1.0),
     "step -",
     Verb::BpmDelta(-1.0),
 );
-const NUDGE_STICKY: StickyTable = pm_sticky(
+const NUDGE_REPEAT: RepeatMap = pm_repeat(
     "step +",
     Verb::NudgeBpm(0.001),
     "step -",
     Verb::NudgeBpm(-0.001),
 );
 
-/// The Pane root, identical in every table: T1–T4 focus a pane, doubled (bb)
+/// The Pane prefix, identical in every keymap: T1–T4 focus a pane, doubled (bb)
 /// bounces back to the previous one. A pane press while its own pane is
 /// focused simply re-focuses it — harmless.
-const PANE_ROOT: RootEntry = [
-    conj("pool", Verb::FocusPane(Pane::Pool)),
-    conj("bank", Verb::FocusPane(Pane::Bank)),
-    conj("cue", Verb::FocusPane(Pane::Cue)),
-    conj("clock", Verb::FocusPane(Pane::Clock)),
+const PANE_SUBMAP: Submap = [
+    bind("pool", Verb::FocusPane(Pane::Pool)),
+    bind("bank", Verb::FocusPane(Pane::Bank)),
+    bind("cue", Verb::FocusPane(Pane::Cue)),
+    bind("clock", Verb::FocusPane(Pane::Clock)),
     NC,
     NC,
-    conj("back", Verb::FocusPrevPane),
+    bind("back", Verb::FocusPrevPane),
     NC,
 ];
 
-/// The Meta root, identical in every table: app-level nouns the pane never
+/// The Meta prefix, identical in every keymap: app-level nouns the pane never
 /// recolors.
-const META_ROOT: RootEntry = [
-    conj("save", Verb::SaveProject),
-    conj("fullscreen", Verb::ToggleFullscreen),
-    conj("advanced", Verb::ToggleAdvanced),
-    conj("edit proj", Verb::OpenProjectEditor),
-    conj("open proj", Verb::OpenProject),
-    conj("palette", Verb::ToggleCommandPalette),
+const META_SUBMAP: Submap = [
+    bind("save", Verb::SaveProject),
+    bind("fullscreen", Verb::ToggleFullscreen),
+    bind("advanced", Verb::ToggleAdvanced),
+    bind("edit proj", Verb::OpenProjectEditor),
+    bind("open proj", Verb::OpenProject),
+    bind("palette", Verb::ToggleCommandPalette),
     NC,
-    conj("grammar off", Verb::GrammarOff),
+    bind("grammar off", Verb::GrammarOff),
 ];
 
 /// Go through the edit bank's cue order: shared by the bank and cue panes.
-const GO_CUES: [Option<Conjugation>; 4] = [
-    conj_mode("up", Some(Verb::SelectCueDelta(-1)), "move", MOVE_STICKY),
-    conj_mode("down", Some(Verb::SelectCueDelta(1)), "move", MOVE_STICKY),
-    conj("first", Verb::SelectCueFirst),
-    conj("last", Verb::SelectCueLast),
+const GO_CUES: [Option<Binding>; 4] = [
+    bind_repeat("up", Some(Verb::SelectCueDelta(-1)), "move", MOVE_REPEAT),
+    bind_repeat("down", Some(Verb::SelectCueDelta(1)), "move", MOVE_REPEAT),
+    bind("first", Verb::SelectCueFirst),
+    bind("last", Verb::SelectCueLast),
 ];
 
 /// Cut's shared "dd removes the selected cue" slot for the bank and cue panes.
-const CUT_CUE: RootEntry = [
+const CUT_CUE: Submap = [
     NC,
     NC,
     NC,
     NC,
-    conj("cue", Verb::RemoveSelectedCue),
+    bind("cue", Verb::RemoveSelectedCue),
     NC,
     NC,
     NC,
@@ -564,116 +572,116 @@ const CUT_CUE: RootEntry = [
 
 /// The pool pane: the clip grid. Go moves the clip cursor (and clip banks);
 /// Make turns the cursored clip into a cue.
-static POOL_TABLE: GrammarTable = GrammarTable {
-    roots: [
+static POOL_TABLE: Keymap = Keymap {
+    submaps: [
         // Go
         [
-            conj_mode(
+            bind_repeat(
                 "up",
                 Some(Verb::SelectClipDelta(-1)),
                 "move",
-                CLIP_MOVE_STICKY,
+                CLIP_MOVE_REPEAT,
             ),
-            conj_mode(
+            bind_repeat(
                 "down",
                 Some(Verb::SelectClipDelta(1)),
                 "move",
-                CLIP_MOVE_STICKY,
+                CLIP_MOVE_REPEAT,
             ),
-            conj("first", Verb::SelectClipFirst),
-            conj("last", Verb::SelectClipLast),
-            conj("bank-", Verb::ClipBankDelta(-1)),
-            conj("bank+", Verb::ClipBankDelta(1)),
+            bind("first", Verb::SelectClipFirst),
+            bind("last", Verb::SelectClipLast),
+            bind("bank-", Verb::ClipBankDelta(-1)),
+            bind("bank+", Verb::ClipBankDelta(1)),
             NC,
             NC,
         ],
-        EMPTY_ROOT,
-        EMPTY_ROOT,
+        EMPTY_SUBMAP,
+        EMPTY_SUBMAP,
         // Make
         [
             NC,
             NC,
             NC,
-            conj("cue @ clip", Verb::AddCueAtClip),
+            bind("cue @ clip", Verb::AddCueAtClip),
             NC,
             NC,
             NC,
             NC,
         ],
-        EMPTY_ROOT,
-        EMPTY_ROOT,
-        PANE_ROOT,
-        META_ROOT,
+        EMPTY_SUBMAP,
+        EMPTY_SUBMAP,
+        PANE_SUBMAP,
+        META_SUBMAP,
     ],
 };
 
 /// The bank pane — the performance surface and the default focus. Go moves
 /// cue selection and the edit bank; Fire is live-bank routing; Make and Cut
 /// create and remove.
-static BANK_TABLE: GrammarTable = GrammarTable {
-    roots: [
+static BANK_TABLE: Keymap = Keymap {
+    submaps: [
         // Go
         [
             GO_CUES[0],
             GO_CUES[1],
             GO_CUES[2],
             GO_CUES[3],
-            conj("bank-", Verb::EditBankDelta(-1)),
-            conj("bank+", Verb::EditBankDelta(1)),
+            bind("bank-", Verb::EditBankDelta(-1)),
+            bind("bank+", Verb::EditBankDelta(1)),
             NC,
             NC,
         ],
         // Fire
         [
-            conj("prev", Verb::CycleLiveBank(-1)),
-            conj("send live", Verb::SendEditBankLive),
-            conj("next", Verb::CycleLiveBank(1)),
+            bind("prev", Verb::CycleLiveBank(-1)),
+            bind("send live", Verb::SendEditBankLive),
+            bind("next", Verb::CycleLiveBank(1)),
             NC,
             NC,
             NC,
             NC,
             NC,
         ],
-        EMPTY_ROOT,
+        EMPTY_SUBMAP,
         // Make
         [
             NC,
             NC,
             NC,
-            conj("bank", Verb::AddBank),
-            conj("clone bank", Verb::CloneBank),
+            bind("bank", Verb::AddBank),
+            bind("clone bank", Verb::CloneBank),
             NC,
             NC,
             NC,
         ],
         CUT_CUE,
-        EMPTY_ROOT,
-        PANE_ROOT,
-        META_ROOT,
+        EMPTY_SUBMAP,
+        PANE_SUBMAP,
+        META_SUBMAP,
     ],
 };
 
 /// The cue pane: the selected cue's editor. Mark trims, Tune steps the
 /// advanced knobs; Go still moves selection so the pane is self-sufficient.
-static CUE_TABLE: GrammarTable = GrammarTable {
-    roots: [
+static CUE_TABLE: Keymap = Keymap {
+    submaps: [
         // Go
         [
             GO_CUES[0], GO_CUES[1], GO_CUES[2], GO_CUES[3], NC, NC, NC, NC,
         ],
-        EMPTY_ROOT,
+        EMPTY_SUBMAP,
         // Mark
         [
-            conj("in @ playhead", Verb::MarkInToPlayhead),
-            conj("out @ playhead", Verb::MarkOutToPlayhead),
-            conj("preserve", Verb::CyclePreserve),
+            bind("in @ playhead", Verb::MarkInToPlayhead),
+            bind("out @ playhead", Verb::MarkOutToPlayhead),
+            bind("preserve", Verb::CyclePreserve),
             NC,
             NC,
             NC,
             NC,
             NC,
         ],
-        EMPTY_ROOT,
+        EMPTY_SUBMAP,
         CUT_CUE,
         // Tune
         [
@@ -686,21 +694,21 @@ static CUE_TABLE: GrammarTable = GrammarTable {
             knob(CueParamKind::BpmSync),
             knob(CueParamKind::SpeedMul),
         ],
-        PANE_ROOT,
-        META_ROOT,
+        PANE_SUBMAP,
+        META_SUBMAP,
     ],
 };
 
-/// The clock pane — the beat grid, absorbing the old Beat root. Fire taps
+/// The clock pane — the beat grid, absorbing the old Beat prefix. Fire taps
 /// (ff enters tap mode), Mark sets the downbeat, Cut resets, Tune steps the
 /// session tempo.
-static CLOCK_TABLE: GrammarTable = GrammarTable {
-    roots: [
-        EMPTY_ROOT,
+static CLOCK_TABLE: Keymap = Keymap {
+    submaps: [
+        EMPTY_SUBMAP,
         // Fire
         [
             NC,
-            conj_mode("tap", Some(Verb::TapTempo), "tap", TAP_STICKY),
+            bind_repeat("tap", Some(Verb::TapTempo), "tap", TAP_REPEAT),
             NC,
             NC,
             NC,
@@ -712,57 +720,57 @@ static CLOCK_TABLE: GrammarTable = GrammarTable {
         [
             NC,
             NC,
-            conj("downbeat", Verb::TapDownbeat),
+            bind("downbeat", Verb::TapDownbeat),
             NC,
             NC,
             NC,
             NC,
             NC,
         ],
-        EMPTY_ROOT,
+        EMPTY_SUBMAP,
         // Cut
         [
             NC,
             NC,
             NC,
             NC,
-            conj("soft reset", Verb::SoftReset),
+            bind("soft reset", Verb::SoftReset),
             NC,
             NC,
-            conj("hard reset", Verb::HardReset),
+            bind("hard reset", Verb::HardReset),
         ],
         // Tune
         [
-            conj_mode("bpm +1", Some(Verb::BpmDelta(1.0)), "bpm", BPM_STICKY),
-            conj_mode("bpm -1", Some(Verb::BpmDelta(-1.0)), "bpm", BPM_STICKY),
-            conj_mode(
+            bind_repeat("bpm +1", Some(Verb::BpmDelta(1.0)), "bpm", BPM_REPEAT),
+            bind_repeat("bpm -1", Some(Verb::BpmDelta(-1.0)), "bpm", BPM_REPEAT),
+            bind_repeat(
                 "nudge +",
                 Some(Verb::NudgeBpm(0.001)),
                 "nudge",
-                NUDGE_STICKY,
+                NUDGE_REPEAT,
             ),
-            conj_mode(
+            bind_repeat(
                 "nudge -",
                 Some(Verb::NudgeBpm(-0.001)),
                 "nudge",
-                NUDGE_STICKY,
+                NUDGE_REPEAT,
             ),
             NC,
             NC,
             NC,
             NC,
         ],
-        PANE_ROOT,
-        META_ROOT,
+        PANE_SUBMAP,
+        META_SUBMAP,
     ],
 };
 
-/// The focused pane's grammar. Content is provisional by design — the
+/// The focused pane's keymap. Content is provisional by design — the
 /// taxonomy reorganizes by editing these tables only. Token order: T1=Go
 /// T2=Fire T3=Mark T4=Make T5=Cut T6=Tune T7=Pane T8=Meta (keys
 /// [`KEY_TOKENS`]).
 #[must_use]
-pub fn pane_table(pane: Pane) -> &'static GrammarTable {
+pub fn pane_keymap(pane: Pane) -> &'static Keymap {
     match pane {
         Pane::Pool => &POOL_TABLE,
         Pane::Bank => &BANK_TABLE,
@@ -783,8 +791,8 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
-    fn seq(table: &GrammarTable, inputs: &[Input]) -> (Grammar, Vec<Step>) {
-        let mut g = Grammar::default();
+    fn seq(table: &Keymap, inputs: &[Input]) -> (Machine, Vec<Step>) {
+        let mut g = Machine::default();
         let steps = inputs
             .iter()
             .map(|i| g.step(table, *i, Spelling::Key))
@@ -811,17 +819,17 @@ mod tests {
     }
 
     #[test]
-    fn root_then_conjugation_emits_verb() {
+    fn prefix_then_binding_emits_verb() {
         let (g, steps) = seq(&BANK_TABLE, &[G, M]);
         assert_eq!(steps, [Step::Pending, Step::Verb(Verb::SelectCueFirst)]);
         assert!(
-            matches!(g.state, GrammarState::Idle),
-            "plain conjugation returns to idle"
+            matches!(g.state, State::Idle),
+            "a plain binding returns to idle"
         );
     }
 
     #[test]
-    fn doubled_root_emits_hot_verb() {
+    fn doubled_prefix_emits_hot_verb() {
         let (_, steps) = seq(&BANK_TABLE, &[F, F]);
         assert_eq!(
             steps[1],
@@ -840,7 +848,7 @@ mod tests {
     fn cancel_returns_to_idle_without_verb() {
         let (g, steps) = seq(&BANK_TABLE, &[B, Input::Cancel]);
         assert_eq!(steps[1], Step::Cancelled);
-        assert!(matches!(g.state, GrammarState::Idle));
+        assert!(matches!(g.state, State::Idle));
     }
 
     #[test]
@@ -854,22 +862,26 @@ mod tests {
     }
 
     #[test]
-    fn empty_conjugation_slot_keeps_modal_pending() {
+    fn empty_binding_slot_keeps_the_submap_open() {
         let (g, steps) = seq(&BANK_TABLE, &[F, T]);
         assert_eq!(steps[1], Step::Pending, "unassigned slot is swallowed");
         assert!(
-            matches!(g.state, GrammarState::AwaitingConjugation { root } if root == Token(1)),
+            matches!(g.state, State::AwaitingBinding { prefix } if prefix == Token(1)),
             "the Fire modal stays open"
         );
     }
 
     #[test]
-    fn option_less_root_opens_nothing() {
+    fn option_less_prefix_opens_nothing() {
         // Fire has no slots in the pool pane. Opening it would strand the user
         // in a modal with no options and no exit but Escape.
         let (g, steps) = seq(&POOL_TABLE, &[F]);
-        assert_eq!(steps, [Step::Empty("Fire")], "the shell can name the root");
-        assert!(matches!(g.state, GrammarState::Idle), "nothing opened");
+        assert_eq!(
+            steps,
+            [Step::Empty("Fire")],
+            "the shell can name the prefix"
+        );
+        assert!(matches!(g.state, State::Idle), "nothing opened");
         // And the next press still means what it always meant.
         let (_, steps) = seq(&POOL_TABLE, &[F, A, A]);
         assert_eq!(
@@ -880,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn pane_root_focuses_panes_and_doubles_to_back() {
+    fn pane_prefix_focuses_panes_and_doubles_to_back() {
         let (_, steps) = seq(&BANK_TABLE, &[B, G]);
         assert_eq!(steps[1], Step::Verb(Verb::FocusPane(Pane::Pool)));
         let (_, steps) = seq(&CUE_TABLE, &[B, A]);
@@ -891,26 +903,26 @@ mod tests {
             Step::Verb(Verb::FocusPrevPane),
             "bb bounces to the previous pane"
         );
-        assert!(matches!(g.state, GrammarState::Idle));
+        assert!(matches!(g.state, State::Idle));
     }
 
     #[test]
-    fn clock_fire_fire_enters_tap_sticky_and_each_repeat_taps() {
+    fn clock_fire_fire_enters_tap_repeat_and_each_press_taps() {
         let (g, steps) = seq(&CLOCK_TABLE, &[F, F, F, F]);
         assert_eq!(
             &steps[1..],
             [Step::Verb(Verb::TapTempo); 3],
             "ff starts tapping; every further f is a tap"
         );
-        assert!(matches!(g.state, GrammarState::Sticky { label: "tap", .. }));
+        assert!(matches!(g.state, State::Repeat { label: "tap", .. }));
     }
 
     #[test]
-    fn unowned_token_is_swallowed_by_sticky() {
+    fn unowned_token_is_swallowed_by_the_repeat_mode() {
         let (g, steps) = seq(&CLOCK_TABLE, &[F, F, G]);
         assert_eq!(steps[2], Step::Pending, "a token tap mode doesn't own");
         assert!(
-            matches!(g.state, GrammarState::Sticky { label: "tap", .. }),
+            matches!(g.state, State::Repeat { label: "tap", .. }),
             "the mode survives it — one stray press cannot reroute the next"
         );
         // Escape is the way out, and it leaves the machine where a cancel does.
@@ -919,11 +931,11 @@ mod tests {
             g.step(&CLOCK_TABLE, Input::Cancel, Spelling::Key),
             Step::Cancelled
         );
-        assert!(matches!(g.state, GrammarState::Idle));
+        assert!(matches!(g.state, State::Idle));
     }
 
     #[test]
-    fn tune_conjugation_enters_nudge_sticky_and_steps_signed() {
+    fn tune_binding_enters_the_nudge_repeat_and_steps_signed() {
         let (g, steps) = seq(&CUE_TABLE, &[T, G, G, G, F]);
         assert_eq!(
             steps[1],
@@ -939,13 +951,13 @@ mod tests {
             ]
         );
         assert!(
-            matches!(g.state, GrammarState::Sticky { .. },),
+            matches!(g.state, State::Repeat { .. },),
             "± stays in the knob mode"
         );
     }
 
     #[test]
-    fn go_motion_is_sticky_for_repeated_movement() {
+    fn go_motion_repeats_for_repeated_movement() {
         let (_, steps) = seq(&BANK_TABLE, &[G, G, G, F]);
         assert_eq!(
             &steps[1..],
@@ -978,7 +990,7 @@ mod tests {
     }
 
     #[test]
-    fn clock_tune_steps_bpm_in_sticky() {
+    fn clock_tune_steps_bpm_in_the_repeat_mode() {
         let (_, steps) = seq(&CLOCK_TABLE, &[T, G, G, F]);
         assert_eq!(
             &steps[1..],
@@ -1006,9 +1018,9 @@ mod tests {
     #[test]
     fn meta_reaches_the_project_verbs_from_any_pane() {
         for pane in PANES {
-            let (_, steps) = seq(pane_table(pane), &[Input::Token(Token(7)), A]);
+            let (_, steps) = seq(pane_keymap(pane), &[Input::Token(Token(7)), A]);
             assert_eq!(steps[1], Step::Verb(Verb::OpenProjectEditor), "{pane:?} ;a");
-            let (_, steps) = seq(pane_table(pane), &[Input::Token(Token(7)), D]);
+            let (_, steps) = seq(pane_keymap(pane), &[Input::Token(Token(7)), D]);
             assert_eq!(steps[1], Step::Verb(Verb::OpenProject), "{pane:?} ;d");
         }
     }
@@ -1139,27 +1151,27 @@ mod tests {
     }
 
     #[test]
-    fn every_pane_table_is_labelled_and_shares_the_global_roots() {
-        // The roots are named once, so "T1 is Go in every pane" is now a
+    fn every_pane_keymap_is_labelled_and_shares_the_global_prefixes() {
+        // The prefixes are named once, so "T1 is Go in every pane" is now a
         // property of the module rather than four hand-copied lists.
         for (i, label) in PREFIX_LABELS.iter().enumerate() {
-            assert!(!label.is_empty(), "root {i} has a label");
+            assert!(!label.is_empty(), "prefix {i} has a label");
         }
         assert_eq!(PREFIX_LABELS[0], "Go");
         assert_eq!(PREFIX_LABELS[6], "Pane", "the pane selector stays on T7");
         assert_eq!(PREFIX_LABELS[7], "Meta", "Meta stays on T8");
         for pane in PANES {
-            let table = pane_table(pane);
-            for (i, root) in table.roots.iter().enumerate() {
-                for conj in root.iter().flatten() {
+            let table = pane_keymap(pane);
+            for (i, submap) in table.submaps.iter().enumerate() {
+                for bind in submap.iter().flatten() {
                     assert!(
-                        !conj.label.is_empty(),
+                        !bind.label.is_empty(),
                         "{pane:?} {} slot has a label",
                         PREFIX_LABELS[i]
                     );
                 }
             }
-            let focus_slots = table.roots[6]
+            let focus_slots = table.submaps[6]
                 .iter()
                 .flatten()
                 .filter(|c| matches!(c.verb, Some(Verb::FocusPane(_))))
@@ -1173,18 +1185,18 @@ mod tests {
         // Nothing in the machine outlives the call, so the table need not be a
         // module static — which is the precondition for keymaps the user edits
         // (that is what `vidiotic-ctl` exists for), not the feature itself.
-        let mut roots = [EMPTY_ROOT; TOKEN_COUNT];
-        roots[0] = {
-            let mut r = EMPTY_ROOT;
-            r[0] = conj_mode(
+        let mut submaps = [EMPTY_SUBMAP; TOKEN_COUNT];
+        submaps[0] = {
+            let mut r = EMPTY_SUBMAP;
+            r[0] = bind_repeat(
                 "louder",
                 Some(Verb::BpmDelta(2.0)),
                 "gain",
-                pm_sticky("up", Verb::BpmDelta(2.0), "down", Verb::BpmDelta(-2.0)),
+                pm_repeat("up", Verb::BpmDelta(2.0), "down", Verb::BpmDelta(-2.0)),
             );
             r
         };
-        let table = GrammarTable { roots };
+        let table = Keymap { submaps };
 
         let (g, steps) = seq(&table, &[G, G, F]);
         assert_eq!(
@@ -1193,13 +1205,10 @@ mod tests {
                 Step::Verb(Verb::BpmDelta(2.0)),
                 Step::Verb(Verb::BpmDelta(-2.0))
             ],
-            "the runtime table's own sticky mode repeats"
+            "the runtime table's own repeat mode repeats"
         );
-        assert!(matches!(
-            g.state,
-            GrammarState::Sticky { label: "gain", .. }
-        ));
-        // And its empty roots behave like the compiled ones.
+        assert!(matches!(g.state, State::Repeat { label: "gain", .. }));
+        // And its empty submaps behave like the compiled ones.
         let (_, steps) = seq(&table, &[F]);
         assert_eq!(steps, [Step::Empty("Fire")]);
     }
@@ -1207,17 +1216,17 @@ mod tests {
     #[test]
     fn every_reachable_repeat_entry_is_labelled() {
         // The overlay used to reverse-engineer these from the verb payload,
-        // ending in `_ => "again"` — so a new sticky verb got a *wrong* label
+        // ending in `_ => "again"` — so a new repeat verb got a *wrong* label
         // rather than a missing one, and nothing failed. This is the check
         // that inference is gone for good.
         let mut checked = 0;
         for pane in PANES {
-            for root in &pane_table(pane).roots {
-                for conj in root.iter().flatten() {
-                    let Some((mode, entries)) = &conj.sticky else {
+            for submap in &pane_keymap(pane).submaps {
+                for bind in submap.iter().flatten() {
+                    let Some((mode, entries)) = &bind.repeat else {
                         continue;
                     };
-                    assert!(!mode.is_empty(), "{pane:?} {} mode label", conj.label);
+                    assert!(!mode.is_empty(), "{pane:?} {} mode label", bind.label);
                     for (i, e) in entries.iter().enumerate() {
                         let Some(e) = e else { continue };
                         assert!(!e.label.is_empty(), "{pane:?} {mode} slot {i}");
@@ -1231,9 +1240,9 @@ mod tests {
 
     #[test]
     fn every_cue_knob_is_reachable_from_some_binding() {
-        // `CueParamKind` has exactly 8 variants and the cue pane's Tune root
+        // `CueParamKind` has exactly 8 variants and the cue pane's Tune prefix
         // has exactly 8 slots. A ninth knob has nowhere to go, and without
-        // this nothing fails — it is simply unreachable from the grammar.
+        // this nothing fails — it is simply unreachable from the keymap.
         for kind in CueParamKind::ALL {
             // Exhaustive on purpose: a new variant fails to compile here, and
             // then fails at runtime until `ALL` grows to match.
@@ -1251,10 +1260,10 @@ mod tests {
 
             let nudges = |v: Option<Verb>| matches!(v, Some(Verb::NudgeParam(k, _)) if k == kind);
             let reachable = PANES.iter().any(|pane| {
-                pane_table(*pane).roots.iter().any(|root| {
-                    root.iter().flatten().any(|c| {
+                pane_keymap(*pane).submaps.iter().any(|submap| {
+                    submap.iter().flatten().any(|c| {
                         nudges(c.verb)
-                            || c.sticky.is_some_and(|(_, entries)| {
+                            || c.repeat.is_some_and(|(_, entries)| {
                                 entries.iter().flatten().any(|e| nudges(Some(e.verb)))
                             })
                     })
@@ -1267,9 +1276,9 @@ mod tests {
     #[test]
     fn every_pane_is_reachable_from_every_other() {
         for from in PANES {
-            let table = pane_table(from);
+            let table = pane_keymap(from);
             for to in PANES {
-                let reachable = table.roots[6]
+                let reachable = table.submaps[6]
                     .iter()
                     .flatten()
                     .any(|c| c.verb == Some(Verb::FocusPane(to)));

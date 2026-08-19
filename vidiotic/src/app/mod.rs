@@ -25,7 +25,7 @@ use crate::clock::{InternalClock, LinkClock};
 use crate::commands::{Cadence, ChainSlot, ClipId, Command, SlotRef, SyncKind, TimeSig, UiMirror};
 use crate::control_input::ControlInput;
 use crate::gfx::Graphics;
-use crate::grammar;
+use crate::keymap;
 use crate::render::{Globals, Renderer};
 use crate::sequencer::Sequencer;
 use crate::shader::lang_of;
@@ -439,9 +439,9 @@ impl App {
         for ev in self.control_input.collect() {
             if self.engine.grammar_on
                 && ev.value == EventValue::Pressed
-                && grammar::token_of_source(&ev.source).is_some_and(|input| {
+                && keymap::token_of_source(&ev.source).is_some_and(|input| {
                     self.engine
-                        .grammar_step(input, grammar::Spelling::of_source(&ev.source))
+                        .grammar_step(input, keymap::Spelling::of_source(&ev.source))
                 })
             {
                 continue;
