@@ -333,6 +333,9 @@ pub struct UiMirror {
     pub grammar_on: bool,  // modal command grammar enabled
     pub command_palette_open: bool, // floating command palette open
     pub grammar_modal: Option<GrammarModalView>, // pending sequence, if any
+    /// A root just pressed that has nothing bound under it in this pane, for a
+    /// beat or so after the press. Nothing opened; this is what says so.
+    pub grammar_note: Option<&'static str>,
     /// The focused pane's statusline mode word (e.g. "BANK") while the
     /// grammar is on; `None` when it's off.
     pub grammar_pane: Option<&'static str>,

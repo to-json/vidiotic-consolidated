@@ -94,6 +94,10 @@ impl Engine {
                 self.apply_verb(v);
                 true
             }
+            grammar::Step::Empty(label) => {
+                self.empty_prefix = Some((label, web_time::Instant::now()));
+                true
+            }
             grammar::Step::Pending | grammar::Step::Cancelled => true,
         }
     }

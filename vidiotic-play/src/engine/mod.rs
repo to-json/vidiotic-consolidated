@@ -57,6 +57,11 @@ use crate::video::frame::DecodedFrame;
 
 pub use source::{NoSources, OpenRequest, Opener, Source};
 
+/// How long the statusline says "nothing here" after a root pressed with
+/// nothing under it. Long enough to read mid-performance, short enough that it
+/// is gone before the next sequence starts.
+const EMPTY_PREFIX_LINGER: std::time::Duration = std::time::Duration::from_millis(1200);
+
 /// The loop-rate detent ladder the grammar's Tune knob steps through: inherit,
 /// off, then the shared cadences (same ticks as the editor's combo choices).
 const LOOP_LADDER: [Option<u32>; 10] = [
@@ -225,6 +230,14 @@ pub struct Engine {
     /// variant name is the useful part.
     pub last_verb: Option<String>,
 
+    /// The label of a root pressed with nothing bound under it, and when.
+    ///
+    /// Also a readout. An option-less root opens nothing (see
+    /// [`grammar::Step::Empty`]), and a press that silently does nothing reads
+    /// as broken gear; this is what lets the statusline say "nothing here"
+    /// instead. Cleared by time, in [`Self::build_mirror`].
+    pub empty_prefix: Option<(&'static str, Instant)>,
+
     /// Session-scoped document undo for cue/bank authoring. See [`crate::undo`].
     pub undo: UndoStack,
 
@@ -287,6 +300,7 @@ impl Engine {
             focused_pane: Pane::default(),
             prev_pane: Pane::default(),
             last_verb: None,
+            empty_prefix: None,
             undo: UndoStack::default(),
             pending: VecDeque::new(),
         };
@@ -631,6 +645,10 @@ impl Engine {
         out.grammar_on = self.grammar_on;
         out.command_palette_open = self.command_palette_open;
         out.grammar_modal = self.grammar_modal_view();
+        out.grammar_note = self
+            .empty_prefix
+            .filter(|(_, at)| at.elapsed() < EMPTY_PREFIX_LINGER)
+            .map(|(label, _)| label);
         out.grammar_pane = self.grammar_on.then(|| self.focused_pane.mode_word());
         let q = snap.quantum.max(0.25);
         out.bars_per_phrase = (phrase / q).round().max(1.0) as u32;

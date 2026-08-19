@@ -143,8 +143,9 @@ pub enum Verb {
 }
 
 /// Per-token verbs of a sticky mode. A populated slot fires its verb and
-/// stays in the mode; an empty slot exits the mode and replays the token as a
-/// fresh root press.
+/// stays in the mode; a token the mode does not own is swallowed, exactly as
+/// under an open root — one stray-token rule for both pending states. Leaving
+/// a mode is Escape.
 pub type StickyTable = [Option<Verb>; TOKEN_COUNT];
 
 /// One resolvable slot under a root. `verb` fires on selection (`None` for
@@ -160,7 +161,8 @@ pub struct Conjugation {
 /// One verb-root and its conjugation slots, indexed by [`Token`]. The root's
 /// own token slot holds its "doubled" hot verb — doubling needs no special
 /// machinery. A root can be entirely empty in a pane its verb doesn't apply
-/// to; its modal then shows no options, teaching the matrix by silence.
+/// to; pressing it opens nothing at all ([`Step::Empty`]) rather than a modal
+/// with no way out.
 #[derive(Clone, Copy, Debug)]
 pub struct RootEntry {
     pub label: &'static str,
@@ -200,6 +202,14 @@ pub enum Step {
     Cancelled,
     /// Not consumed (cancel while idle) — the caller's fallthrough applies.
     Rejected,
+    /// Consumed, but nothing opened: the pressed root has no slots filled in
+    /// this pane. Carries the root's label so the shell can say which one.
+    ///
+    /// Distinct from [`Self::Rejected`], which means "not consumed, fall
+    /// through": this press *was* the grammar's, it just had nowhere to go.
+    /// The machine stays idle — an option-less modal is a trap, since under
+    /// the swallow rule nothing but Escape gets out of it.
+    Empty(&'static str),
 }
 
 /// The grammar state machine. One per app; feed it [`Input`]s via
@@ -220,8 +230,15 @@ impl Grammar {
                 Step::Cancelled
             }
             (GrammarState::Idle, Input::Token(t)) => {
-                self.state = GrammarState::AwaitingConjugation { root: t };
-                Step::Pending
+                // Never open a root with nothing under it: the modal would show
+                // no options and then swallow every press until Escape.
+                let root = &table.roots[t.index()];
+                if root.conjugations.iter().all(Option::is_none) {
+                    Step::Empty(root.label)
+                } else {
+                    self.state = GrammarState::AwaitingConjugation { root: t };
+                    Step::Pending
+                }
             }
             (GrammarState::AwaitingConjugation { root }, Input::Token(t)) => {
                 match &table.roots[root.index()].conjugations[t.index()] {
@@ -245,13 +262,12 @@ impl Grammar {
                 }
             }
             (GrammarState::Sticky { entries, .. }, Input::Token(t)) => {
-                if let Some(v) = entries[t.index()] {
-                    Step::Verb(v)
-                } else {
-                    // A token the mode doesn't own exits it and replays as a
-                    // fresh root press, so leaving a mode costs nothing.
-                    self.state = GrammarState::AwaitingConjugation { root: t };
-                    Step::Pending
+                // Swallowed, as under an open root. Re-rooting here would let a
+                // stray press silently change what the *next* press means,
+                // live; on a second screen "did nothing" is the safer failure.
+                match entries[t.index()] {
+                    Some(v) => Step::Verb(v),
+                    None => Step::Pending,
                 }
             }
         }
@@ -748,10 +764,26 @@ mod tests {
     #[test]
     fn empty_conjugation_slot_keeps_modal_pending() {
         let (g, steps) = seq(&BANK_TABLE, &[F, T]);
-        assert_eq!(steps[1], Step::Pending, "unassigned slot is forgiving");
+        assert_eq!(steps[1], Step::Pending, "unassigned slot is swallowed");
         assert!(
             matches!(g.state, GrammarState::AwaitingConjugation { root } if root == Token(1)),
             "the Fire modal stays open"
+        );
+    }
+
+    #[test]
+    fn option_less_root_opens_nothing() {
+        // Fire has no slots in the pool pane. Opening it would strand the user
+        // in a modal with no options and no exit but Escape.
+        let (g, steps) = seq(&POOL_TABLE, &[F]);
+        assert_eq!(steps, [Step::Empty("Fire")], "the shell can name the root");
+        assert!(matches!(g.state, GrammarState::Idle), "nothing opened");
+        // And the next press still means what it always meant.
+        let (_, steps) = seq(&POOL_TABLE, &[F, A, A]);
+        assert_eq!(
+            steps[2],
+            Step::Verb(Verb::AddCueAtClip),
+            "aa still cues the cursored clip after a dead press"
         );
     }
 
@@ -782,13 +814,17 @@ mod tests {
     }
 
     #[test]
-    fn non_entry_token_exits_sticky_and_opens_that_root() {
+    fn unowned_token_is_swallowed_by_sticky() {
         let (g, steps) = seq(&CLOCK_TABLE, &[F, F, G]);
-        assert_eq!(steps[2], Step::Pending, "leaving tap mode emits nothing");
+        assert_eq!(steps[2], Step::Pending, "a token tap mode doesn't own");
         assert!(
-            matches!(g.state, GrammarState::AwaitingConjugation { root } if root == Token(0)),
-            "the exiting token replays as a fresh Go root"
+            matches!(g.state, GrammarState::Sticky { label: "tap", .. }),
+            "the mode survives it — one stray press cannot reroute the next"
         );
+        // Escape is the way out, and it leaves the machine where a cancel does.
+        let (mut g, _) = seq(&CLOCK_TABLE, &[F, F]);
+        assert_eq!(g.step(&CLOCK_TABLE, Input::Cancel), Step::Cancelled);
+        assert!(matches!(g.state, GrammarState::Idle));
     }
 
     #[test]

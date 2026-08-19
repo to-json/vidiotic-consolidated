@@ -311,6 +311,10 @@ fn statusline(ui: &mut Ui, m: &UiMirror) {
     );
     if let Some(g) = &m.grammar_modal {
         summary = format!("{}   {summary}", g.trail);
+    } else if let Some(root) = m.grammar_note {
+        // An option-less root opened nothing. Saying so beats an empty overlay,
+        // and beats the silence that reads as broken gear.
+        summary = format!("{root}: nothing here   {summary}");
     }
     let mode_clicked = widgets::statusline(ui, mode, &summary);
     if mode_clicked && has_error {

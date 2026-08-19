@@ -156,10 +156,15 @@ All verbs are context-free (just "remove selected cue"); app resolves which cue,
 
 ## Edge cases & escapes
 
-### Empty conjugation slots are forgiving
+### Empty conjugation slots are swallowed
 - Pressing a token for an empty slot keeps the modal open and the state as-is (Step::Pending).
-- Example: In POOL pane, Fire root has no conjugations; press **f** then any token → modal stays open.
-- Design rationale: teaches the matrix by silence (empty panes guide the user).
+- The same rule holds inside a sticky mode (see "Non-entry token in sticky modes"): one stray-token rule for both pending states.
+- Design rationale: a stray press never changes what the *next* press means. On a second screen, "did nothing" is a safer failure than "silently rerouted".
+
+### Option-less roots open nothing
+- Pressing a root with no filled slots in this pane returns Step::Empty(label) and leaves the machine Idle — no modal opens.
+- Example: in POOL, Fire/Mark/Cut/Tune have no conjugations; press **f** → statusline says `Fire: nothing here` for about a second, and the next press still means what it always meant.
+- Design rationale: under the swallow rule an option-less modal would be a trap — it would eat every press, including **b** (Pane) and **;** (Meta), until Escape. The fix is refusing to enter it, not making it escapable.
 
 ### Shift modifier breaks grammar entry
 - **b** with Shift held → not consumed by grammar, falls through to mapped bindings or hardcoded default.
@@ -171,15 +176,14 @@ All verbs are context-free (just "remove selected cue"); app resolves which cue,
 - Falls through to app's hardcoded Escape handler (clear BPM entry, etc.).
 - Escape only "owns" the grammar when a sequence is pending.
 
-### Non-entry token exiting sticky modes
-- In move mode, press **a** (Make) → machine exits move, opens Make root (AwaitingConjugation).
-- No verb fired; trail updates from "bank·g·move" to "bank·a".
-- Rationale: sticky modes are transient; the exiting token is "replayed" as a fresh root.
+### Non-entry token in sticky modes
+- In move mode, press **a** (Make) → swallowed (Step::Pending). The mode survives; the trail stays "bank·g·move".
+- Escape is the way out of a sticky mode, and it costs one press (Select on a pad, note 35 on MIDI).
+- Rationale: the alternative — exiting and replaying the token as a fresh root — let one stray key silently change what the next key means, live.
 
 ### Sticky mode has no grammar-off conjugation
-- Once in move/tap/knob mode, only tokens in that sticky table have verbs.
-- To escape and turn grammar off, exit the sticky (press unrelated token like ;) then press **;** then **;** (Meta→grammar off).
-- Or press Escape to cancel back to Idle, then toggle grammar off via UI or a mapped binding.
+- Once in move/tap/knob mode, only tokens in that sticky table have verbs; everything else is swallowed.
+- To turn the grammar off from inside one: Escape back to Idle, then **;** **;** (Meta→grammar off), or use the UI / a mapped binding.
 
 ### Double presses (hot verbs)
 - **ff** (Fire twice in BANK) → first press opens Fire root, second press fires SendEditBankLive (conjugation slot 1, i.e., Fire's "self").
@@ -221,7 +225,7 @@ All verbs are context-free (just "remove selected cue"); app resolves which cue,
 7. **context resolution happens at apply_verb, not at sequence completion:** Verb is context-free ("remove selected cue"); the actual cue ID is resolved late in apply_verb. If selection changes during a long sticky mode, the final verb still fires on the *current* selection, not the one when the verb was emitted. (Probably intentional for liveness.)
 
 ### Dead ends / surprising behaviors
-1. **Replay-on-exit replays unbound tokens as roots, not as conjugations:** If in move mode and you press an unmapped token, it opens that root. But if you press a token with no conjugations in that pane (e.g., Fire in Pool), the modal opens showing no options—you're "stuck" until you press Escape or another token.
+1. **Escape is the only way out of a sticky mode:** every token the mode doesn't own is swallowed, so leaving move/tap/knob mode costs one Escape (Select on a pad, note 35 on MIDI) rather than any stray key. The trade is deliberate — see "Non-entry token in sticky modes".
 2. **Sticky table is binary—either a verb exists or it doesn't:** No "skip" or "noop" option; every entry is all-or-nothing. Can't make a mode that partially blocks tokens; you must either define verbs for all of them or none.
 3. **Grammar can't express sequences longer than 2 tokens:** The machine is depth-limited: root, then conjugation (optionally entering a sticky for repeats). No "root → conj → sub-conj" chains. Modal always shows 8 slots max.
 4. **Hardcoded token spelling is immutable in the grammar:** KEY_TOKENS = ["g", "f", "m", "a", "d", "t", "b", ";"] is const, so you can't rebind tokens without recompiling. (Mapped bindings can point multiple keys to the same token via vidiotic-ctl, but the grammar itself doesn't know about it—only the UI does.)

@@ -19,8 +19,12 @@ returning after a break.
   Confirmation lives in the *separate graphics output window*. You act into a
   void and must watch the other screen to know it landed. (doc 01, "No visual
   confirmation of verb emission")
-- **Empty conjugation slot = modal just stays open.** Under stage pressure,
-  silence reads as "broken," not "try another key." (doc 01, "forgiving modals")
+- ~~**Empty conjugation slot = modal just stays open.**~~ *Fixed.* A slot with
+  nothing in it still swallows the press, but a *root* with nothing under it no
+  longer opens at all: it leaves the machine idle and the statusline says
+  `Fire: nothing here` for about a second. The silence that read as "broken" was
+  the option-less modal, and it is gone. (doc 01, "Option-less roots open
+  nothing")
 - **ctl learn captures the *concrete* device name, silently.** "Any device" needs
   `device: ""`, which the UI never exposes and never visually distinguishes. Map
   on a Launchkey, plug in a different controller next week, and nothing works —
@@ -81,12 +85,12 @@ each is a manual reversal:
 
 ## The sharpest single negative surprise
 
-**Grammar sticky-mode leakage.** `gg` both fires a move *and* drops you into
-move-sticky. The next unrelated keystroke — say `a` — doesn't do nothing; it
-*exits the mode and opens a new root*. A stray key silently changes what the next
-key means, live, with the wrong clip potentially going to screen. It's "no
-confirmation" + "modal state you didn't realize you were in" + "no undo" stacked
-into one keystroke. (doc 01, "Non-entry token exiting sticky modes")
+~~**Grammar sticky-mode leakage.**~~ *Fixed.* `gg` still both fires a move and
+drops you into move-sticky, but the next unrelated keystroke — say `a` — is now
+swallowed instead of exiting the mode and opening a new root. A stray key can no
+longer change what the next key means. The mode you did not realize you were in
+is still a real cost, and it is still paid at the display: Escape leaves it.
+(doc 01, "Non-entry token in sticky modes")
 
 ## Through-line
 

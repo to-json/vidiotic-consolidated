@@ -799,6 +799,7 @@ fn mirror_field_guard(m: &UiMirror) {
         grammar_on: _,
         command_palette_open: _,
         grammar_modal: _,
+        grammar_note: _,
         grammar_pane: _,
         sync: _,
         peers: _,

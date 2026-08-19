@@ -414,6 +414,15 @@ impl Shell {
                         return;
                     }
                     Step::Pending | Step::Cancelled => return,
+                    Step::Empty(label) => {
+                        // Consumed, but nothing opened. Natively the statusline
+                        // says so; here the status line is this string.
+                        self.status = format!(
+                            "{label}: nothing here in the {} pane",
+                            self.engine.focused_pane.label()
+                        );
+                        return;
+                    }
                     // Cancel while idle: the grammar declines it, so the flat
                     // bindings below get their turn.
                     Step::Rejected => {}
