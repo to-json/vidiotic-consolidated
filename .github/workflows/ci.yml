@@ -80,6 +80,16 @@ jobs:
           LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # Intra-doc links are the one part of a comment a machine can check, and
+      # until this step existed nothing did: five of the nine crates could not
+      # be documented at all, across 21 links that pointed at renamed items,
+      # private items, or nothing. `--no-deps` keeps it to our own crates.
+      - name: Docs
+        env:
+          LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps
+
       # Three tests in `vidiotic-bake/tests/mov_demux.rs` compare our demuxer
       # against ffmpeg's on ffmpeg-muxed Hap1 files. Those files are untracked
       # by design and cannot be generated here anyway — no stock ffmpeg build

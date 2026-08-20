@@ -27,16 +27,22 @@ lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
 # The native test suite, in full. Three `vidiotic-bake` tests demux real
-# `clips/*.mov`, which are your own video and not in the repo; without them this
-# fails loudly rather than reporting a pass it did not earn.
+# `.mov` files that are your own video and are not in the repo; they skip with a
+# printed notice unless `VIDIOTIC_CLIPS` points at a directory holding
+# `brb.mov`, `bun.mov`, and `eyes.mov`. Set it to cover them.
 test:
     cargo test --workspace
 
-# fmt, lint, test, and the wasm ratchet — the whole gate, locally.
-# `VIDIOTIC_NO_CLIPS=1` skips the three fixture-dependent tests, which is what
-# CI does, so this passes on a fresh clone. `just test` is the stricter one.
-check: fmt-check lint gate
-    VIDIOTIC_NO_CLIPS=1 cargo test --workspace
+# Intra-doc links, checked. The only part of a comment a machine can verify —
+# see docs/comment-style-guide.md §4 for what it caught the first time it ran.
+doc:
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+
+# fmt, lint, doc, test, and the wasm ratchet — the whole gate, locally, and the
+# same set CI runs. Passes on a fresh clone: the fixture-dependent tests skip
+# rather than fail when there are no clips to point at.
+check: fmt-check lint doc gate
+    cargo test --workspace
 
 # Drop build artifacts (cargo's, and the web/native release trees)
 clean:
