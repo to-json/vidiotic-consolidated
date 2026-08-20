@@ -15,8 +15,11 @@ impl App {
         }
         // Undo/redo: reserved accelerator chords, resolved before the grammar,
         // mapper, and hardcoded defaults. Cmd+Z on mac, Ctrl+Z elsewhere; Shift
-        // or `y` for redo. Hardcoded and unrebindable, matching prep/ctl —
-        // pending the decision tracked in vidiotic-prep/UNDO_TODO.md.
+        // or `y` for redo. Hardcoded and unrebindable, matching prep/ctl: a
+        // knowing exception to "every key is a plain source->verb pair", kept
+        // because routing it through the mapper would need an app-meta verb in
+        // an otherwise all-document vocabulary (see vidiotic-prep/docs/undo.md
+        // §1 for the full tradeoff).
         if !ev.repeat {
             let m = self.modifiers.state();
             if (m.control_key() || m.super_key()) && !m.alt_key() {

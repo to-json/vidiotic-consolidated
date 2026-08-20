@@ -117,6 +117,8 @@ fn via_ffmpeg(path: &Path) -> FfmpegView {
             .best(ff::media::Type::Video)
             .expect("no video stream");
         let par = st.parameters();
+        // SAFETY: `par` came from `st.parameters()` and is valid for as long
+        // as `st`/`ictx` are; `AVCodecParameters` is `Copy`-safe to read whole.
         let p = unsafe { *par.as_ptr() };
         (
             st.index(),

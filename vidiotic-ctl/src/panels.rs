@@ -13,6 +13,8 @@ use vidiotic_ctl::{source_key, Action, EventValue};
 
 use crate::app::CtlApp;
 
+/// Lay out every panel for one frame: toolbar, status line, live monitor,
+/// device list, and the shared binding table itself.
 pub fn draw(app: &mut CtlApp, ui: &mut egui::Ui) {
     toolbar(app, ui);
     phosphor::shell::statusline_panel(ui, mode_word(app), &status_summary(app));

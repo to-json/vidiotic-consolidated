@@ -233,6 +233,8 @@ pub fn state(ctx: &Context) -> ThemeState {
         .unwrap_or_default()
 }
 
+/// Write the theme switchboard state, read back by [`state`]. UI-local (egui
+/// temp memory), not project data — never persisted.
 pub fn set_state(ctx: &Context, st: ThemeState) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("theme_state"), st));
 }

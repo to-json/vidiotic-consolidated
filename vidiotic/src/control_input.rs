@@ -142,6 +142,9 @@ impl ControlInput {
         }
     }
 
+    /// The project's own mapping layer, unmerged with the global/built-in
+    /// layers below it. Used when saving a `.viproj`, which embeds only this
+    /// layer, not the resolved result.
     #[must_use]
     pub fn project_map(&self) -> &ControlMap {
         &self.mapper.over

@@ -576,6 +576,8 @@ impl CaptureService {
         }
     }
 
+    /// This service's current lifecycle state (starting, running at a
+    /// measured size/rate, or failed).
     pub fn status(&self) -> ServiceStatus {
         lock_unpoisoned(&self.ring.status).clone()
     }
@@ -753,6 +755,7 @@ impl CaptureRegistry {
         }
     }
 
+    /// Whether `uid` currently has a running [`CaptureService`].
     pub fn is_on_air(&self, uid: &str) -> bool {
         self.services.contains_key(uid)
     }
@@ -762,6 +765,7 @@ impl CaptureRegistry {
         self.services.get(uid).map(CaptureService::tap)
     }
 
+    /// `uid`'s service status, or `None` if it isn't on air.
     pub fn status(&self, uid: &str) -> Option<ServiceStatus> {
         self.services.get(uid).map(CaptureService::status)
     }

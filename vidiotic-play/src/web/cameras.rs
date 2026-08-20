@@ -177,6 +177,8 @@ pub struct CameraSource {
 }
 
 impl CameraSource {
+    /// Wrap an already-tapped camera device (`uid` identifies it; `taps` and
+    /// `paused` are shared with the shell that owns the `<video>` element).
     pub fn new(uid: String, taps: Taps, paused: Flag) -> Self {
         // 60 Hz. Higher than any device this is likely to see, so the cap only
         // ever removes duplicate readbacks rather than dropping frames — the

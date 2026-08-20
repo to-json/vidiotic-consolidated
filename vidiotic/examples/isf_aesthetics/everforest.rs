@@ -8,6 +8,7 @@ use egui::{vec2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, Strok
 use crate::schema::DemoState;
 use crate::util;
 
+/// The monospace face and size the character-grid directions render at.
 pub fn mono() -> FontId {
     FontId::monospace(12.0)
 }

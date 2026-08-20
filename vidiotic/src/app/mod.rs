@@ -256,6 +256,10 @@ pub struct App {
 }
 
 impl App {
+    /// Build the app from `boot`: the render engine, control input, and
+    /// capture registry all exist after this returns, but `graphics`,
+    /// `renderer`, and `egui` stay `None` until the windowing system hands
+    /// back a resume event.
     pub fn new(boot: Boot) -> Self {
         let control_input = ControlInput::new(boot.controls);
         let captures: Captures = Rc::new(RefCell::new(capture::CaptureRegistry::default()));

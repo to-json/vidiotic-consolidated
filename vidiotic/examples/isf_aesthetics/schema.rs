@@ -297,6 +297,7 @@ impl MidiState {
         !matches!(kind, MockKind::Image | MockKind::Audio | MockKind::AudioFft)
     }
 
+    /// The current binding for control `idx`, if it has been learned.
     pub fn binding(&self, idx: usize) -> Option<Binding> {
         self.bindings.get(&idx).copied()
     }
@@ -368,6 +369,8 @@ pub struct DemoState {
 }
 
 impl DemoState {
+    /// Build the demo's default schema, values, and a `MidiState` pre-bound to
+    /// the couple of controls the kaleido-bloom preset showcases.
     pub fn new() -> Self {
         let inputs = kaleido_bloom();
         let values = default_values(&inputs);

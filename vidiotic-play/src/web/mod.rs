@@ -82,6 +82,9 @@ impl log::Log for ConsoleLog {
 
 static LOGGER: ConsoleLog = ConsoleLog;
 
+/// Runs once when the wasm module loads: installs the panic hook and routes
+/// `log` through the browser console, so a shader-compile failure or a Rust
+/// panic is visible instead of silent.
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();

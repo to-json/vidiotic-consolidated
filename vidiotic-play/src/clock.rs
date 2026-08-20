@@ -67,6 +67,7 @@ pub struct InternalClock {
 }
 
 impl InternalClock {
+    /// Start anchored at `Instant::now()` with zero beats elapsed.
     pub fn new(bpm: f64, quantum: f64) -> Self {
         Self {
             anchor: Instant::now(),
@@ -173,6 +174,8 @@ pub struct LinkClock {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl LinkClock {
+    /// Start Link peer discovery at `initial_bpm`. Actual tempo becomes
+    /// whatever the Link session settles on once peers negotiate.
     pub fn new(initial_bpm: f64, quantum: f64) -> Self {
         let link = rusty_link::AblLink::new(initial_bpm);
         link.enable_start_stop_sync(true);
@@ -298,6 +301,8 @@ pub struct BoundaryTracker {
 const BACKWARD_EPS: f64 = 1e-6;
 
 impl BoundaryTracker {
+    /// Start with no prior beat, so the first [`Self::crossed`] call only
+    /// primes the tracker and never fires.
     pub fn new() -> Self {
         Self { prev_beat: None }
     }

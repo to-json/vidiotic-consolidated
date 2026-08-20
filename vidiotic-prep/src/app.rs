@@ -226,8 +226,9 @@ impl PrepApp {
         }
     }
 
-    /// Open `path`, and queue `then` only if it actually loaded. This is the
-    /// guard `finish_open_project` used to carry inline.
+    /// Open `path`, and queue `then` only if it actually loaded: the
+    /// `source_path` check after `open_video` is the entire guard against
+    /// running `then` on a failed open.
     fn open_video_then(&mut self, path: PathBuf, then: Vec<Command>) {
         let path = std::fs::canonicalize(&path).unwrap_or(path);
         self.open_video(path.clone());
@@ -548,6 +549,8 @@ impl PrepApp {
         }
     }
 
+    /// Whether an export is currently in flight (a background thread is
+    /// writing on the other end of `export_rx`).
     pub fn exporting(&self) -> bool {
         self.export_rx.is_some()
     }
@@ -790,9 +793,9 @@ mod tests {
         assert_eq!(app.editor.spans.spans[0].name, "loaded");
     }
 
-    /// A failed open must not run its continuation — the guard that
-    /// `finish_open_project` used to carry inline now lives in `OpenVideo`,
-    /// and every continuation depends on it.
+    /// A failed open must not run its continuation: `OpenVideo` is where that
+    /// guard lives now (see `open_video_then`), and every continuation
+    /// depends on it holding.
     #[test]
     fn a_failed_open_does_not_run_its_continuation() {
         let mut app = PrepApp::default();

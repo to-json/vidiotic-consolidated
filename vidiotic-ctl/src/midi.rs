@@ -26,6 +26,7 @@ pub struct MidiHub {
 }
 
 impl MidiHub {
+    /// Start with no ports connected; call [`Self::rescan`] to discover any.
     #[must_use]
     pub fn new(tx: Sender<ControlEvent>) -> Self {
         Self {

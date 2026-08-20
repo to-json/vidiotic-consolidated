@@ -606,6 +606,7 @@ impl Editor {
         self.play_speed = if self.playing() { 0.0 } else { 1.0 };
     }
 
+    /// Stop playback outright, regardless of current speed or direction.
     pub fn pause(&mut self) {
         self.play_speed = 0.0;
     }
@@ -785,6 +786,8 @@ impl Editor {
         ));
     }
 
+    /// Set an error status line: logged immediately, and marked so the UI
+    /// renders it as an error instead of fading it like [`Self::set_status`].
     pub fn set_error(&mut self, msg: String) {
         log::error!("{msg}");
         self.status = Some(msg);

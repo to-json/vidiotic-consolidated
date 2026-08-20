@@ -35,6 +35,7 @@ pub struct PoolFs {
 }
 
 impl PoolFs {
+    /// Stand in for a filesystem holding exactly these clip names.
     #[must_use]
     pub fn new(names: Vec<String>) -> Self {
         Self { names }

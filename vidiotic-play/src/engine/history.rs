@@ -81,6 +81,8 @@ impl Engine {
         }
     }
 
+    /// Pop the most recent undo entry and [`Self::restore_doc`] it, pushing
+    /// the current state onto the redo side. No-op if there's nothing to undo.
     pub fn undo_document(&mut self) {
         let current = self.doc_snapshot();
         if let Some(prev) = self.undo.undo(current) {
@@ -88,6 +90,7 @@ impl Engine {
         }
     }
 
+    /// The redo counterpart to [`Self::undo_document`].
     pub fn redo_document(&mut self) {
         let current = self.doc_snapshot();
         if let Some(next) = self.undo.redo(current) {
