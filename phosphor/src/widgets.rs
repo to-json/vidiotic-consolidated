@@ -534,6 +534,14 @@ fn fader_t(v: f32, min: f32, max: f32) -> f32 {
     }
 }
 
+/// Horizontal fader drawn as a `├───┤` track `cells` wide (four minimum), with
+/// a block cursor at the value's position. A click or a drag anywhere on the
+/// track sets the value; the response is marked changed only when the value
+/// actually moves.
+///
+/// A range straddling zero is bipolar: it gets a centre tick and a magenta
+/// cursor instead of the playing colour. A degenerate range (`max <= min`)
+/// parks the cursor at the floor and the drag is inert rather than wrong.
 pub fn fader(
     ui: &mut Ui,
     id_salt: impl std::hash::Hash + std::fmt::Debug,

@@ -85,6 +85,7 @@ pub struct Obj {
 }
 
 impl Obj {
+    /// An empty object, ready for setters.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -119,6 +120,7 @@ impl Obj {
         self
     }
 
+    /// A boolean member.
     pub fn bool(&mut self, key: &str, value: bool) -> &mut Self {
         self.key(key);
         self.buf.push_str(if value { "true" } else { "false" });
@@ -139,6 +141,8 @@ impl Obj {
         self.raw(key, json.as_deref().unwrap_or("null"))
     }
 
+    /// The object as JSON, braces included. Takes `&self`, so a nested object
+    /// can be finished, handed to an outer [`Obj::raw`], and still added to.
     #[must_use]
     pub fn finish(&self) -> String {
         format!("{{{}}}", self.buf)
