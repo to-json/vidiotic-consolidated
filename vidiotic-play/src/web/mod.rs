@@ -252,12 +252,12 @@ fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
     ))
 }
 
-/// Put a thumbnail the page decoded itself on a clip's tile, keyed by the id
-/// [`load_clip`] returned for it.
+/// Upload `rgba` as the thumbnail texture for `clip_id`, the id [`load_clip`]
+/// handed back when the page loaded that clip.
 ///
 /// # Errors
-/// Returns a JS error if the buffer is not `width * height * 4` bytes, if
-/// either dimension is zero, or if no clip in the pool has that id.
+/// If either dimension is zero, if `rgba` is not `width * height * 4` bytes,
+/// or if no clip in the pool carries `clip_id`.
 #[wasm_bindgen]
 pub fn deliver_thumbnail(
     clip_id: ClipId,
@@ -1598,15 +1598,14 @@ pub fn save_project() -> Result<(), JsValue> {
     })
 }
 
-/// Compile an ISF shader, read by the page as text, into the shader pool.
-///
-/// The answer to a `vidiotic-pick` of kind `isf`. `name` is what the visitor
-/// called the file and is the key the chain slot holds, so a project saved
-/// elsewhere names the same shader the native player would.
+/// Compile `src` into the shader pool under `name`: the answer to a
+/// `vidiotic-pick` of kind `isf`. `name` is what the visitor called the file
+/// and is the key the chain slot holds, so a project saved here names the same
+/// shader the native player would.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted, the source carries no ISF
-/// header, or the transpiled shader fails to compile.
+/// If the shell has not booted, if `src` carries no ISF header, or if the
+/// transpiled shader fails to compile. The message is also set as shell status.
 #[wasm_bindgen]
 pub fn load_isf_source(name: &str, src: &str) -> Result<(), JsValue> {
     with_shell(|s| {
