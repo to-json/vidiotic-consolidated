@@ -36,29 +36,51 @@ const H: u32 = 48;
 const TIMESCALE: u32 = 1000;
 const FRAME_MS: u32 = 40;
 
-/// The real clips, which no code of ours laid out.
-const REAL_CLIPS: [&str; 3] = ["../clips/brb.mov", "../clips/bun.mov", "../clips/eyes.mov"];
+/// Where the clip fixtures live: `VIDIOTIC_CLIPS` if it is set, else `../clips`
+/// beside the workspace root. They are somebody's actual video and are
+/// deliberately never tracked, so the path has to be sayable from outside the
+/// checkout — the same escape hatch `BAKE_SRC` gives `bake_timing`.
+fn clips_dir() -> PathBuf {
+    std::env::var_os("VIDIOTIC_CLIPS").map_or_else(|| PathBuf::from("../clips"), PathBuf::from)
+}
 
-/// A run over zero real clips proved nothing, and says so — unless
-/// `VIDIOTIC_NO_CLIPS` is set, which is CI declaring that it knows.
+/// The real clips, which no code of ours laid out.
+fn real_clips() -> Vec<String> {
+    let dir = clips_dir();
+    ["brb.mov", "bun.mov", "eyes.mov"]
+        .iter()
+        .map(|name| dir.join(name).display().to_string())
+        .collect()
+}
+
+/// A run over zero real clips proved nothing — but whether that is a failure
+/// depends on why there were none.
 ///
 /// The fixtures are ffmpeg-muxed files that are not in the repository and cannot
 /// be regenerated from it: stock ffmpeg builds (Homebrew's, the runner images')
 /// carry no HAP *encoder*, so there is nothing to produce a Hap1 `.mov` laid out
-/// by libavformat. Failing loudly is right for a developer, who has `clips/` and
-/// whose empty run means a broken path. It is wrong for a hosted runner, where
-/// it only means the fixtures are absent — so CI sets the variable, the skip is
-/// printed in its log, and this stays the one part of the suite CI does not
-/// cover. Do not set it locally.
+/// by libavformat. They are also untracked on purpose, which makes an absent
+/// [`clips_dir`] the normal state of a fresh checkout and of every hosted
+/// runner, not a defect: it skips with a printed notice, and this stays the one
+/// part of the suite CI does not cover.
+///
+/// A clips directory that *exists* and still yields nothing is the case worth
+/// failing on — a `VIDIOTIC_CLIPS` pointed somewhere wrong, or fixtures renamed
+/// out from under [`real_clips`]. A silent pass would hide both.
 fn require_clips(checked: usize) {
     if checked > 0 {
         return;
     }
+    let dir = clips_dir();
     assert!(
-        std::env::var_os("VIDIOTIC_NO_CLIPS").is_some(),
-        "no clips found — this test proved nothing"
+        !dir.is_dir(),
+        "{} exists but yielded no clips — this test proved nothing",
+        dir.display()
     );
-    eprintln!("SKIPPED: clips/ fixtures are absent and VIDIOTIC_NO_CLIPS is set");
+    eprintln!(
+        "SKIPPED: no clip fixtures at {} (set VIDIOTIC_CLIPS to point at them)",
+        dir.display()
+    );
 }
 
 fn tmp(name: &str) -> PathBuf {
@@ -185,8 +207,8 @@ fn our_reader_and_ffmpegs_agree_on_files_ffmpeg_wrote() {
     // Agreement is asserted over ffmpeg's packets, not over the sample count:
     // see `the_zero_duration_tail_frame_is_real` for why those differ.
     let mut checked = 0;
-    for clip in REAL_CLIPS {
-        let path = Path::new(clip);
+    for clip in real_clips() {
+        let path = Path::new(&clip);
         if !path.exists() {
             continue;
         }
@@ -252,8 +274,8 @@ fn the_zero_duration_tail_frame_is_real() {
     // Asserted rather than merely noted, so that a future change to either the
     // reader or these fixtures has to confront it.
     let mut checked = 0;
-    for clip in REAL_CLIPS {
-        let path = Path::new(clip);
+    for clip in real_clips() {
+        let path = Path::new(&clip);
         if !path.exists() {
             continue;
         }
@@ -314,8 +336,8 @@ fn every_located_sample_decodes_as_hap() {
     // A sample-table error that happened to preserve lengths would still land
     // here, because a mis-addressed packet does not parse as a HAP section.
     let mut checked = 0;
-    for clip in REAL_CLIPS {
-        let path = Path::new(clip);
+    for clip in real_clips() {
+        let path = Path::new(&clip);
         if !path.exists() {
             continue;
         }
@@ -347,7 +369,8 @@ fn every_located_sample_decodes_as_hap() {
 
 #[test]
 fn seeking_by_time_lands_on_the_frame_ffmpeg_would_show() {
-    let path = Path::new(REAL_CLIPS[1]);
+    let clips = real_clips();
+    let path = Path::new(&clips[1]);
     if !path.exists() {
         return;
     }

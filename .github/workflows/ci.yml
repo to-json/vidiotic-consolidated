@@ -80,17 +80,15 @@ jobs:
           LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      # VIDIOTIC_NO_CLIPS: three tests in `vidiotic-bake/tests/mov_demux.rs`
-      # compare our demuxer against ffmpeg's on ffmpeg-muxed Hap1 files in
-      # `clips/`. Those files are not in the repository and cannot be generated
-      # from it — no stock ffmpeg build ships a HAP *encoder*. Without the
-      # variable those tests fail rather than pass vacuously, which is correct
-      # for a developer and wrong here; with it they print SKIPPED into this
-      # log. It is the one part of the suite CI does not cover.
+      # Three tests in `vidiotic-bake/tests/mov_demux.rs` compare our demuxer
+      # against ffmpeg's on ffmpeg-muxed Hap1 files. Those files are untracked
+      # by design and cannot be generated here anyway — no stock ffmpeg build
+      # ships a HAP *encoder*. With no clips directory present they print
+      # SKIPPED into this log, which is the one part of the suite CI does not
+      # cover. Point `VIDIOTIC_CLIPS` at a checkout that has them to cover it.
       - name: Tests
         env:
           LIBCLANG_PATH: /opt/homebrew/opt/llvm/lib
-          VIDIOTIC_NO_CLIPS: "1"
         run: cargo test --workspace
 
   wasm:
