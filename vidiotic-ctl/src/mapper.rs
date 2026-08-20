@@ -40,6 +40,8 @@ pub struct Mapper {
 }
 
 impl Mapper {
+    /// Layer `over` on top of `base` (see the module docs for the precedence
+    /// rule) with no edge-detection state recorded yet.
     #[must_use]
     pub fn new(base: ControlMap, over: ControlMap) -> Self {
         Self { base, over, last: HashMap::new() }

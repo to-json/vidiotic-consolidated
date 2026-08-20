@@ -29,6 +29,10 @@ mod macos {
     use ffmpeg_next as ff;
     use vidiotic::video::capture;
 
+    /// The default (non-`milestone`) spike: request camera access if needed,
+    /// enumerate devices, open the picked (or first) one, and print
+    /// enumeration/open/teardown timing. See the module docs for the
+    /// `milestone` mode this dispatches to instead when the first arg matches.
     pub fn run() -> anyhow::Result<()> {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
             .init();

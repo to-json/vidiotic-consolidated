@@ -41,6 +41,9 @@ pub struct CtlApp {
 }
 
 impl CtlApp {
+    /// Build a fresh app: load the global control map from disk (or its
+    /// default if none exists yet), wire up the MIDI hub and gamepad poller,
+    /// and back-date `last_rescan` so the first frame rescans immediately.
     #[must_use]
     pub fn new() -> Self {
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -74,6 +77,8 @@ impl CtlApp {
         self.status_is_error = is_error;
     }
 
+    /// Write `map` to `path`, falling back to the global map path if none is
+    /// set yet, and mark the document clean on success.
     pub fn save(&mut self) {
         let path = self.path.clone().unwrap_or_else(vidiotic_ctl::store::global_map_path);
         match vidiotic_ctl::store::save_map(&path, &self.map) {
@@ -86,11 +91,16 @@ impl CtlApp {
         }
     }
 
+    /// Adopt `path` as the app's save target and save `map` to it: the
+    /// `File > Save As` entry point.
     pub fn save_as(&mut self, path: PathBuf) {
         self.path = Some(path);
         self.save();
     }
 
+    /// Reload `map` from `path`, discarding unsaved edits and the undo
+    /// history along with them. A no-op if the document has no path yet
+    /// (never saved).
     pub fn revert(&mut self) {
         let Some(path) = self.path.clone() else { return };
         match vidiotic_ctl::store::load_map(&path) {
@@ -105,6 +115,8 @@ impl CtlApp {
         }
     }
 
+    /// Load `map` from `path`, replacing whatever's currently open (undo/redo
+    /// history included): the `File > Open` entry point.
     pub fn open(&mut self, path: PathBuf) {
         match vidiotic_ctl::store::load_map(&path) {
             Ok(map) => {
@@ -118,6 +130,9 @@ impl CtlApp {
         }
     }
 
+    /// Begin capturing a new source for `map.bindings[idx]`. Called both
+    /// directly, to re-learn an existing binding, and from [`Self::add_binding`]
+    /// right after it pushes a placeholder.
     pub fn start_learn(&mut self, idx: usize) {
         self.learn = Some(idx);
         self.learner = Learn::new();
@@ -141,6 +156,9 @@ impl CtlApp {
         self.start_learn(self.map.bindings.len() - 1);
     }
 
+    /// Remove `map.bindings[idx]`, keeping an in-progress `learn` pointed at
+    /// the same binding it was tracking (or clearing it if that binding is
+    /// the one just removed).
     pub fn remove_binding(&mut self, idx: usize) {
         if idx >= self.map.bindings.len() {
             return;
@@ -174,6 +192,10 @@ impl CtlApp {
         self.baseline = self.map.clone();
     }
 
+    /// Restore `map` to its state before the last recorded edit. Re-baselines
+    /// immediately so [`Self::commit_undo`] doesn't mistake the restore
+    /// itself for a fresh edit next frame. No-op (with a status message) if
+    /// there's nothing to undo.
     pub fn undo(&mut self) {
         match self.history.undo(self.map.clone()) {
             Some(prev) => {
@@ -189,6 +211,8 @@ impl CtlApp {
         }
     }
 
+    /// Re-apply the edit last undone. No-op (with a status message) if
+    /// there's nothing to redo.
     pub fn redo(&mut self) {
         match self.history.redo(self.map.clone()) {
             Some(next) => {

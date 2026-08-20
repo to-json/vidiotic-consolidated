@@ -511,6 +511,9 @@ impl Engine {
         }
     }
 
+    /// Set the loop length in ticks (`None` disables looping) and re-prime
+    /// the loop boundary tracker so the new length doesn't misfire against a
+    /// stale prior position.
     pub fn set_loop_len(&mut self, ticks: Option<u32>) {
         self.loop_len = ticks;
         self.loop_tracker.reset();
@@ -543,6 +546,7 @@ impl Engine {
         })
     }
 
+    /// A pool clip's display name, or an empty string if `id` isn't in the pool.
     #[must_use]
     pub fn clip_name(&self, id: ClipId) -> std::sync::Arc<str> {
         self.clips

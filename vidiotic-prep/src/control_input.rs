@@ -190,6 +190,9 @@ impl Controls {
         }
     }
 
+    /// Arm a learn session for `target`: the next control event `handle`
+    /// sees is captured as that row's new source instead of being resolved
+    /// normally.
     pub fn start_learn(&mut self, target: LearnTarget) {
         self.learn = Some(target);
         self.learner = Learn::new();
@@ -234,6 +237,8 @@ impl Controls {
         self.start_learn(LearnTarget::PlayerMap(self.project.bindings.len() - 1));
     }
 
+    /// Remove row `idx` from the project layer, and fix up an in-flight
+    /// learn session that pointed at it or a row after it.
     pub fn remove_project_binding(&mut self, idx: usize) {
         if idx >= self.project.bindings.len() {
             return;
@@ -255,6 +260,8 @@ impl Controls {
         self.start_learn(LearnTarget::PrepMap(self.mapper.over.bindings.len() - 1));
     }
 
+    /// Remove row `idx` from prep's own map, and fix up an in-flight learn
+    /// session that pointed at it or a row after it.
     pub fn remove_prep_binding(&mut self, idx: usize) {
         if idx >= self.mapper.over.bindings.len() {
             return;
@@ -278,6 +285,8 @@ impl Controls {
         self.dirty = true;
     }
 
+    /// Flag prep's own bindings as changed, so the next call to
+    /// [`Self::flush_prep_map`] actually writes them.
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }

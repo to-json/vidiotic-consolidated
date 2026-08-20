@@ -82,6 +82,9 @@ impl log::Log for ConsoleLog {
 
 static LOGGER: ConsoleLog = ConsoleLog;
 
+/// Runs once when the wasm module loads: installs the panic hook and routes
+/// `log` through the browser console, so a shader-compile failure or a Rust
+/// panic is visible instead of silent.
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
@@ -248,6 +251,11 @@ fn generate_thumbnail(probe: &Movie, bytes: &[u8]) -> Option<egui::ColorImage> {
     ))
 }
 
+/// Load a decoded thumbnail's RGBA bytes into the shell as a GPU texture,
+/// matched to a pool clip by `clip_name`. A no-op if no clip has that name.
+///
+/// # Errors
+/// If `width`/`height`/`rgba.len()` are inconsistent.
 #[wasm_bindgen]
 pub fn deliver_thumbnail(clip_name: &str, width: u32, height: u32, rgba: &[u8]) -> Result<(), JsValue> {
     if width == 0 || height == 0 || rgba.len() != (width * height * 4) as usize {
@@ -1521,6 +1529,11 @@ pub fn save_project() -> Result<(), JsValue> {
     })
 }
 
+/// Compile and install an ISF shader from source text, registered under
+/// `name`.
+///
+/// # Errors
+/// If `src` fails to parse or compile; the message is also set as shell status.
 #[wasm_bindgen]
 pub fn load_isf_source(name: &str, src: &str) -> Result<(), JsValue> {
     with_shell(|s| {

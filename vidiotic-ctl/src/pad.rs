@@ -22,6 +22,8 @@ pub struct PadPoller {
 }
 
 impl PadPoller {
+    /// Open the `gilrs` backend. Never panics on failure, per the module
+    /// docs: it logs and disables gamepad input instead.
     #[must_use]
     pub fn new() -> Self {
         match Gilrs::new() {

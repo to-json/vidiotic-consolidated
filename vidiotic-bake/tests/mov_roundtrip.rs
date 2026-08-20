@@ -91,6 +91,9 @@ fn mux_ffmpeg(path: &Path, pkts: &[(Vec<u8>, u32)]) {
         stream.set_time_base((1, TIMESCALE as i32));
         // Same hand-filled codec parameters the old bake path needed: there is
         // no HAP encoder for libavformat to interrogate.
+        // SAFETY: `stream` was just returned by `add_stream` and nothing else
+        // holds a pointer to it yet; `codecpar` is non-null for a freshly
+        // added stream.
         unsafe {
             let par = (*stream.as_mut_ptr()).codecpar;
             (*par).codec_type = ff::sys::AVMediaType::AVMEDIA_TYPE_VIDEO;
@@ -139,6 +142,8 @@ fn demux(path: &Path) -> Demuxed {
             .expect("no video stream");
         let par = st.parameters();
         // codec_tag is not surfaced by ffmpeg-next's safe API.
+        // SAFETY: `par` came from `st.parameters()` and is valid for as long
+        // as `st`/`ictx` are; this only reads fields, no write.
         let (tag, w, h) = unsafe {
             let p = par.as_ptr();
             ((*p).codec_tag, (*p).width as u32, (*p).height as u32)

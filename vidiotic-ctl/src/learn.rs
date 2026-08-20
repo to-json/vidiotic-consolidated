@@ -20,6 +20,7 @@ pub struct Learn {
 const CAPTURE_THRESHOLD: f32 = 0.08;
 
 impl Learn {
+    /// Start a fresh capture session with no baseline recorded yet.
     #[must_use]
     pub fn new() -> Self {
         Self::default()

@@ -62,6 +62,8 @@ pub mod capture {
     }
 
     impl CameraTap {
+        /// Stub: never yields a frame, matching a tap on a device that never
+        /// starts.
         pub fn poll(&mut self, _now: Instant) -> Option<DecodedFrame> {
             None
         }
@@ -71,28 +73,39 @@ pub mod capture {
     pub struct CaptureRegistry;
 
     impl CaptureRegistry {
+        /// Stub: no-op, so callers built against the real registry compile
+        /// unchanged; there is never anything to turn on.
         pub fn set_on_air(&mut self, _uid: &str, _on: bool) {}
+        /// Stub: always `false`, since [`set_on_air`](Self::set_on_air) never
+        /// starts anything.
         pub fn is_on_air(&self, _uid: &str) -> bool {
             false
         }
+        /// Stub: always `None`, matching an empty registry.
         pub fn tap(&self, _uid: &str) -> Option<CameraTap> {
             None
         }
+        /// Stub: always `None`, matching an empty registry.
         pub fn status(&self, _uid: &str) -> Option<ServiceStatus> {
             None
         }
     }
 
+    /// Stub: always denied, since there is no capture backend to ask.
     pub fn authorization() -> Authorization {
         Authorization::Denied
     }
 
+    /// Stub: no-op; there is no system prompt to trigger on this platform.
     pub fn request_access(_on_result: impl Fn(bool) + 'static) {}
 
+    /// Stub: always empty, since no devices can ever be found.
     pub fn enumerate() -> Vec<DeviceInfo> {
         Vec::new()
     }
 
+    /// Move `current` toward `target` by at most `rate * dt`, same contract as
+    /// the real `capture::slew` this mirrors.
     pub fn slew(current: f64, target: f64, dt: f64, rate: f64) -> f64 {
         let step = (rate * dt).max(0.0);
         let diff = target - current;

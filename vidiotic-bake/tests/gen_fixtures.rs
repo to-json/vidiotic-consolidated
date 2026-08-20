@@ -70,6 +70,8 @@ fn gen_fixtures() {
 
         // The FourCC decides texture_count (2 only for HapM); record it beside
         // the packet so the conformance test does not have to guess.
+        // SAFETY: `params` came from `stream.parameters()` and is valid for as
+        // long as `ictx`/`stream` are; this only reads one field.
         let tag = unsafe { (*params.as_ptr()).codec_tag }.to_le_bytes();
         let fourcc = String::from_utf8_lossy(&tag).to_string();
 

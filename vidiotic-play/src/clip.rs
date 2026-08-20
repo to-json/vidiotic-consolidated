@@ -116,16 +116,19 @@ impl Clip {
         &self.track
     }
 
+    /// Pixel width of the decoded frame.
     #[must_use]
     pub fn width(&self) -> u32 {
         self.track.width
     }
 
+    /// Pixel height of the decoded frame.
     #[must_use]
     pub fn height(&self) -> u32 {
         self.track.height
     }
 
+    /// Number of samples in the demuxed track.
     #[must_use]
     pub fn frame_count(&self) -> usize {
         self.track.samples.len()

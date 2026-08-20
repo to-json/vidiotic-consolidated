@@ -15,6 +15,7 @@ impl Engine {
         self.banks.get(self.live_bank).and_then(|b| b.cue(id))
     }
 
+    /// Hand out the next unused [`CueId`].
     pub fn alloc_cue_id(&mut self) -> CueId {
         let id = self.next_cue_id;
         self.next_cue_id += 1;
@@ -139,6 +140,8 @@ impl Engine {
         self.decoders.retain(|k, _| keep.contains(k));
     }
 
+    /// Apply the [`Sequencer`]'s output events: arm/swap decoders and retain
+    /// only sources still playing or armed.
     pub fn apply_seq_events(&mut self, events: Vec<SequencerEvent>) {
         for e in events {
             match e {
@@ -178,6 +181,7 @@ impl Engine {
         }
     }
 
+    /// Append a new cue for `clip` to the edit bank and select it.
     pub fn add_cue(&mut self, clip: ClipId) {
         let cue_id = self.alloc_cue_id();
         let name = self.clip_name(clip);
@@ -186,6 +190,8 @@ impl Engine {
         self.resync_live_if_editing();
     }
 
+    /// Remove `id` from the edit bank, clearing selection if it was selected.
+    /// No-op if `id` isn't in the edit bank.
     pub fn remove_cue(&mut self, id: CueId) {
         let Some(pos) = self.banks[self.edit_bank].cues.iter().position(|c| c.id == id) else {
             return;
@@ -255,6 +261,8 @@ impl Engine {
         self.resync_live_if_editing();
     }
 
+    /// Switch which bank the sequencer plays from. No-op for an out-of-range
+    /// or already-live index.
     pub fn set_live_bank(&mut self, i: usize) {
         if i >= self.banks.len() || i == self.live_bank {
             return;
@@ -280,6 +288,8 @@ impl Engine {
         self.set_live_bank(next);
     }
 
+    /// Switch which bank the cue editor targets, clearing cue selection.
+    /// No-op for an out-of-range index.
     pub fn set_edit_bank(&mut self, i: usize) {
         if i >= self.banks.len() {
             return;
@@ -288,6 +298,7 @@ impl Engine {
         self.selected_cue = None;
     }
 
+    /// Append a fresh, empty bank with the next letter name.
     pub fn add_bank(&mut self) {
         let name = bank_letter_name(self.banks.len());
         self.banks.push(Bank::new(name));
@@ -328,6 +339,8 @@ impl Engine {
         }
     }
 
+    /// Switch which clip bank [`Self::active_clip_ids`] reads from. No-op
+    /// for an out-of-range index.
     pub fn set_active_clip_bank(&mut self, i: usize) {
         if i < self.clip_banks.len() {
             self.active_clip_bank = i;

@@ -65,6 +65,7 @@ pub enum PrepVerb {
 }
 
 impl PrepVerb {
+    /// Human-readable name for the action picker.
     #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
@@ -201,16 +202,22 @@ action_catalogs! {
 }
 
 impl Action {
+    /// Every bindable action across both apps: what the ctl bin's editor
+    /// offers, since it edits any `.vmap`. See [`CATALOG`].
     #[must_use]
     pub fn catalog() -> &'static [Self] {
         CATALOG
     }
 
+    /// The subset of [`Self::catalog`] that `vidiotic` understands. See
+    /// [`PLAYER_CATALOG`].
     #[must_use]
     pub fn player_catalog() -> &'static [Self] {
         PLAYER_CATALOG
     }
 
+    /// The subset of [`Self::catalog`] that `vidiotic-prep` understands. See
+    /// [`PREP_CATALOG`].
     #[must_use]
     pub fn prep_catalog() -> &'static [Self] {
         PREP_CATALOG
@@ -251,6 +258,7 @@ impl Action {
         matches!(self, Self::SetBpm { .. } | Self::Prep(PrepVerb::Scrub))
     }
 
+    /// Human-readable name for the action picker.
     #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
