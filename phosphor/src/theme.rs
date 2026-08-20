@@ -396,7 +396,7 @@ pub fn hsl(h: f32, s: f32, l: f32) -> Color32 {
 /// unantialiased corners — visibly square nubs poking past the rounded
 /// frame. This reaches the window on any runtime that processes root
 /// viewport commands (eframe does this automatically); a custom egui+winit
-/// integration that doesn't run [`egui_winit::process_viewport_commands`]
+/// integration that doesn't run `egui_winit::process_viewport_commands`
 /// needs the equivalent `.with_transparent(true)` set directly on its
 /// `winit::window::WindowAttributes` at creation instead.
 pub fn apply(ctx: &Context) {

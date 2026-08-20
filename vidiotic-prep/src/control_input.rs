@@ -309,7 +309,7 @@ impl Controls {
 /// Deliberately *not* layered over `global.vmap` — that map speaks the
 /// player's verbs, and one of its bindings landing on a prep default's source
 /// would suppress the default (any match in the upper layer wins) and then
-/// resolve to a verb [`to_command`] rejects, silently killing the key.
+/// resolve to a verb `keymap::to_command` rejects, silently killing the key.
 #[must_use]
 pub fn mapper() -> Mapper {
     Mapper::new(default_map(), vidiotic_ctl::store::load_prep())

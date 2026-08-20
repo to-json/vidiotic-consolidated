@@ -24,7 +24,7 @@ use crate::isf::IsfValue;
 use crate::time::{Cadence, TimeSig};
 
 /// Bumped on any breaking change to the on-disk shape; [`load`] routes older
-/// files through [`migrate`] and refuses newer ones with a versioned error.
+/// files through `migrate` and refuses newer ones with a versioned error.
 ///
 /// v2: camera clips (`ClipSpec.camera`) and per-cue live delay
 /// (`CueSpec.cam_delay`). v1 files load unchanged (the new fields default);

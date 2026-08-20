@@ -58,7 +58,7 @@ const NAMED_TO_CHARACTER: &[(&str, &str)] = &[
 
 /// Canonicalize a key reported as the literal character it produces — winit's
 /// `Key::Character`. The character *is* the canonical name, so this only
-/// lowercases it; the [`NAMED_TO_CHARACTER`] table is deliberately not
+/// lowercases it; the `NAMED_TO_CHARACTER` table is deliberately not
 /// consulted, so a key that types the word `"Minus"` could never be read as the
 /// `-` key.
 #[must_use]
@@ -68,7 +68,7 @@ pub fn from_character(c: &str) -> String {
 
 /// Canonicalize a key reported as a name — the `Debug` form of `egui::Key` or
 /// winit's `NamedKey`. Punctuation and digits resolve through
-/// [`NAMED_TO_CHARACTER`] to their literal character, letters lowercase, and
+/// `NAMED_TO_CHARACTER` to their literal character, letters lowercase, and
 /// anything else passes through.
 #[must_use]
 pub fn from_named(name: &str) -> String {

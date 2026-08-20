@@ -13,8 +13,8 @@
 //!
 //! Three things, once per tick:
 //!
-//! 1. feed it commands — [`Engine::dispatch`] is the choke point, and it hands
-//!    back anything it does not implement so the shell can;
+//! 1. feed it commands — [`Engine::apply_command`] is the choke point, and it
+//!    hands back anything it does not implement so the shell can;
 //! 2. call [`Engine::tick`], which advances the clock and the rotation and
 //!    returns what to draw;
 //! 3. do the GPU work the [`Tick`] describes.
@@ -237,7 +237,7 @@ pub struct Engine {
     /// The label of a root pressed with nothing bound under it, and when.
     ///
     /// Also a readout. An option-less root opens nothing (see
-    /// [`keymap::Step::Empty`]), and a press that silently does nothing reads
+    /// [`crate::keymap::Step::Empty`]), and a press that silently does nothing reads
     /// as broken gear; this is what lets the statusline say "nothing here"
     /// instead. Cleared by time, in [`Self::build_mirror`].
     pub empty_prefix: Option<(&'static str, Instant)>,

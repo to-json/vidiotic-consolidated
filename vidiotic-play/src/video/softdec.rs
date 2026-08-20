@@ -16,7 +16,8 @@
 //! `vidiotic-core/shaders/preamble.frag`'s `video()`: the shader's job on the
 //! BC path is to unswizzle scaled-YCoCg and to expand an alpha-only texture,
 //! and on this path the shader never gets the chance, because
-//! [`PixelData::Rgba`] reports `video_mode` 0. So every branch of `video()` is
+//! [`crate::video::frame::PixelData::Rgba`] reports `video_mode` 0. So every
+//! branch of `video()` is
 //! reproduced here instead, against the same constants. A mismatch is not a
 //! crash, it is a clip that looks wrong on one class of machine and right on
 //! every machine the author owns — which is why the tests below check the

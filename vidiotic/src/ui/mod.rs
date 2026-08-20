@@ -2,9 +2,10 @@
 //! context, winit input translation, the wgpu paint renderer, and the cached
 //! clip thumbnails. `control_ui` reads a `UiMirror` and emits `Command`s.
 //!
-//! Layout is split by panel: [`transport`] (top), [`status`] (bottom),
-//! [`editor`] (right, the selected cue's fields), and [`library`] (center,
-//! the clip pool and cue banks). The palette, spacing scale, and shared
+//! Layout is split by panel: [`vidiotic_play::ui::transport`] (top),
+//! [`vidiotic_play::ui::status`] (bottom), [`vidiotic_play::ui::editor`]
+//! (right, the selected cue's fields), and [`vidiotic_play::ui::library`]
+//! (center, the clip pool and cue banks). The palette, spacing scale, and shared
 //! custom-painted controls come from the `phosphor` crate
 //! ([`phosphor::theme`] / [`phosphor::widgets`]).
 

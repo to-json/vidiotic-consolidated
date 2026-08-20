@@ -12,7 +12,7 @@
 //! Within a layer, several bindings can match the same non-device shape
 //! (same MIDI channel+CC, same key+modifiers, …) with different `device`
 //! strings; the closest device wins: exact string match, then a fuzzy match
-//! (lowercased, whitespace-collapsed, trailing " <digits>" stripped,
+//! (lowercased, whitespace-collapsed, trailing `" <digits>"` stripped,
 //! equal-or-contains), then `""` (any device).
 //!
 //! Edge behavior: a trigger action (anything but a continuous one) fires

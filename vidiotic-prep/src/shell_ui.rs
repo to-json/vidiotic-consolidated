@@ -5,7 +5,7 @@
 //! this is the remainder, and the remainder is small: two binding tables and
 //! the export dialog. They are here rather than behind a `cfg` in `ui.rs`
 //! because the split is not conditional compilation, it is ownership — these
-//! read [`Controls`](crate::control_input::Controls) and `PrepApp`'s export
+//! read [`Controls`] and `PrepApp`'s export
 //! fields, neither of which a browser build would have at all.
 //!
 //! Both are deferred rather than blocked. `vidiotic-ctl`'s binding tables want

@@ -23,7 +23,7 @@
 //! sits where the platforms actually differ, and nowhere else.
 //!
 //! Two things a shell still owns, because the engine cannot know them: the
-//! thumbnail cache passed to [`library::show`], and answering the `Pick*`
+//! thumbnail cache passed to `library::show`, and answering the `Pick*`
 //! commands the panels emit instead of opening a file dialog themselves.
 
 pub mod command_palette;

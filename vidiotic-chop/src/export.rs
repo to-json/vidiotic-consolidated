@@ -4,7 +4,7 @@
 //!
 //! Baking a span is a machine: natively ffmpeg seeks and decodes on a worker
 //! thread, in a browser a `<video>` element is seek-stepped and the frames go
-//! through [`vidiotic_bake::web::Baker`]. Neither is here.
+//! through `vidiotic_bake::web::Baker`. Neither is here.
 //!
 //! What *is* here is everything after that — assembling the clip specs, the
 //! clip banks, the starter cue bank and the `Project` — and it turns out to be

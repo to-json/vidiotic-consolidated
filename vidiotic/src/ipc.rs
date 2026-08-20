@@ -8,7 +8,7 @@
 //! thread (socket → engine) and a writer thread (engine → socket); the two
 //! never touch the engine directly. All coupling is through channels:
 //!
-//! - a single **bounded** ingress channel carries [`IngressMsg`]s from every
+//! - a single **bounded** ingress channel carries `IngressMsg`s from every
 //!   reader (and the accept thread) to the engine. Bounded so a flooding client
 //!   applies backpressure — a full channel blocks its reader, which stops
 //!   reading its socket — rather than growing engine memory without limit.

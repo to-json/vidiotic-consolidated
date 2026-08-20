@@ -39,14 +39,14 @@ fn file_label(path: &Path) -> String {
 /// The native shell: a marking session, plus every machine it sits on.
 ///
 /// The panels do not see this type. They see [`Editor`] and
-/// [`PrepMirror`](vidiotic_chop::mirror::PrepMirror) — everything below is what those
+/// [`PrepMirror`] — everything below is what those
 /// two exist to keep out of them (web-port.md §2).
 pub struct PrepApp {
     /// The marking session: spans, marks, playhead, jog window, undo. Every
     /// command that acts only on those runs in here — see [`vidiotic_chop::editor`].
     pub editor: Editor,
     /// The open video's decoder. The editor holds its length and rate as
-    /// [`MediaInfo`](vidiotic_chop::editor::MediaInfo); this is the ffmpeg that
+    /// [`MediaInfo`]; this is the ffmpeg that
     /// produced them, and the reason it is on this side of the line.
     pub media: Option<SourceMedia>,
     pub preview_tex: Option<egui::TextureHandle>,

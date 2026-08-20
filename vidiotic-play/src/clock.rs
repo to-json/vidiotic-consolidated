@@ -260,7 +260,7 @@ impl TapTempo {
     /// Record a tap and return the tempo it implies, if there is one yet.
     ///
     /// `None` on the first tap of a measurement — one tap names no interval —
-    /// and on any tap that opens a fresh one after a [`TAP_TIMEOUT`] gap. The
+    /// and on any tap that opens a fresh one after a `TAP_TIMEOUT` gap. The
     /// result is clamped to the same range [`InternalClock`] accepts, so a
     /// double-tap cannot produce a nonsense tempo.
     ///

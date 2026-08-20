@@ -28,12 +28,12 @@
 //! - **The frame rate was read from the wrong field.** `avg_frame_rate` is
 //!   `frames / duration`, so it inherits any error in the declared duration —
 //!   including the one the old muxer introduced. Re-baking a clip that muxer
-//!   wrote produced a file playing 1.1% fast. [`pick_fps`] prefers
+//!   wrote produced a file playing 1.1% fast. `pick_fps` prefers
 //!   `r_frame_rate`, with a guard for the case where *that* is the unreliable
 //!   one, and warns when they disagree.
 //! - **The timeline was milliseconds**, so a 30 fps bake got durations
 //!   alternating 33/34 ms: the average was right but no individual frame was.
-//!   The timescale is now derived from the rate ([`timeline`]), making every
+//!   The timescale is now derived from the rate (`timeline`), making every
 //!   duration identical and the declared rate exact.
 //!
 //! Files baked before this differ in their timestamps. The pixels are

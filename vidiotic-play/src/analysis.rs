@@ -180,7 +180,7 @@ impl Analyzer {
     }
 
     /// Queue mono samples for analysis, dropping the oldest if the caller is
-    /// producing faster than it is polling. See [`MAX_PENDING_HOPS`].
+    /// producing faster than it is polling. See `MAX_PENDING_HOPS`.
     pub fn feed(&mut self, samples: &[f32]) {
         self.pending.extend(samples.iter().copied());
         let cap = self.hop * MAX_PENDING_HOPS;
