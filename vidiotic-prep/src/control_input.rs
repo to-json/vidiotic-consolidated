@@ -294,7 +294,8 @@ impl Controls {
     /// on a timer.
     ///
     /// # Errors
-    /// Propagates the store's write failure so the caller can surface it.
+    /// If the store's write fails — returned rather than swallowed so the caller
+    /// can surface it.
     pub fn flush_prep_map(&mut self) -> anyhow::Result<()> {
         if !self.dirty {
             return Ok(());

@@ -302,7 +302,7 @@ pub fn preprocess_glsl(user_src: &str) -> Preprocessed {
 /// to hand to wgpu via `ShaderSource::Naga`.
 ///
 /// # Errors
-/// Returns [`ShaderError`] if the source fails to parse or validate.
+/// [`ShaderError`] if the source fails to parse or validate.
 pub fn compile_glsl_to_module(user_src: &str) -> Result<naga::Module, ShaderError> {
     let pre = preprocess_glsl(user_src);
     parse_and_validate_glsl(&pre)
@@ -343,7 +343,7 @@ fn parse_and_validate_glsl(pre: &Preprocessed) -> Result<naga::Module, ShaderErr
 /// and the preamble line offset for error remapping.
 ///
 /// # Errors
-/// Returns [`ShaderError`] if the source fails to parse or validate.
+/// [`ShaderError`] if the source fails to parse or validate.
 pub fn compile_isf_program(prog: &crate::isf::IsfProgram) -> Result<naga::Module, ShaderError> {
     let pre = Preprocessed {
         combined: prog.combined.clone(),
@@ -357,7 +357,7 @@ pub fn compile_isf_program(prog: &crate::isf::IsfProgram) -> Result<naga::Module
 /// varying interpolation matches naga's GLSL convention.
 ///
 /// # Errors
-/// Returns [`ShaderError`] if the source fails to parse or validate.
+/// [`ShaderError`] if the source fails to parse or validate.
 pub fn compile_glsl_vertex_module(src: &str) -> Result<naga::Module, ShaderError> {
     let mut frontend = naga::front::glsl::Frontend::default();
     let options = naga::front::glsl::Options::from(naga::ShaderStage::Vertex);
@@ -380,7 +380,7 @@ pub fn compile_glsl_vertex_module(src: &str) -> Result<naga::Module, ShaderError
 /// Parse + validate a WGSL user shader (no preamble; documented binding contract).
 ///
 /// # Errors
-/// Returns [`ShaderError`] if the source fails to parse or validate.
+/// [`ShaderError`] if the source fails to parse or validate.
 pub fn compile_wgsl_to_module(user_src: &str) -> Result<naga::Module, ShaderError> {
     let module = naga::front::wgsl::parse_str(user_src).map_err(|e| {
         let loc = e.location(user_src);

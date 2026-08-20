@@ -104,7 +104,7 @@ pub fn load_global() -> ControlMap {
 }
 
 /// # Errors
-/// Propagates write or serialization failure.
+/// If serialization or the write fails.
 pub fn save_global(map: &ControlMap) -> anyhow::Result<()> {
     save_map(&global_map_path(), map)
 }
@@ -129,15 +129,15 @@ pub fn load_prep() -> ControlMap {
 }
 
 /// # Errors
-/// Propagates write or serialization failure.
+/// If serialization or the write fails.
 pub fn save_prep(map: &ControlMap) -> anyhow::Result<()> {
     save_map(&prep_map_path(), map)
 }
 
 /// # Errors
-/// Propagates read or parse failure, and refuses maps written by a newer
-/// version. Callers that want a silent default for a missing file should check
-/// [`Path::exists`] first (see [`load_global`]).
+/// If the file cannot be read, if it does not parse, or if the map was written
+/// by a newer version. Callers that want a silent default for a missing file
+/// should check [`Path::exists`] first (see [`load_global`]).
 pub fn load_map(path: &Path) -> anyhow::Result<ControlMap> {
     let text = std::fs::read_to_string(path)?;
     let file =
@@ -154,7 +154,7 @@ pub fn load_map(path: &Path) -> anyhow::Result<ControlMap> {
 }
 
 /// # Errors
-/// Propagates directory-creation or write failure.
+/// If the directory cannot be created, or the write fails.
 pub fn save_map(path: &Path, map: &ControlMap) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;

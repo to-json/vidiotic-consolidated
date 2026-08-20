@@ -138,9 +138,9 @@ impl SessionFile {
 /// Parse a sidecar's RON.
 ///
 /// # Errors
-/// Propagates the RON parse error, labelled with `label` — a path natively, a
-/// storage key in a browser — or refuses a sidecar written by a newer build than
-/// this one understands.
+/// If the RON does not parse — the error is labelled with `label`, a path
+/// natively and a storage key in a browser — or if the sidecar was written by a
+/// newer build than this one understands.
 pub fn parse(text: &str, label: &str) -> anyhow::Result<SessionFile> {
     let file =
         SessionFile::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))?;

@@ -14,7 +14,7 @@ use egui::{Color32, Context, Ui};
 /// callers already build their app inside the creation closure.
 ///
 /// # Errors
-/// Propagates [`eframe::run_native`]'s error if graphics setup fails.
+/// If graphics setup fails, as [`eframe::run_native`] reports it.
 pub fn run<'app>(
     app_name: &str,
     native_options: eframe::NativeOptions,

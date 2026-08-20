@@ -114,9 +114,9 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// Returns the nanoserde parse error when `line` is not a well-formed
-    /// request object (malformed JSON, missing `id`/`req`, an unknown body
-    /// key, or a payload that doesn't type-check).
+    /// [`DeJsonErr`] when `line` is not a well-formed request object (malformed
+    /// JSON, missing `id`/`req`, an unknown body key, or a payload that doesn't
+    /// type-check).
     pub fn from_json_line(line: &str) -> Result<Self, DeJsonErr> {
         Self::deserialize_json(line)
     }
@@ -253,9 +253,8 @@ impl Reply {
     ///
     /// # Errors
     ///
-    /// Returns the nanoserde parse error when `line` is not a well-formed
-    /// reply object (malformed JSON, missing `id`/`epoch`, or neither `ok`
-    /// nor `err` present).
+    /// [`DeJsonErr`] when `line` is not a well-formed reply object (malformed
+    /// JSON, missing `id`/`epoch`, or neither `ok` nor `err` present).
     pub fn from_json_line(line: &str) -> Result<Self, DeJsonErr> {
         Self::deserialize_json(line)
     }
@@ -302,8 +301,7 @@ impl Greeting {
     ///
     /// # Errors
     ///
-    /// Returns the nanoserde parse error when `line` is not a well-formed
-    /// greeting object.
+    /// [`DeJsonErr`] when `line` is not a well-formed greeting object.
     pub fn from_json_line(line: &str) -> Result<Self, DeJsonErr> {
         Self::deserialize_json(line)
     }

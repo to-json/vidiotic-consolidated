@@ -100,7 +100,7 @@ impl<W: Write + Seek> MovWriter<W> {
     /// derived from the next sample's timestamp because there isn't one.
     ///
     /// # Errors
-    /// Propagates the underlying writer's errors.
+    /// If the underlying writer fails.
     pub fn new(
         mut w: W,
         width: u32,
@@ -150,7 +150,7 @@ impl<W: Write + Seek> MovWriter<W> {
     /// built by differencing consecutive timestamps.
     ///
     /// # Errors
-    /// Propagates the underlying writer's errors.
+    /// If the underlying writer fails.
     pub fn write_sample(&mut self, data: &[u8], pts: u32) -> io::Result<()> {
         self.w.write_all(data)?;
         self.samples.push(Sample {
@@ -171,8 +171,8 @@ impl<W: Write + Seek> MovWriter<W> {
     /// Close the `mdat`, write the `moov`, and return the underlying writer.
     ///
     /// # Errors
-    /// Propagates the underlying writer's errors, including the seek back to
-    /// patch the `mdat` length.
+    /// If the underlying writer fails, including on the seek back to patch the
+    /// `mdat` length.
     pub fn finish(mut self) -> io::Result<W> {
         // Patch the mdat largesize now that the payload length is known. The
         // +8 covers the `size`/`type` words that precede it.
@@ -653,8 +653,8 @@ fn be64(b: &[u8], at: usize) -> Option<u64> {
 ///
 /// # Errors
 ///
-/// Returns [`MovErr`] if the box tree is malformed, a required box is absent,
-/// the sample tables disagree, or a sample's byte range escapes the file.
+/// [`MovErr`] if the box tree is malformed, a required box is absent, the
+/// sample tables disagree, or a sample's byte range escapes the file.
 pub fn demux(data: &[u8]) -> Result<MovTrack, MovErr> {
     let top = children(data)?;
     let moov = pick(&top, b"moov").ok_or(MovErr::Missing("moov"))?;

@@ -37,8 +37,8 @@ impl SourceMedia {
     /// required by the RGBA scaler).
     ///
     /// # Errors
-    /// Propagates ffmpeg open/probe/decoder-construction failures, and fails if
-    /// the file has no video stream.
+    /// If ffmpeg open/probe/decoder-construction fails, or if the file has no
+    /// video stream.
     pub fn open(path: &Path, preview_w: u32) -> anyhow::Result<Self> {
         let ictx = ff::format::input(path)?;
         let (vid_idx, params, fps, in_tb, frames_hint, width, height) = {
@@ -125,7 +125,7 @@ impl SourceMedia {
     /// Sequential access (idx == last + 1) fast-forwards without reseeking.
     ///
     /// # Errors
-    /// Propagates ffmpeg seek/decode failures. Never panics.
+    /// If an ffmpeg seek or decode fails. Never panics.
     pub fn frame_at(&mut self, idx: u64) -> anyhow::Result<&FramePixels> {
         let idx = idx.min(self.frames.saturating_sub(1));
         if self.last_decoded_frame == Some(idx) {

@@ -119,8 +119,8 @@ impl Engine {
     /// nothing points at any more.
     ///
     /// # Errors
-    /// A message for the shell to surface when `to` is not in its last
-    /// enumeration.
+    /// If `to` is not in `devices` — the error is a message for the shell to
+    /// surface, not a code.
     pub fn relink_camera(
         &mut self,
         devices: &[(&str, &str)],

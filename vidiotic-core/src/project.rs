@@ -403,7 +403,7 @@ pub enum SyncSpec {
 /// where there is no `Path` to read from and no `std::fs` that would work.
 ///
 /// # Errors
-/// Propagates RON parse errors and refuses a newer format version.
+/// If the RON does not parse, or the format version is newer than this build.
 pub fn from_ron_versioned(text: &str, label: &str) -> anyhow::Result<Project> {
     let mut p =
         Project::deserialize_ron(text).map_err(|e| anyhow::anyhow!("parse {label}: {e}"))?;
@@ -424,7 +424,7 @@ pub fn from_ron_versioned(text: &str, label: &str) -> anyhow::Result<Project> {
 /// the same trade as `pollster` and `rayon` elsewhere in this port.
 ///
 /// # Errors
-/// Propagates the file write failure.
+/// If the file cannot be written.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save(p: &Project, path: &Path) -> anyhow::Result<()> {
     std::fs::write(path, p.serialize_ron())?;
@@ -447,8 +447,8 @@ pub fn to_ron_bytes(p: &Project) -> Vec<u8> {
 /// [`from_ron_versioned`].
 ///
 /// # Errors
-/// Propagates read failures and RON parse errors, and refuses files written by
-/// a newer format version.
+/// If the file cannot be read, if the RON does not parse, or if the file was
+/// written by a newer format version.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load(path: &Path) -> anyhow::Result<Project> {
     let text = std::fs::read_to_string(path)?;
@@ -827,7 +827,7 @@ pub fn apply_relink(r: &mut ResolvedProject, clip_id: ClipId, path: PathBuf) {
 /// §8 step 7, which builds an archive rather than a directory.
 ///
 /// # Errors
-/// Propagates directory-creation and copy failures.
+/// If a directory cannot be created, or a copy fails.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn gather(r: &ResolvedProject, dest_dir: &Path) -> anyhow::Result<Project> {
     let clips_dir = dest_dir.join("clips");

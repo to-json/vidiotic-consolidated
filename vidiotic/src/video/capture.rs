@@ -299,8 +299,8 @@ fn name_selectable(name: &str) -> bool {
 /// before putting it on a latency-sensitive path.
 ///
 /// # Errors
-/// Fails if ffmpeg lacks the avfoundation input device, the device vanished,
-/// the format/framerate combination is rejected, or TCC denies capture.
+/// If ffmpeg lacks the avfoundation input device, if the device vanished, if
+/// the format/framerate combination is rejected, or if TCC denies capture.
 pub fn open_device(
     dev: &DeviceInfo,
     video_size: (u32, u32),

@@ -69,9 +69,9 @@ fn resolve_device(
 /// with the fresh ring consumer before returning.
 ///
 /// # Errors
-/// Returns an error if no device resolves, the device offers no default input
-/// config or an unsupported sample format, the analysis thread has exited, or
-/// cpal fails to build or start the stream.
+/// If no device resolves, if the device offers no default input config or an
+/// unsupported sample format, if the analysis thread has exited, or if cpal
+/// fails to build or start the stream.
 pub fn build_capture(
     host: &cpal::Host,
     id: Option<&cpal::DeviceId>,

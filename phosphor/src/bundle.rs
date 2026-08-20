@@ -130,7 +130,7 @@ pub fn logs_dir(family: &str) -> PathBuf {
 /// data dir on first run so it can be livecoded without touching the bundle.
 ///
 /// # Errors
-/// Propagates the first I/O error from creating a directory or copying a file.
+/// If any directory creation or file copy fails — the first such error wins.
 pub fn seed_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {

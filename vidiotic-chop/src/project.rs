@@ -31,8 +31,8 @@ impl ReopenedProject {
     /// empty; only a shell with a filesystem has anything to put there.
     ///
     /// # Errors
-    /// Fails if any clip lacks provenance, or if clips were cut from more than
-    /// one source video.
+    /// If any clip lacks provenance, or if clips were cut from more than one
+    /// source video.
     pub fn from_project(proj: &Project, name: &str) -> anyhow::Result<Self> {
         let mut source: Option<&str> = None;
         let mut spans = Vec::with_capacity(proj.clips.len());

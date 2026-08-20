@@ -111,8 +111,8 @@ impl IpcServer {
     ///
     /// # Errors
     ///
-    /// Returns the bind error if the socket can't be created (e.g. the parent
-    /// directory is missing or unwritable).
+    /// If the socket cannot be created (e.g. the parent directory is missing or
+    /// unwritable).
     pub fn spawn(
         path: PathBuf,
         epoch: Arc<AtomicU64>,

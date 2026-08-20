@@ -91,7 +91,7 @@ fn pos(e: &web_sys::MouseEvent) -> egui::Pos2 {
 /// Attach the pointer listeners to `canvas`. They live for the page's lifetime.
 ///
 /// # Errors
-/// Propagates any `addEventListener` failure.
+/// If any `addEventListener` call fails.
 pub fn attach(canvas: &web_sys::HtmlCanvasElement, q: &Shared) -> Result<(), JsValue> {
     // `move` closures that outlive this call have to be leaked deliberately;
     // `forget` is the documented way and is correct here because the listeners
@@ -195,7 +195,7 @@ fn canon_key(key: &str) -> String {
 /// the focus sits rather than only over the canvas.
 ///
 /// # Errors
-/// Propagates any `addEventListener` failure.
+/// If any `addEventListener` call fails.
 pub fn attach_keys(target: &web_sys::EventTarget, q: &Shared) -> Result<(), JsValue> {
     let shared = q.clone();
     let cb = Closure::<dyn FnMut(_)>::new(move |e: web_sys::KeyboardEvent| {

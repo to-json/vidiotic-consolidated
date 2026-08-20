@@ -259,7 +259,7 @@ fn decode_chunked(body: &[u8], out: &mut Vec<u8>) -> Result<(), HapErr> {
 /// BC4 alpha plane, decoded into `alpha`.
 ///
 /// # Errors
-/// Returns [`HapErr`] if the packet is truncated or malformed, or if a two-plane
+/// [`HapErr`] if the packet is truncated or malformed, or if a two-plane
 /// frame's alpha section is not the expected BC4 format.
 pub fn decode_frame(
     packet: &[u8],

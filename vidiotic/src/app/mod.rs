@@ -689,7 +689,7 @@ impl ApplicationHandler for App {
 /// Run the player until quit: builds the `App` and drives the winit event loop.
 ///
 /// # Errors
-/// Propagates failure to create or run the winit event loop.
+/// If the winit event loop cannot be created, or fails while running.
 pub fn run(boot: Boot) -> anyhow::Result<()> {
     let event_loop = winit::event_loop::EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);

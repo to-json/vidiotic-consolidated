@@ -85,7 +85,8 @@ type Chars<'a> = std::str::Chars<'a>;
 /// `/* … */` is stripped.
 ///
 /// # Errors
-/// Returns a message describing the first malformed or unexpected token.
+/// If `src` is not well-formed JSON; the message names the first malformed or
+/// unexpected token.
 pub fn parse_json(src: &str) -> Result<JVal, String> {
     let mut st = DeJsonState::default();
     let mut chars = src.chars();

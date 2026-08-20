@@ -47,8 +47,8 @@ impl Drop for DecodeHandle {
 /// the pacing: `2.0` plays twice as fast, `0.5` half; `1.0` is native.
 ///
 /// # Errors
-/// Returns an error if ffmpeg initialization fails. Per-clip decode failures
-/// are logged on the worker thread, not returned here.
+/// If ffmpeg initialization fails. Per-clip decode failures are logged on the
+/// worker thread, not returned here.
 pub fn spawn(
     path: PathBuf,
     in_sec: f64,
@@ -295,8 +295,8 @@ fn guard_empty_playthrough(sent_any: bool) {
 /// pipeline as the software video fallback.
 ///
 /// # Errors
-/// Returns an error if ffmpeg init/open fails, the file has no video (image)
-/// stream, or no frame decodes.
+/// If ffmpeg init/open fails, if the file has no video (image) stream, or if no
+/// frame decodes.
 pub fn decode_still(path: &Path) -> anyhow::Result<DecodedFrame> {
     use ff::format::Pixel;
     use ff::software::scaling;

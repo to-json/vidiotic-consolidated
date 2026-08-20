@@ -646,7 +646,7 @@ impl Renderer {
     /// failing the load.
     ///
     /// # Errors
-    /// Returns [`ShaderError`] if the source is not ISF or fails to compile.
+    /// [`ShaderError`] if the source is not ISF, or fails to compile.
     pub fn load_isf(
         &mut self,
         device: &wgpu::Device,
