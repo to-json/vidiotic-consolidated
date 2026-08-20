@@ -171,7 +171,7 @@ pub struct TranscodeReport {
 /// Transcode `input` (any decodable video) to a HAP1 `.mov` at `output`.
 ///
 /// # Errors
-/// Propagates ffmpeg initialization, demux/decode, and mux/write failures.
+/// If ffmpeg initialization, demux/decode, or mux/write fails.
 pub fn run(input: &Path, output: &Path) -> anyhow::Result<()> {
     run_span(input, output, 0.0, None).map(|_| ())
 }
@@ -212,7 +212,7 @@ pub struct BakeUpdate {
 /// `out_sec = None` for a whole-file transcode.
 ///
 /// # Errors
-/// Propagates ffmpeg initialization, seek, demux/decode, and mux/write failures.
+/// If ffmpeg initialization, seek, demux/decode, or mux/write fails.
 pub fn run_span_with(
     input: &Path,
     output: &Path,

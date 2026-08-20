@@ -183,8 +183,8 @@ impl Graphics {
     /// Native setup: a winit window per head.
     ///
     /// # Errors
-    /// Returns an error if surface creation fails, no adapter is available, the
-    /// device request fails, or the GPU lacks BC textures.
+    /// If surface creation fails, if no adapter is available, if the device
+    /// request fails, or if the GPU lacks BC textures.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn new(output_win: Arc<Window>, control_win: Arc<Window>) -> anyhow::Result<Self> {
         pollster::block_on(Self::build(

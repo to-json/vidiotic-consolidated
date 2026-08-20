@@ -59,8 +59,8 @@ impl WireClient {
     ///
     /// # Errors
     ///
-    /// Returns [`ClientError::Io`] if the socket can't be reached and
-    /// [`ClientError::Protocol`] if the first line isn't a valid greeting.
+    /// [`ClientError::Io`] if the socket cannot be reached;
+    /// [`ClientError::Protocol`] if the first line is not a valid greeting.
     pub fn connect(path: impl AsRef<Path>) -> Result<Self, ClientError> {
         let stream = UnixStream::connect(path)?;
         let mut reader = BufReader::new(stream.try_clone()?);

@@ -989,8 +989,8 @@ static LOGGER: ConsoleLog = ConsoleLog;
 /// Mount the editor on `canvas_id`.
 ///
 /// # Errors
-/// Propagates eframe's start failure — a missing canvas, or no WebGPU/WebGL
-/// context to be had.
+/// If eframe cannot start — a missing canvas, or no WebGPU/WebGL context to be
+/// had.
 #[wasm_bindgen]
 pub async fn boot(canvas_id: String) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();

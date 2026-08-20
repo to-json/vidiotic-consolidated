@@ -38,7 +38,7 @@ pub fn merge_into(file: SessionFile, app: &mut PrepApp, source: &Path, adopt_glo
 /// Read and parse a `.vprep` sidecar.
 ///
 /// # Errors
-/// Propagates read failures and RON parse errors.
+/// If the file cannot be read, or the RON does not parse.
 pub fn load_sidecar(path: &Path) -> anyhow::Result<SessionFile> {
     let text = std::fs::read_to_string(path)?;
     vidiotic_chop::session::parse(&text, &path.display().to_string())
@@ -53,7 +53,7 @@ pub fn load_sidecar(path: &Path) -> anyhow::Result<SessionFile> {
 /// file, and noting the folder to re-export into.
 ///
 /// # Errors
-/// Fails if the file doesn't parse, any clip lacks provenance, or clips were
+/// If the file does not parse, if any clip lacks provenance, or if clips were
 /// cut from more than one source video.
 pub fn reopen_project(path: &Path) -> anyhow::Result<ReopenedProject> {
     let proj = project::load(path)?;

@@ -1174,7 +1174,7 @@ fn clear_color() -> wgpu::Color {
 /// document its canvas came from.
 ///
 /// # Errors
-/// Returns a JS error if the GPU is unavailable or the device request fails.
+/// If the GPU is unavailable, or the device request fails.
 ///
 /// # Panics
 /// Panics if there is no `window` or no `performance` clock.
@@ -1426,8 +1426,8 @@ fn with_shell<T>(f: impl FnOnce(&mut Shell) -> Result<T, JsValue>) -> Result<T, 
 /// what tells the two cues apart afterwards — [`deliver_thumbnail`] takes it.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted or the file is not a clip
-/// this player can decode.
+/// If the shell has not booted, or the file is not a clip this player can
+/// decode.
 #[wasm_bindgen]
 pub fn load_clip(name: &str, bytes: Vec<u8>) -> Result<ClipId, JsValue> {
     with_shell(|s| {
@@ -1622,9 +1622,9 @@ pub fn load_isf_source(name: &str, src: &str) -> Result<(), JsValue> {
 /// The answer to a `vidiotic-pick` of kind `shader`.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted or the WGSL fails to compile.
-/// A failed compile leaves the previous shader running rather than blanking the
-/// output — the same thing the native shader watcher does on a bad save.
+/// If the shell has not booted, or the WGSL fails to compile. A failed compile
+/// leaves the previous shader running rather than blanking the output — the
+/// same thing the native shader watcher does on a bad save.
 #[wasm_bindgen]
 pub fn load_shader_source(name: &str, src: &str) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1645,7 +1645,7 @@ pub fn load_shader_source(name: &str, src: &str) -> Result<(), JsValue> {
 /// compositor and only one of them is proven by a clip appearing at all.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted or the index is out of range.
+/// If the shell has not booted, or the index is out of range.
 #[wasm_bindgen]
 pub fn set_effect(index: Option<usize>) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1668,8 +1668,8 @@ pub fn set_effect(index: Option<usize>) -> Result<(), JsValue> {
 /// there, and honouring it would just paint black.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted, or if BC is being asked for
-/// on a device that does not have it.
+/// If the shell has not booted, or if BC is being asked for on a device that
+/// does not have it.
 #[wasm_bindgen]
 pub fn set_soft_decode(on: bool) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1693,7 +1693,7 @@ pub fn set_soft_decode(on: bool) -> Result<(), JsValue> {
 /// has to be *told* 128, not tapped back to it.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted.
+/// If the shell has not booted.
 #[wasm_bindgen]
 pub fn set_bpm(bpm: f64) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1721,7 +1721,7 @@ pub fn set_bpm(bpm: f64) -> Result<(), JsValue> {
 /// channel layout is known.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted.
+/// If the shell has not booted.
 #[wasm_bindgen]
 pub fn push_audio(samples: &[f32], sample_rate: f32) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1758,7 +1758,7 @@ pub fn effect_names() -> Vec<String> {
 /// browser rather than merely linked.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted.
+/// If the shell has not booted.
 #[wasm_bindgen]
 pub fn engine_state() -> Result<String, JsValue> {
     with_shell(|s| {
@@ -1853,7 +1853,7 @@ pub fn engine_state() -> Result<String, JsValue> {
 /// Resize a head's swapchain after its canvas changed size.
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted.
+/// If the shell has not booted.
 #[wasm_bindgen]
 pub fn resize(head: &str, width: u32, height: u32) -> Result<(), JsValue> {
     with_shell(|s| {
@@ -1875,7 +1875,7 @@ pub fn resize(head: &str, width: u32, height: u32) -> Result<(), JsValue> {
 /// looking at it (web-port.md §10a).
 ///
 /// # Errors
-/// Returns a JS error if the shell has not booted or the head is unknown.
+/// If the shell has not booted, or the head is unknown.
 ///
 /// # Panics
 /// Panics if the readback buffer cannot be mapped.
