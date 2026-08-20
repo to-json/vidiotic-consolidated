@@ -2,49 +2,55 @@
 
 What's actually in this tree's comments, where the written rule and the real
 code disagree, and the specific spots worth fixing. Established by reading
-the tree at 2026-08-20, not assumed. Every count below has its command in the
-appendix, so it can be regenerated instead of taken on faith as this codebase
-grows.
+the tree, not assumed. Every count below has its command in the appendix, so
+it can be regenerated instead of taken on faith as this codebase grows.
+
+Last measured 2026-08-20, after the grammar/keymap branch and this guide's own
+first pass were merged. The numbers in §1 moved a lot in that merge and §4's
+punch list closed out entirely, which is the argument for regenerating rather
+than reading: this document is only as true as its last run.
 
 ---
 
 ## 1. Current state (measured)
 
-~44,400 non-blank lines of Rust across the nine workspace crates, plus a
-`web/` JS shell and ~64 ISF shader files (`vidiotic-play/shaders/vidvox/*.fs`).
+51,142 non-blank lines of Rust across the nine workspace crates, plus a
+`web/` JS shell and 81 shader files, 57 of them vendored ISF filters
+(`vidiotic-play/shaders/vidvox/*.fs`).
 
 | Dialect | Count |
 |---|---|
-| Rust `///`/`//!` doc comments | 7,310 lines |
-| Rust `//` line comments (non-doc) | 1,757 lines |
+| Rust `///`/`//!` doc comments | 8,015 lines |
+| Rust `//` line comments (non-doc) | 2,036 lines |
 | Rust `/* */` block comments | 23 occurrences |
-| Shell `#` comments | 687 lines |
-| JS `//` comments (`web/*.js`) | 410 lines |
+| Shell `#` comments | 733 lines |
+| JS `//` comments (`web/*.js`) | 416 lines |
 | Shader comments (`.fs`/`.frag`/`.vert`/`.wgsl`) | 707 lines |
 
-Public API coverage: 590 bare `pub fn` items (not counting `pub(crate)` /
-`pub(super)`, which aren't really public API), of which 68 (11.5%) have no
-`///` immediately above them. That average hides a wide spread by crate:
+Public API coverage: **605 bare `pub fn` items** (not counting `pub(crate)` /
+`pub(super)`, which aren't really public API), **all of them documented**.
 
-| Crate | `pub fn` | missing doc | % missing |
-|---|---|---|---|
-| vidiotic-ctl | 51 | 19 | 37% |
-| vidiotic | 106 | 18 | 17% |
-| vidiotic-play | 162 | 23 | 14% |
-| vidiotic-prep | 45 | 5 | 11% |
-| vidiotic-chop | 71 | 2 | 3% |
-| phosphor | 41 | 1 | 2% |
-| vidiotic-bake | 38 | 0 | 0% |
-| vidiotic-core | 65 | 0 | 0% |
-| vidiotic-wire | 11 | 0 | 0% |
+| Crate | `pub fn` | missing doc |
+|---|---|---|
+| vidiotic-play | 163 | 0 |
+| vidiotic | 105 | 0 |
+| vidiotic-core | 77 | 0 |
+| vidiotic-chop | 71 | 0 |
+| vidiotic-ctl | 54 | 0 |
+| vidiotic-prep | 45 | 0 |
+| phosphor | 41 | 0 |
+| vidiotic-bake | 38 | 0 |
+| vidiotic-wire | 11 | 0 |
 
-`vidiotic-core`, `vidiotic-bake`, and `vidiotic-wire` are fully covered.
-`vidiotic-ctl` is the outlier: over a third of its public functions have no
-doc comment, worse than its raw count of 19 missing suggests.
+The previous run of this document found 68 missing across 590 items, with
+`vidiotic-ctl` the outlier at 37%. Those closed in the grammar/keymap branch
+and the passes after it. Holding at zero is now the bar; the appendix script
+is what checks it.
 
-TODO/FIXME/HACK markers and commented-out dead code are both essentially
-absent (see §5). This is not a codebase short on comments; it's one where the
-comments that exist aren't consistently governed.
+All 16 `unsafe` blocks carry a `SAFETY:` comment. TODO/FIXME/HACK markers and
+commented-out dead code are both absent (see §5). This is not a codebase short
+on comments; it is one whose comments are now governed, and the job is keeping
+them that way.
 
 ---
 
@@ -60,6 +66,27 @@ on `vidiotic`". These are invariants a compiler can't enforce, stated where a
 future editor will actually read them. Model these when writing a new crate
 root or a public item: state the constraint, not a restatement of the
 signature.
+
+**`# Errors` sections** — 82 of them — lead with the condition, never with a
+restatement of the return type. `Returns a JS error if the shell has not
+booted` spends its first four words re-reading `-> Result<(), JsValue>` off
+the signature the reader is already looking at. Two forms, and which one to
+use is decided by whether the error type carries information:
+
+- **Bare conditional**, where it does not — `anyhow::Result`, `io::Result`,
+  `JsValue`, `String`. `/// If the file cannot be read, if the RON does not
+  parse, or if the file was written by a newer format version.`
+- **Type-first**, where it does. `/// [`MovErr`] if the box tree is malformed,
+  a required box is absent, the sample tables disagree, or a sample's byte
+  range escapes the file.` The link is the first thing on the line because
+  the type *is* the first thing worth knowing.
+
+A section that only cross-references another item's — `/// See
+[`run_span_with`].`, `/// As [`Self::new`], except that missing BC is a
+warning` — is a third construction, not a third voice, and is fine as is.
+Banned openers: `Returns`, `Propagates`, `Fails`. The appendix has the census
+command; the tree currently holds 58 bare-conditional, 19 type-first, 5
+cross-reference, and 0 in the banned forms.
 
 **Rust `//` rationale comments** explain why the obvious alternative was
 rejected, with numbers where there are numbers. `Cargo.toml:14-24` is the
@@ -110,19 +137,25 @@ doesn't hold up against comments elsewhere that use past tense to state a
 real invariant.
 
 Checked nine comments that use "used to" / "previously" phrasing outside that
-one plan:
+one plan. Anchored to the item each sits above rather than to a line number,
+because line numbers are exactly what rots — the first run of this table cited
+nine, and after one refactor branch seven of them pointed at the wrong line:
 
 | Location | What it says | Verdict |
 |---|---|---|
-| `vidiotic-core/src/project.rs:490` | Dropping `canonicalize` was a fix, not a regression: only one side of a `strip_prefix` was ever canonicalized, so symlinked project dirs broke silently | Keep. The "not a concession" framing is the point |
-| `vidiotic-bake/src/transcode.rs:84` | Prefer `r_frame_rate` over `avg_frame_rate`; the old path's unconditional `avg_frame_rate` inherited duration errors from a known zero-duration final sample | Keep. Names the exact bug it prevents recurring |
-| `vidiotic-core/src/bank.rs:48` | The cap used to be defined twice, once per capture backend, which made a model constant something two platform files had to agree on by hand | Keep. States why it must stay single-sourced |
-| `vidiotic-prep/src/app.rs:211` | `open_video_then` carries a guard that `finish_open_project` used to carry inline | Keep, but weak. Reword to state the guard's purpose rather than lean on the history |
-| `vidiotic-prep/src/app.rs:757` | Same guard, referenced again from a test name | Same as above |
-| `phosphor/src/theme.rs:321` | `row()` is a function now, not the constant it used to be, because it's a property of the face | Keep. Short, states the actual invariant (face-dependent) |
-| `phosphor/src/theme.rs:617` | A regression test: the old icon codepoints must render as nothing now, or a font that once added 2.44 MB to the bundle is silently linked back in | Keep. Quantified regression guard, exactly the case this rule should protect |
-| `vidiotic-play/src/commands.rs:162` | `BpmDigit` deliberately excluded from `repeats_on_hold`: a held `1` used to spam "11111" into the entry | Keep. The history is the whole reason for the exclusion |
-| `vidiotic-chop/src/commands.rs:117` | `then` used to be two separate command variants (`OpenFollowup`/`SpanFollowup`), now unified | Keep, but weak. The mechanism description that follows carries the real content; the naming history could be cut |
+| `vidiotic-core/src/project.rs` — `absolutize` | Dropping `canonicalize` was a fix, not a regression: only one side of a `strip_prefix` was ever canonicalized, so symlinked project dirs broke silently | Keep. The "not a concession" framing is the point |
+| `vidiotic-bake/src/transcode.rs` — module header, and `pick_fps` | Prefer `r_frame_rate` over `avg_frame_rate`; the old path's unconditional `avg_frame_rate` inherited duration errors from a known zero-duration final sample | Keep. Names the exact bug it prevents recurring |
+| `vidiotic-core/src/bank.rs` — `DELAY_CAP` | The cap used to be defined twice, once per capture backend, which made a model constant something two platform files had to agree on by hand | Keep. States why it must stay single-sourced |
+| `vidiotic-prep/src/app.rs` — `open_video_gated` | Carried a guard that another function "used to carry inline" | **Closed.** The clause is gone and the doc states the guard's purpose directly, which is what this table asked for |
+| `vidiotic-prep/src/app.rs` — the same guard's test | Same | **Closed** with it |
+| `phosphor/src/theme.rs` — `row()` | A function now, not the constant it used to be, because it's a property of the face | Keep. Short, states the actual invariant (face-dependent) |
+| `phosphor/src/theme.rs` — the nerd-font regression test | The old icon codepoints must render as nothing now, or a font that once added 2.44 MB to the bundle is silently linked back in | Keep. Quantified regression guard, exactly the case this rule should protect |
+| `vidiotic-play/src/commands.rs` — `repeats_on_hold` | `BpmDigit` deliberately excluded: a held `1` used to spam "11111" into the entry | Keep. The history is the whole reason for the exclusion |
+| `vidiotic-chop/src/commands.rs` — `then` | Used to be two separate command variants (`OpenFollowup`/`SpanFollowup`), now unified | Keep, but weak. The mechanism description that follows carries the real content; the naming history could be cut |
+
+These nine were a sample, not the census. The tree now has past-tense phrasing
+in 34 files (appendix), most of it added by the same branch that closed the two
+above. Re-run the search before trusting this table as coverage.
 
 Two other hits from the same keyword search turned out not to be provenance
 comments at all: `vidiotic-prep/src/app.rs:278` ("every source previously
@@ -144,59 +177,45 @@ one plan doc:
   it still conveys the same warning, reword it to drop the history. If it
   doesn't, the history *is* the invariant, so keep it.
 
-By that test, seven of the nine above are clean keeps as written; two
-(`app.rs:211`, `app.rs:757`) would read just as well with the "used to"
-clause cut, since the guard's current purpose is what matters, not that it
-moved.
+By that test, seven of the nine above are clean keeps as written. The two that
+were not — both in `prep/src/app.rs`, both leaning on the history of a guard
+whose current purpose was the only thing that mattered — have since had the
+clause cut, which is the test working as intended.
 
 ---
 
 ## 4. Punch list
 
-**Fix: stale cross-reference.** `vidiotic/src/app/keys.rs:16-19` cites
-`vidiotic-prep/UNDO_TODO.md` as tracking an undo/redo rebinding decision.
-That file doesn't exist anywhere in the tree. The real content now lives at
-`vidiotic-prep/docs/undo.md`. Either retarget the comment to that file or, if
-the decision it refers to has since been made, restate the current answer
-inline instead of pointing at a decision doc at all.
+Everything the first run of this list named is done, so what follows is the
+record of what closed and the one thing that replaced it.
 
-**Fix: missing `SAFETY:` comments.** The `SAFETY:` convention followed
-throughout `vidiotic/src/video/capture.rs` and `decoder.rs` (§2) isn't
-followed in `vidiotic-bake/tests/`, where four `unsafe` blocks read raw
-FFmpeg struct fields with no safety comment at all:
+**Closed: stale cross-reference.** `vidiotic/src/app/keys.rs` cited a
+`vidiotic-prep/UNDO_TODO.md` that did not exist anywhere in the tree. It now
+points at `vidiotic-prep/docs/undo.md §1`, which does.
 
-- `vidiotic-bake/tests/gen_fixtures.rs:73`
-- `vidiotic-bake/tests/mov_roundtrip.rs:94`
-- `vidiotic-bake/tests/mov_roundtrip.rs:142`
-- `vidiotic-bake/tests/mov_demux.rs:98`
+**Closed: missing `SAFETY:` comments.** The four `unsafe` blocks in
+`vidiotic-bake/tests/` that read raw FFmpeg struct fields with no safety
+comment now each state the precondition — the pointer came from
+`stream.parameters()` and is live as long as the stream, and the read is a
+read. All 16 `unsafe` blocks in the tree are covered; the appendix has the
+check.
 
-Each reads a codec-parameter pointer that `ffmpeg-next`'s safe API doesn't
-expose. That's a real precondition (`params`/`par` must be a valid,
-live-for-the-duration pointer) worth stating the same way `capture.rs` does,
-not skipped because it's test code.
+**Closed: missing `pub fn` doc comments.** 68 of 590, worst in `vidiotic-ctl`
+at 37%. Now 0 of 605 (§1).
 
-**Close the gap: missing `pub fn` doc comments.** 68 public functions have
-no `///` (§1). Don't work this list top to bottom; start with
-`vidiotic-ctl`, where the *rate* is worst (37%, not just the raw count).
-Representative examples, one crate at a time:
+**Open: nothing enforces any of this.** CI runs fmt, clippy, and the suites.
+It did not run rustdoc, and the cost of that showed up the first time anyone
+looked: `cargo doc --workspace -D warnings` could not document five of the
+nine crates, across 21 broken intra-doc links. Some were simply wrong
+(`Engine::dispatch` had been renamed `apply_command`; `vidiotic/src/ui/mod.rs`
+described its panels as local modules three lines above the comment explaining
+they had moved to `vidiotic-play`), and nothing said so, because nothing
+looked. A `Docs` step now runs it with `-D warnings`, which is what keeps §2's
+intra-doc links from being decorative.
 
-- `vidiotic-ctl/src/app.rs:45,77,89,94,108`: `new`, `save`, `save_as`,
-  `revert`, `open`
-- `vidiotic-play/src/clip.rs:120,125,130`: `width`, `height`, `frame_count`
-- `vidiotic-play/src/clock.rs:70,176,301`: three separate `new`s across
-  different clock types, exactly the kind of function where the doc comment
-  needs to say which clock this is and why it's a separate type
-- `vidiotic/src/app/mod.rs:261`, `vidiotic/src/control_input.rs:143`:
-  `App::new`, `project_map`
-- `vidiotic-prep/src/control_input.rs:193,237,258,281`: `start_learn`,
-  `remove_project_binding`, `remove_prep_binding`, `mark_dirty`
-- `phosphor/src/theme.rs:228`: `set_state`, the one gap in an otherwise
-  fully-documented crate
-
-Rerun the script in the appendix for the full, current list; don't copy this
-one forward as new functions get added.
-
----
+The two conventions this document adds that a tool *cannot* check — "why, not
+what", and the §3 litmus test — stay a matter of review. That is the point of
+writing them down.
 
 ## 5. What's already fine, leave alone
 
@@ -248,10 +267,41 @@ find . \( -name '*.fs' -o -name '*.frag' -o -name '*.vert' -o -name '*.wgsl' \) 
   | xargs -0 grep -cE '//|/\*|\*/' | awk -F: '{sum+=$2} END{print sum+0}'
 ```
 
+`# Errors` lead-in census (§2). Prints the opening word of every errors
+section; `Returns`, `Propagates`, and `Fails` are the banned three, and should
+come back empty.
+
+```sh
+find . -name '*.rs' -not -path './target/*' -not -path './dist/*' -print0 \
+  | xargs -0 awk '/^[[:space:]]*\/\/\/ # Errors$/ {want=1; next}
+                  want && /^[[:space:]]*\/\/\/[[:space:]]*$/ {next}
+                  want {sub(/^[[:space:]]*\/\/\/[[:space:]]*/,""); print $1; want=0}' \
+  | sort | uniq -c | sort -rn
+```
+
+`unsafe` blocks without a `SAFETY:` comment above them (§2, §4). Should be
+empty; `just doc` does not check this, review does.
+
+```sh
+find . -name '*.rs' -not -path './target/*' -not -path './dist/*' -print0 \
+  | xargs -0 awk '/^[[:space:]]*\/\// { if ($0 ~ /SAFETY/) safe=1; next }
+                  /unsafe[[:space:]]*\{/ { if (!safe) print FILENAME":"FNR }
+                  { safe=0 }'
+```
+
+Past-tense phrasing, for the §3 audit. This finds candidates, not defects —
+each hit still has to go through the litmus test by hand.
+
+```sh
+grep -rn 'used to\|previously\|Previously' --include='*.rs' . \
+  | grep -v './target' | sed 's|:.*||' | sort | uniq -c | sort -rn
+```
+
 `pub fn` doc coverage needs more than grep can do alone: it has to find the
 nearest non-blank, non-attribute line above each `pub fn` and check whether
 it starts with `///` or `//!`, skipping over `#[...]` attribute lines in
-between. A short Node script does it:
+between — including multi-line ones, which the first version of this script
+got wrong and reported as false positives. A short Node script does it:
 
 ```js
 const fs = require('fs'), path = require('path');
@@ -270,11 +320,18 @@ for (const file of files) {
   for (let i = 0; i < lines.length; i++) {
     if (!/^\s*pub\s+(async\s+)?fn\s+\w+/.test(lines[i])) continue;
     total++;
-    let j = i - 1, hasDoc = false;
+    let j = i - 1, hasDoc = false, depth = 0;
     while (j >= 0) {
       const s = lines[j].trim();
+      // Inside a multi-line attribute — `#[allow(\n  lint,\n)]` — keep walking
+      // until the brackets balance. Without this the closing `)]` reads as
+      // ordinary code and the item is reported as undocumented when it isn't.
+      const close = (s.match(/[)\]]/g) || []).length;
+      const open = (s.match(/[([]/g) || []).length;
+      if (depth > 0) { depth += close - open; j--; continue; }
       if (s.startsWith('///') || s.startsWith('//!')) { hasDoc = true; break; }
-      if (s.startsWith('#[') || s === '') { j--; continue; }
+      if (s === '' || s.startsWith('#[')) { j--; continue; }
+      if (s.endsWith(']')) { depth = close - open; if (depth > 0) { j--; continue; } }
       break;
     }
     if (!hasDoc) { missing++; console.log(`${file}:${i + 1}`); }
